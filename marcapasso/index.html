@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#234f43"><link rel="icon" href="data:,">
+<title>Marcapasso transvenoso · Acesso à estação</title>
+<style>
+:root{color-scheme:light;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#193d35;background:#f4f7f3}*{box-sizing:border-box}body{margin:0;min-height:100svh;display:grid;place-items:center;padding:32px 20px;background:radial-gradient(ellipse at 10% 5%,#dfece5 0,transparent 50%),#f4f7f3}.shell{width:min(960px,100%);display:grid;grid-template-columns:1.1fr 1fr;background:#fff;border:1px solid #d8e3dc;border-radius:20px;overflow:hidden;box-shadow:0 24px 80px #193d350d}.intro{padding:56px 44px;background:#214b40;color:#e8f2ea;display:flex;flex-direction:column;justify-content:space-between;min-height:570px}.brand{font-size:11px;letter-spacing:2px;text-transform:uppercase;display:flex;gap:15px;align-items:center}.mark{font:42px Georgia,serif;letter-spacing:-5px;text-transform:none;color:#c2dec6}.eyebrow{font-size:10px;letter-spacing:2px;color:#bed0bf;text-transform:uppercase}h1{font:42px/1.12 Georgia,serif;letter-spacing:-1px;margin:18px 0}.intro p{font-size:14px;line-height:1.8;color:#c5d8cf;max-width:300px}.trace{width:100%;height:64px;margin:18px 0;opacity:.85}.meta{border-top:1px solid #ffffff24;padding-top:22px;font-size:10px;letter-spacing:1.1px;color:#bdd2c4}.access{padding:56px 42px;display:flex;flex-direction:column;justify-content:center}.badge{width:40px;height:40px;display:grid;place-items:center;border:1px solid #d6e3d4;border-radius:12px;background:#eff5ec;color:#52734d}h2{font:30px Georgia,serif;margin:22px 0 12px}.access>p{font-size:13px;line-height:1.7;color:#6c8276;margin:0 0 26px}label{display:block;font-size:12px;margin:0 0 8px;font-weight:600}input{width:100%;height:46px;padding:11px 13px;border:1px solid #d1ded5;border-radius:7px;background:#fcfdfb;font:15px system-ui;color:#173e32;outline:none;margin-bottom:20px}input:focus{border-color:#46785e;box-shadow:0 0 0 3px #dcebdd}.password{position:relative}.password input{padding-right:70px}.show{position:absolute;top:0;right:4px;height:46px;border:0;background:none;font-size:11px;color:#55705e;cursor:pointer}#enter{width:100%;height:47px;border:0;border-radius:7px;background:#2c5e4b;color:white;font:600 13px system-ui;cursor:pointer}#enter:hover{background:#214c3b}#enter:disabled{opacity:.65;cursor:wait}#status{min-height:38px;line-height:1.5;margin:14px 0 0;font-size:12px;color:#57705d}#status.error{color:#a03d38}.foot{font-size:10px!important;margin:20px 0 0!important;color:#8a9a8b!important}.access:focus-within .badge{background:#e2efdc}button:focus-visible{outline:3px solid #9abd9f;outline-offset:3px}@media(max-width:700px){body{padding:16px}.shell{grid-template-columns:1fr}.intro{min-height:0;padding:28px}.intro h1{font-size:32px;margin:12px 0}.intro p{margin:0;max-width:none}.intro .eyebrow,.trace,.meta{display:none}.brand{margin-bottom:26px}.access{padding:30px 28px}.access h2{margin-top:14px}.badge{display:none}}
+</style>
+</head>
+<body><main class="shell">
+<section class="intro"><div class="brand"><span class="mark">mp</span><span>Estúdio clínico<br><small>Simulação realística</small></span></div><div><span class="eyebrow">Estação de treinamento / 01</span><h1>Marcapasso<br>transvenoso.</h1><p>Explore a bancada. Prepare o sistema.<br>Interprete e reavalie cada resposta.</p><svg class="trace" viewBox="0 0 340 64" fill="none" aria-hidden="true"><path d="M0 36H45l8-5 8 5h18l3-31 3 54 5-31 5 8h20c10-20 18-20 29 0h48l8-5 8 5h18l3-31 3 54 5-31 5 8h20c10-20 18-20 29 0h50" stroke="#b2d58c" stroke-width="1.6"/></svg></div><div class="meta">BANCADA 3D · PREPARO · ECG · TROUBLESHOOTING</div></section>
+<section class="access"><div class="badge" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v3"/></svg></div><h2>Acessar estação</h2><p>Informe seu usuário e sua senha.<br>O simulador abre assim que o acesso é liberado.</p>
+<form id="login"><label for="username">Usuário</label><input id="username" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required><label for="password">Senha</label><div class="password"><input id="password" name="password" type="password" autocomplete="current-password" required><button type="button" id="show-password" class="show" aria-pressed="false">Mostrar</button></div><button id="enter" type="submit">Entrar no simulador →</button><p id="status" role="status" aria-live="polite"></p></form><noscript>Ative o JavaScript para acessar a estação.</noscript><p class="foot">Simulação educacional · Conteúdo protegido por senha</p></section>
+</main>
+<script>
+(()=>{
+'use strict';
+const config={"version":1,"iterations":600000,"salt":"GgP6MHKeAtc4IFMmQLqPRQ==","iv":"ZZcLvaMKeZvTjykS","payload":"simulador-e2eb6cde66187be3.enc"};
+const form=document.getElementById('login'),user=document.getElementById('username'),pass=document.getElementById('password'),button=document.getElementById('enter'),status=document.getElementById('status');
+const decode=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+document.getElementById('show-password').onclick=e=>{const show=pass.type==='password';pass.type=show?'text':'password';e.currentTarget.textContent=show?'Ocultar':'Mostrar';e.currentTarget.setAttribute('aria-pressed',String(show))};
+form.addEventListener('submit',async e=>{
+ e.preventDefault();if(button.disabled)return;status.className='';button.disabled=true;status.textContent='Abrindo a estação…';
+ try{
+  if(!window.isSecureContext||!crypto.subtle)throw new Error('unsupported');
+  const enc=new TextEncoder();let material=enc.encode(JSON.stringify([user.value,pass.value]));
+  const seed=await crypto.subtle.importKey('raw',material,'PBKDF2',false,['deriveKey']);material.fill(0);material=null;
+  const key=await crypto.subtle.deriveKey({name:'PBKDF2',salt:decode(config.salt),iterations:config.iterations,hash:'SHA-256'},seed,{name:'AES-GCM',length:256},false,['decrypt']);
+  const response=await fetch(new URL(config.payload,location.href),{cache:'no-store',credentials:'omit',referrerPolicy:'no-referrer'});
+  if(!response.ok)throw new Error('network');
+  const plain=await crypto.subtle.decrypt({name:'AES-GCM',iv:decode(config.iv),tagLength:128,additionalData:enc.encode('pacing-station/v1')},key,await response.arrayBuffer());
+  const html=new TextDecoder('utf-8',{fatal:true}).decode(plain);new Uint8Array(plain).fill(0);pass.value='';user.value='';
+  document.open();document.write(html);document.close();
+ }catch(error){
+  status.className='error';status.textContent=error.message==='unsupported'?'Abra esta página por HTTPS em um navegador atualizado.':error.message==='network'||error instanceof TypeError?'Não foi possível carregar a estação. Confira a conexão e tente novamente.':'Usuário ou senha incorretos. Confira letras maiúsculas e minúsculas.';
+  pass.value='';button.disabled=false;pass.focus();
+ }
+});
+})();
+</script></body></html>

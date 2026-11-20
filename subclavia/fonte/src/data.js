@@ -482,7 +482,7 @@
      (que, carregado depois, prevalece se também definir esta) */
   g('tissue-forceps', 'Pinça de dissecção com dente (tipo Adson)', 'Instrumentos',
     'Pinça delicada com dentes na ponta, segura na mão não dominante como um lápis.',
-    'Na fixação, faz a contrapressão na pele junto à entrada da agulha, recebe a ponta da agulha e manipula as pontas do fio — na técnica descrita, a agulha não é tocada com os dedos.');
+    'Na fixação, faz a contrapressão na pele junto à entrada e estabiliza a pele além da saída da agulha (sem prender a ponta, que se cegaria) e manipula as pontas do fio — na técnica descrita, a agulha não é tocada com os dedos.');
   g('suture-scissors', 'Tesoura de fio', 'Instrumentos',
     'Tesoura de ponta romba usada para cortar o fio da sutura.',
     'Na bailarina, corta as pontas deixando cerca de 0,5–1 cm além do nó final, com as lâminas afastadas do cateter e das extensões — um corte rente demais solta o nó; um corte junto ao cateter pode lesá-lo.');
@@ -671,7 +671,9 @@
             ['bct', 'Tronco braquiocefálico']
           ],
           highlight: 'scv-R',
-          anim: null
+          anim: null,
+          // linhas do quadro "Assimetria D × E" (o texto cita introdutores rígidos, artéria e linfáticos da confluência)
+          insetRows: ['Veia braquiocefálica', 'Trajeto', 'Mau posicionamento', 'Introdutores', 'Artéria subclávia', 'Linfáticos']
         },
         inset: 'asymmetry'
       },
@@ -794,7 +796,7 @@
         body: [
           'As descrições convergem sem serem idênticas. Bannon et al. situam a punção cutânea 1–2 cm inferior e lateral à junção dos terços medial e médio da clavícula; o documento-base usa cerca de 2 cm lateral e 2 cm caudal à mesma referência, descrição que atribui também a Braner et al. Uma entrada colada à clavícula dificulta passar sob ela sem angular a agulha para trás — e essa angulação posterior aumenta o risco de pneumotórax (Bannon et al.).',
           'Essas distâncias são medidas <strong>na superfície</strong>, a partir de um marco específico. Não equivalem a profundidade e não são transportáveis: tecido adiposo, musculatura, posição do ombro, deformidades e acessos prévios mudam as relações. O local de punção inadequado em relação à clavícula foi um dos erros mais comuns em 86 inserções filmadas (Kilbourne et al.).',
-          'Antes de qualquer punção real entram indicação e escolha do sítio, assepsia com clorexidina, barreira estéril máxima, anestesia local, monitorização, ultrassom disponível e plano de resgate com equipe habilitada. O círculo na cena marca uma <em>região ilustrativa</em>, não um alvo clínico validado.'
+          'Nas descrições revisadas, a punção real é precedida de indicação e escolha do sítio, assepsia com clorexidina e barreira estéril máxima (Bannon et al.), anestesia local, monitorização, ultrassom disponível e plano de resgate com equipe habilitada. O círculo na cena marca uma <em>região ilustrativa</em>, não um alvo clínico validado.'
         ],
         keyPoints: [
           'Entrada descrita: 1–2 cm inferior e lateral à junção dos terços medial e médio (Bannon et al.).',
@@ -908,7 +910,7 @@
         body: [
           'No trajeto infraclavicular a agulha atravessa, do superficial ao profundo: pele, tela subcutânea, fáscia e parte clavicular do <strong>peitoral maior</strong>, <strong>fáscia clavipeitoral</strong> e <strong>músculo subclávio</strong>, até a parede anterior da veia sobre a 1ª costela (Bannon et al. descrevem a passagem através do subclávio). A espessura total depende do biotipo e da compressão exercida pelo polegar.',
           'O documento-base apresentava “tocar a clavícula, recuar e abaixar” como sequência obrigatória. Neste atlas, o contato ósseo é um achado: atravessar o periósteo da clavícula está, inclusive, entre os erros técnicos mais observados (Kilbourne et al.). Não se ensina raspar o osso, “caminhar” sob ele com a ponta profunda nem forçar a passagem.',
-          'Correções de direção com a ponta profunda movem-na como braço de alavanca e podem lesar estruturas vizinhas. A referência técnica é <strong>recuar até o plano superficial antes de redirecionar</strong>, conforme treinamento e protocolo. O atlas não fixa 3–5 mm, nem qualquer outro valor, como recuo suficiente.',
+          'Correções de direção com a ponta profunda movem-na como braço de alavanca e podem lesar estruturas vizinhas. Nas descrições de ensino, a agulha <strong>recua até o plano superficial antes de ser redirecionada</strong>, conforme treinamento e protocolo. O atlas não fixa 3–5 mm, nem qualquer outro valor, como recuo suficiente.',
           'O corte parassagital da cena passa pelo espaço costoclavicular, um pouco medial ao ponto em que a agulha alcança a veia, e é visto pela direita: a clavícula acima e à frente; logo abaixo dela, o <strong>subclávio</strong> (destacado), à frente da veia — o músculo que a agulha atravessa antes da parede venosa; a 1ª costela sob a veia; o escaleno anterior atrás dela e, atrás do músculo, a artéria, o plexo e a cúpula pleural — tudo o que existe além do alvo. É o triângulo costoclavicular-escalênico (clavícula à frente, 1ª costela embaixo, escaleno anterior atrás), descrito por Aiken e Minton e citado por Bannon et al.'
         ],
         keyPoints: [
@@ -973,14 +975,14 @@
         focus: 'Refluxo isolado — sangue escuro, sem pulsação — não basta para afirmar posição venosa antes da dilatação.',
         body: [
           'Na descrição de ensino, o avanço cessa ao refluxo e o conjunto é estabilizado. No modelo, a mão de apoio sai de cena para expor canhão e fio; na prática, ela estabiliza o canhão apoiada no paciente enquanto a seringa é desconectada e o fio introduzido. Perder a veia nessa troca é erro frequente (Kilbourne et al.).',
-          'Cor e pulsatilidade não distinguem com segurança veia de artéria. Por isso, nas descrições revisadas, a posição venosa é confirmada por método objetivo antes de dilatar — manometria (Ezaru et al.), transdução de pressão ou ultrassom mostrando o fio na veia, entre outros, conforme o protocolo do serviço. Num programa com manometria obrigatória, não houve lesão arterial por cateter calibroso em 9.348 cateteres ao longo de 15 anos; no último ano, 4 de 28 punções arteriais só foram reconhecidas pela manometria (Ezaru et al.).',
-          'O fio progride <strong>sem força</strong>, com controle contínuo da extremidade externa; diante de resistência, a passagem é interrompida. Arritmias surgem quando o fio alcança o coração e acompanham o comprimento introduzido: num ECR pela jugular interna direita (69 pacientes), houve arritmia durante a dilatação em 65% com 20 cm de fio × 26% com 15 cm (Lee et al.). Pela subclávia direita as distâncias até a cava são maiores (Bannon et al.), mas a relação é a mesma: fio introduzido além do necessário aumenta a chance de arritmia.',
+          'Cor e pulsatilidade não distinguem com segurança veia de artéria; nas descrições revisadas, a posição venosa é confirmada por método objetivo antes da dilatação — manometria, transdução de pressão ou ultrassom mostrando o fio na veia, entre outros, conforme o protocolo do serviço. Num programa com manometria obrigatória, não houve lesão arterial por cateter calibroso em 9.348 cateteres ao longo de 15 anos; no último ano, 4 de 28 punções arteriais só foram reconhecidas pela manometria (Ezaru et al.).',
+          'O fio progride <strong>sem força</strong>, com controle contínuo da extremidade externa; resistência interrompe a passagem. Arritmias surgem quando o fio alcança o coração e acompanham o comprimento introduzido: num ECR pela jugular interna direita (69 pacientes), houve arritmia durante a dilatação em 65% com 20 cm de fio × 26% com 15 cm (Lee et al.). Pela subclávia direita as distâncias até a cava são maiores (Bannon et al.), mas a relação é a mesma: fio além do necessário, mais arritmia.',
           'À direita, o fio pode subir pela <strong>jugular interna</strong> na confluência — ative “Fio na VJI” (trajeto anômalo do fio-guia). Girar a cabeça para o lado oposto aumenta o ângulo entre subclávia e jugular e pode favorecer esse desvio (Bannon et al.). A orientação da ponta em J também pesa: num ECR com 295 pacientes, com o J voltado caudalmente o cateter chegou à cava/átrio em 97% (× 57% com o J voltado cranialmente) e foi para a jugular interna em 2% (× 40%) (Tripathi et al.). Por isso, no modelo, a agulha gira antes do fio para que o bisel — e, com ele, a saída do J — fique voltado para os pés; o ensaio avaliou a orientação do J, não a do bisel. A ausência de fio na jugular, isoladamente, não prova posição central correta.'
         ],
         keyPoints: [
-          'Ao refluxo, a agulha é estabilizada; perder a veia na troca seringa → fio é erro frequente (Kilbourne et al.).',
-          'Posição venosa confirmada por método objetivo antes de dilatar (Ezaru et al.).',
-          'Fio sem força; resistência ou arritmia interrompem a passagem para reavaliação.',
+          'Agulha estabilizada ao refluxo, sem perder a veia na troca seringa → fio.',
+          'Posição venosa confirmada por método objetivo antes de dilatar.',
+          'Fio sem força; resistência ou arritmia → interrupção e reavaliação.',
           'À direita, o fio pode desviar para a jugular interna.',
           'Bisel e ponta em J voltados caudalmente (no modelo, o bisel gira para os pés na passagem do fio): num ECR pela subclávia direita, desvio para a jugular interna em 2% com o J caudal × 40% com o J cranial (Tripathi et al.).'
         ],

@@ -170,18 +170,20 @@ D.sources.forEach((s) => { if (!used.has(s.n)) warn.push('fonte ' + s.n + ' não
    interface ("Use o botão", "ative “Fio na VJI”", "Gire a vista") e as alternativas do quiz não entram.
    Os textos da fixação vêm de src/data.fixacao.js (outro dono): o aviso diz a origem. */
 {
-  const IMP = /\b(confirme|reavalie|recue|interrompa|acione|aspire|mire|evite|mantenha|verifique|misture|siga|comece|divida|leia|confira)\b|\bpeça\s+(ao|à|que)\b/i;
+  const IMP = /\b(confirme|reavalie|recue|interrompa|acione|aspire|mire|evite|mantenha|verifique|misture|siga|comece|divida|leia|confira|retire|remova|pare|introduza|dilate|lave|fixe|anote|registre|posicione|palpe|aprofunde|redirecione|insista|considere|certifique|garanta|prefira|puncione)\b|\bpeça\s+(ao|à|que)\b|\blembre-se\b/i;
   // deôntico ("deve ficar", "não deve chegar"); frases atribuídas ("segundo X", "X et al. descrevem") não contam
-  const DEON = /\b(deve|devem|deveria|precisam?)\s+(ficar|ser|permanecer|passar|chegar|continuar|criar|entrar)\b|\bexigem?\s+(parar|interrup)/i;
+  const DEON = /\b(deve|devem|deveria|deveriam|precisam?)\s+(n[ãa]o\s+)?[a-zà-ú]+(ar|er|ir|or)\b|\bexigem?\s+(parar|interrup)|\b(é preciso|é necessário|recomenda-se|convém|não se deve)\b/i;
   const ATTR = /et al\.|[Ss]egundo |descrevem|recomendam|indicam/;
-  const INF0 = /^(Confirmar|Estabilizar|Evitar|Interromper|Mirar|Recuar|Acionar|Aspirar|Fixar|Reavaliar|Parar|Não\s+(retirar|remover|dirigir|aprofundar|introduzir|levantar|perder|misturar))\b/;
+  const INF0 = /^(Confirmar|Estabilizar|Evitar|Interromper|Mirar|Recuar|Acionar|Aspirar|Fixar|Reavaliar|Parar|Manter|Avançar|Introduzir|Retirar|Remover|Lavar|Anotar|Limitar|Preferir|Puncionar|Não\s+(retirar|remover|dirigir|aprofundar|introduzir|levantar|perder|misturar|avançar|forçar|insistir))\b/;
+  // comando no infinitivo depois de dois-pontos/travessão ("…: não retirar às cegas — acionar equipe")
+  const INFMID = /[:;—–→]\s*(não\s+)?(confirmar|estabilizar|evitar|interromper|mirar|recuar|acionar|aspirar|fixar|reavaliar|parar|manter|avançar|introduzir|retirar|remover|levantar|dirigir|aprofundar|anotar|lavar)\b/i;
   const UI = /bot[aã]o|controle|Ver no 3D|Etapas da agulha|ative “|Gire a vista|escolha “|Compare com a cena/;
   const plain = (s) => String(s || '').replace(/<[^>]+>/g, '');
   const tone = (where, s, startCmd) => {
     const t = plain(s);
     t.split(/(?<=[.;!?])\s+/).forEach((frag) => {
       if (UI.test(frag) || ATTR.test(frag)) return;
-      if (IMP.test(frag) || DEON.test(frag) || (startCmd && INF0.test(frag.trim()))) warn.push('tom prescritivo em ' + where + ': “' + frag.trim().slice(0, 90) + '”');
+      if (IMP.test(frag) || DEON.test(frag) || INFMID.test(frag) || (startCmd && INF0.test(frag.trim()))) warn.push('tom prescritivo em ' + where + ': “' + frag.trim().slice(0, 90) + '”');
     });
   };
   D.chapters.forEach((c) => {

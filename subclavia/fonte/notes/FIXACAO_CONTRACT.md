@@ -62,3 +62,16 @@ Acrescenta a `window.ATLAS_DATA` (sem editar `src/data.js`):
 - `checklist`: itens adicionais da fixação (acrescentar ao fim).
 - Cena do capítulo: `state: { phase: 6, fixStep: 9, ... }`, `anim: 'fix'` (a UI anima 0→9 com pausas), vista
   `api.focusView` (ou equivalente numérico), camadas `skin, instrument, aids` (e `drape` se o realismo pedir).
+
+## Estado final do contrato (após a onda 6)
+- `api.steps` (10), `api.stepMs` = [0, 3000, 12000, 8000, 8500, 9000, 9000, 8500, 10000, 3500] ms (soma 71,5 s; com as
+  pausas da UI a animação completa dura ≈79 s), `api.stepViews` (10 vistas, uma por etapa; a UI as segue até o
+  leitor mexer na câmera), `api.anchorSteps` (faixa [primeira, última] etapa em que cada âncora vale como rótulo).
+- `api.focusView` = `api.finalView` = `api.stepViews[9]` (mesmo objeto): alvo no filme, raio 16 — filme inteiro no
+  visor em 1440×900, 1280×720 e 390×844.
+- `api.settle(state)` salta ao estado final da etapa (capturas e impressão); `api.available`, `api.debug()`,
+  `api.scene()` (inclui `nHold`/`fNeedle`), `api.strands()`, `api.clearance()`.
+- Coreografia: a agulha só muda de pose presa a um instrumento (porta-agulha ou pinça no corpo exteriorizado, nunca
+  na ponta); repega assistida pela pinça no ponto de ancoragem e nas asas; mandíbula do porta-agulha articulada;
+  pontas em repouso deitadas do lado da âncora; curativo, gel e etiqueta só na etapa 9.
+

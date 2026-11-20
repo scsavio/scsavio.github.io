@@ -91,13 +91,13 @@
   const g = (id, name, desc, relevance) => { G[id] = { name, group: 'Instrumentos', desc, relevance }; };
   g('suture-ballerina', 'Fixação em bailarina (fio e nós)',
     'Entrelaçamento em X de um único fio monofilamentar: ponto de ancoragem na pele de um lado do cateter, junto à saída, e duas pontas que trocam de lado por baixo do cateter e se cruzam por cima, com um nó a cada cruzamento. Em inglês, <em>Roman sandal</em> ou <em>Chinese finger trap</em>.',
-    'Concebida para apertar o cateter quando ele é puxado para fora; deve ficar firme sem deformá-lo. A conferência inclui a marca em cm na pele, refluxo e lavagem de todas as vias e ausência de dobra.');
+    'Concebida para apertar o cateter quando ele é puxado para fora; na técnica descrita, fica firme sem deformá-lo. A conferência inclui a marca em cm na pele, refluxo e lavagem de todas as vias e ausência de dobra.');
   g('suture-anchor', 'Ponto de ancoragem na pele',
     'Ponto dérmico de um lado do cateter, a cerca de 0,5–1 cm da saída em direção ao canhão e fora do trajeto subcutâneo, com a pegada paralela ao cateter; fechado com nó cirúrgico e seminós, fica no meio do fio, e as duas pontas saem dele do mesmo lado.',
     'Transmite à pele toda a força de tração: pegada dérmica firme e nó que aproxima sem isquemiar, com a contagem completa de laçadas. Nunca sob o trajeto subcutâneo do cateter — a agulha pode perfurá-lo.');
   g('suture-wing', 'Pontos nas asas do canhão',
     'Um ponto por orifício das asas do canhão, feito com um segundo fio, amarrado sobre a asa, com o cateter em curva suave entre a bailarina e o canhão.',
-    'Contêm a rotação e o deslizamento para dentro, que a bailarina pouco segura. Não devem afundar a asa rígida na pele (lesão por pressão).');
+    'Contêm a rotação e o deslizamento para dentro, que a bailarina pouco segura. Na técnica descrita, não afundam a asa rígida na pele (risco de lesão por pressão).');
   g('needle-holder', 'Porta-agulha',
     'Pinça com cremalheira que prende a agulha de sutura e serve para os nós instrumentais.',
     'Agulha presa no terço posterior do corpo, perpendicular às mandíbulas, nunca sobre o engaste. Manipular a agulha só com instrumentos protege o operador.');
@@ -139,7 +139,7 @@
       {
         k: 1, title: 'Preparo e distribuição do fio',
         text: 'Com o cateter posicionado e as vias aspiradas, lavadas e fechadas, o canhão fica apoiado e o trecho externo livre, sem tensão nem dobra. A marca em centímetros do cateter rente à pele é lida e anotada: é a referência para reconhecer migração durante e depois da fixação — e para um eventual recuo depois da imagem de controle. A agulha é montada e o fio sai inteiro da embalagem.',
-        movement: 'A agulha é presa com a ponta das mandíbulas do porta-agulha, no terço posterior do corpo (perto da junção com o terço médio), perpendicular às mandíbulas e com a ponta voltada para cima; a cremalheira trava no primeiro dente. A agulha nunca é segura com os dedos: a posição se ajusta com a pinça.',
+        movement: 'A agulha é presa com a ponta das mandíbulas do porta-agulha, no terço posterior do corpo (sem pegar o engaste), perpendicular às mandíbulas e com a ponta voltada para cima; a cremalheira trava no primeiro dente. A agulha nunca é segura com os dedos: a posição se ajusta com a pinça.',
         cautions: [
           'O fio não é cortado antes do fim. Só a agulha será separada, rente ao engaste, logo após o ponto de ancoragem (passo 2); todo o resto é o estoque das duas “fitas”.',
           'A agulha nunca é presa sobre o engaste (ponto fraco: ela entorta ou se solta do fio).',
@@ -152,7 +152,7 @@
       {
         k: 2, title: 'Ponto de ancoragem na pele',
         text: 'O ponto fica de um lado do cateter, a cerca de 0,5–1 cm da saída, em direção ao canhão — fora do trajeto subcutâneo, que segue da saída para dentro —, a alguns milímetros do cateter e com a pegada paralela a ele. A agulha entra e sai da pele em arco, numa pegada dérmica, sem tocar o cateter. O fio é puxado até que as duas pontas fiquem de comprimento semelhante: o ponto fica no meio do fio, e as duas pontas saem do mesmo lado do cateter. Em seguida, a agulha é separada — cortada rente ao engaste, longe do cateter — e levada na hora ao descartador.',
-        movement: 'Contrapressão na pele com a pinça, ao lado do ponto de entrada (com o instrumento, não com o dedo). A ponta da agulha apoia-se perpendicular à pele (90°) e avança pelo giro do punho — da pronação para a supinação —, seguindo a curva da agulha, sem ser empurrada em linha reta. Quando a ponta sai, o porta-agulha prende o corpo exteriorizado da agulha (não a ponta) e completa o arco com o mesmo giro; o fio é puxado com tração paralela à pele. Para separar a agulha, ela continua presa no porta-agulha, a tesoura corta o fio junto ao engaste com as lâminas longe do cateter, e o porta-agulha leva a agulha ao descartador sem soltá-la no campo.',
+        movement: 'Contrapressão na pele com a pinça, ao lado do ponto de entrada (com o instrumento, não com o dedo). A ponta da agulha apoia-se perpendicular à pele (90°) e avança pelo giro do punho — da pronação para a supinação —, seguindo a curva da agulha, sem ser empurrada em linha reta. Quando a ponta sai, a pinça prende o corpo exteriorizado da agulha (nunca a ponta, que se cegaria) e o traz alguns milímetros pela curva enquanto o porta-agulha solta e o repega mais adiante; o porta-agulha completa o arco com o mesmo giro e o fio é puxado com tração paralela à pele. Para separar a agulha, ela continua presa no porta-agulha, a tesoura corta o fio junto ao engaste com as lâminas longe do cateter, e o porta-agulha leva a agulha ao descartador sem soltá-la no campo.',
         cautions: [
           'Pegada nem superficial (a pele rasga quando a malha for tracionada) nem profunda (dor, sangramento e risco de atingir o cateter no subcutâneo).',
           'A agulha nunca passa por baixo do trajeto subcutâneo do cateter: a ponta pode perfurá-lo.',
@@ -163,7 +163,7 @@
       },
       {
         k: 3, title: 'Nó de ancoragem',
-        text: 'Nó cirúrgico — primeira laçada com duas voltas — completado com seminós alternados até a contagem que o fio exige, assentado sobre a pele sem estrangulá-la. As duas pontas continuam longas, de comprimento semelhante e do mesmo lado do cateter: serão as “fitas da sapatilha”.',
+        text: 'Nó cirúrgico — primeira laçada com duas voltas — completado com seminós alternados até a contagem que o fio exige, assentado sobre a pele sem estrangulá-la. As duas pontas continuam longas, de comprimento semelhante e do mesmo lado do cateter — deitadas juntas do lado da âncora —: serão as “fitas da sapatilha”.',
         movement: 'Nó instrumental: porta-agulha na mão dominante, paralelo à pele, entre as duas pontas. A mão não dominante passa uma das pontas duas vezes ao redor das mandíbulas; o porta-agulha pega a outra ponta perto do ponto e a puxa através das voltas (como as duas pontas são longas, todo o comprimento dela atravessa as voltas; o nó manual a duas mãos é alternativa). As pontas são tracionadas em sentidos opostos, paralelas à pele e na linha do ponto, até o nó assentar. Cada seminó seguinte leva uma volta em sentido contrário à anterior, com as mãos trocando de lado ao tracionar, para formar um nó quadrado (plano), que não desliza.',
         cautions: [
           'Aproximar, não estrangular: a pele sob o nó não pode ficar pálida, enrugada ou repuxada — o sítio edemacia nas horas seguintes.',
@@ -227,7 +227,7 @@
       {
         k: 8, title: 'Pontos nas asas do canhão',
         text: 'Com o segundo fio montado (a agulha da bailarina já foi descartada), o canhão é ancorado com um ponto em cada orifício das asas (dois pontos), com o cateter entre a bailarina e o canhão em curva suave, sem dobra nem tensão.',
-        movement: 'O canhão é posicionado antes do ponto, de modo que as extensões fiquem orientadas sem tracionar o sítio. A agulha passa pelo orifício da asa e faz a pegada dérmica logo abaixo dele — entrada perpendicular e arco por pronossupinação, como na ancoragem —; o nó instrumental (dupla volta + seminós alternados) é amarrado sobre a asa. Terminados os dois pontos, a agulha vai ao descartador sob visão, e confere-se que nenhuma agulha ficou no campo.',
+        movement: 'O canhão é posicionado antes do ponto, de modo que as extensões fiquem orientadas sem tracionar o sítio. A agulha passa pelo orifício da asa e faz a pegada dérmica logo abaixo dele — entrada perpendicular e arco por pronossupinação, como na ancoragem —; a pinça segura o corpo exteriorizado da agulha enquanto o porta-agulha a repega, e de novo entre as duas asas, para recarregá-la na pega inicial; o nó instrumental (dupla volta + seminós alternados) é amarrado sobre a asa. Terminados os dois pontos, a agulha vai ao descartador sob visão, e confere-se que nenhuma agulha ficou no campo.',
         cautions: [
           'O nó aproxima a asa da pele sem afundá-la: asa rígida comprimida contra a pele causa lesão por pressão.',
           'Curva suave entre a bailarina e o canhão: nem esticado (traciona o sítio), nem em alça apertada (dobra).',
@@ -300,7 +300,7 @@
       'A qualidade depende de três coisas. <strong>Distribuição do fio</strong>: âncora no meio do fio, pontas de comprimento semelhante e nada cortado até o fim além da agulha; cruzamentos regulares e próximos da saída. <strong>Tensão</strong>: progressiva e uniforme — o laço não desliza quando empurrado, mas o cateter continua redondo, sem marca, achatamento ou dobra; o nó de ancoragem aproxima sem isquemiar a pele. <strong>Movimentos</strong>: agulha presa no terço posterior, entrada perpendicular e arco por pronossupinação; nós apertados em sentidos opostos, paralelos à pele, com o canhão estabilizado. A marca em centímetros na pele, anotada antes e conferida depois, mostra se a fixação deslocou o cateter.',
       // folha A4 do capítulo: a evidência detalhada (drenos, laboratório, Cochrane) e os riscos da sutura ficam no
       // passo a passo — 'alternatives' (item “Sobre a evidência…”) e 'complications' —, não repetidos aqui
-      'A bailarina se faz com o rigor estéril da inserção e é conferida antes do uso; se a imagem de controle, feita depois, pedir recuo, ela é desfeita e refeita. A evidência vem de drenos e de testes de laboratório — não localizamos ensaio clínico em cateter venoso central —, e as instruções do fabricante e o protocolo do serviço prevalecem sobre esta descrição, podendo preferir dispositivo adesivo sem sutura ou ancoragem subcutânea (estudos e números em “Alternativas à sutura”, no passo a passo).'
+      'A bailarina se faz com o rigor estéril da inserção e é conferida antes do uso; se a imagem de controle, feita depois, pedir recuo, ela é desfeita e refeita. A evidência vem de drenos e de testes de laboratório — não localizamos ensaio clínico em cateter venoso central —, e as instruções do fabricante e o protocolo do serviço prevalecem sobre esta descrição, podendo preferir dispositivo adesivo sem sutura ou ancoragem subcutânea (estudos e números em “Alternativas à sutura”, na seção “Fixação em bailarina” do material complementar).'
     ],
     keyPoints: [
       'Ancoragem de um lado do cateter, no meio do fio: duas pontas longas e de comprimento semelhante; agulha descartada logo após o ponto; nada mais se corta até o nó final.',
@@ -314,7 +314,7 @@
       'Laço frouxo (desliza e o cateter migra) ou apertado demais (achata, oclui ou lesa o cateter).',
       'Nó que isquemia a pele, fio sobre o orifício de saída, ou pele, extensões e clampes laçados junto.'
     ],
-    detail: 'A sequência 3D é esquemática: o fio está engrossado para leitura, as laçadas de cada nó estão resumidas e não se simulam atrito, tensão nem deformação de pele e cateter; o espaçamento e o número de cruzamentos (três) são nominais. O trecho externo do cateter é curto, fica alguns milímetros acima da pele e a forma do canhão e das asas varia entre kits. Como a pele do modelo não se deforma, a agulha (1/2 círculo, cortante, ~2 cm) entra a cerca de 60° com a pele — na prática, a contrapressão com a pinça everte a borda e a ponta entra perpendicular. A pinça de Adson e o dedo enluvado sobre o canhão são esquemáticos (mãos não modeladas). Na cena, o campo estéril fica desligado para não encobrir as asas (se for ligado, a interface o retira na etapa 9) — na prática, a fixação é feita com o campo mantido, com a fenestra expondo a saída e as asas, e ele só é retirado para o curativo. A animação completa dura cerca de 1 min (cada etapa no ritmo do gesto); os botões numerados saltam direto para cada etapa.',
+    detail: 'A sequência 3D é esquemática: o fio está engrossado para leitura, as laçadas de cada nó estão resumidas e não se simulam atrito, tensão nem deformação de pele e cateter; o espaçamento e o número de cruzamentos (três) são nominais. O trecho externo do cateter é curto, fica alguns milímetros acima da pele e a forma do canhão e das asas varia entre kits. Como a pele do modelo não se deforma, a agulha (1/2 círculo, cortante, ~2 cm) entra a cerca de 60° com a pele — na prática, a contrapressão com a pinça everte a borda e a ponta entra perpendicular. A pinça de Adson e o dedo enluvado sobre o canhão são esquemáticos (mãos não modeladas). Na cena, o campo estéril fica desligado para não encobrir as asas (se for ligado, a interface o retira na etapa 9) — na prática, a fixação é feita com o campo mantido, com a fenestra expondo a saída e as asas, e ele só é retirado para o curativo. A animação completa dura pouco mais de 1 min (cada etapa no ritmo do gesto); os botões numerados saltam direto para cada etapa.',
     sources: ALL_REFS.slice(),
     quiz: {
       q: 'Ao conferir uma bailarina recém-feita, qual achado indica fio apertado demais e exige refazer o laço?',

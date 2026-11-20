@@ -751,7 +751,7 @@
     // Se foi a interface que o retirou, volta ao retornar a uma etapa ≤ 8 (o campo é mantido até o curativo).
     const dl = E.layers.drape;
     if (dl) {
-      const off = E.state.phase === 6 && ((+E.state.fixStep || 0) > 8 || !!(A.fix && A.fix.k >= 8 && !A.fix.move));
+      const off = E.state.phase === 6 && ((+E.state.fixStep || 0) > 8 || !!(A.fix && A.fix.k >= 8)); // pausa após a 8 + movimento da 9
       if (!off) S.drapeUser = false; // o leitor religou o campo no curativo: vale até sair dessa etapa
       if (off && dl.visible && !S.drapeUser) {
         E.setLayer('drape', false); S.drapeAutoOff = true; S.visKey++; syncControls(); showNotice('Campo estéril retirado para o curativo', 2500); ch = true;
@@ -1587,11 +1587,16 @@
       const set = () => { sh.style.setProperty('--hero', hero + 'mm'); sh.style.setProperty('--fs', fs.toFixed(2) + 'pt'); };
       const over = () => sh.scrollHeight > sh.clientHeight + 1;
       set();
-      // alterna: ilustração até 74 mm, texto até 8,2 pt, ilustração até 58 mm, texto até 7 pt
-      while (over() && hero > 74) { hero -= 3; set(); }
-      while (over() && fs > 8.2) { fs -= 0.2; set(); }
-      while (over() && hero > 58) { hero -= 3; set(); }
-      while (over() && fs > 7) { fs -= 0.2; set(); }
+      // alterna: ilustração até 74 mm, texto até 8,2 pt, ilustração até 58 mm, texto até 7 pt. O corpo desce em décimos
+      // arredondados (9,2 − 5 × 0,2 em ponto flutuante dá 8,200000000000003 > 8,2: daria um passo a mais) e a
+      // ilustração não passa dos limites (74 − 3 × 6 = 56 < 58).
+      const fsDown = () => { fs = Math.round((fs - 0.2) * 10) / 10; set(); };
+      while (over() && hero > 74) { hero = Math.max(74, hero - 3); set(); }
+      while (over() && fs > 8.2) fsDown();
+      while (over() && hero > 58) { hero = Math.max(58, hero - 3); set(); }
+      while (over() && fs > 7) fsDown();
+      // com o corpo já reduzido, a folga que sobrou volta para a ilustração (passos de 1 mm, até o tamanho inicial)
+      if (fs < 9.2 && !over()) { const cap = cover ? 104 : 92; while (hero < cap) { hero++; set(); if (over()) { hero--; set(); break; } } }
       sh.dataset.fit = over() ? 'overflow' : 'ok';
     }
     root.classList.remove('measure');
@@ -2015,13 +2020,26 @@
     for (const p of parts) { if (out && stripTags(out + p).length > max) break; out += p; }
     return out.trim() + (out.length < str.length ? ' (…)' : '');
   }
-  /** Folha A4 extra (impressão pelo botão): as 9 etapas em miniatura, logo após a folha do capítulo da fixação. */
+  /** Nomes das alternativas à sutura (o <strong> inicial de cada item, com o parêntese curto que o segue), sem o item
+      da evidência da própria bailarina (impresso por inteiro na folha) nem o das diretrizes (não é uma técnica). */
+  function fixAltNames(F) {
+    return arr(F.alternatives).filter((t) => t !== F.evidence).map((t) => {
+      const m = /^\s*<strong>(.*?)<\/strong>\s*(\([^()]{1,48}\))?/.exec(String(t || ''));
+      const s = m ? stripTags(m[1]).trim() + (m[2] ? ' ' + stripTags(m[2]) : '') : '';
+      return /^\p{Lu}\p{Ll}/u.test(s) ? s.charAt(0).toLowerCase() + s.slice(1) : s; // minúscula no meio da frase (siglas intactas)
+    }).filter((s) => s && !/^(diretriz|sobre a evid)/i.test(s));
+  }
+  /** Folha A4 extra (impressão pelo botão): as 9 etapas em miniatura, logo após a folha do capítulo da fixação, e a
+      evidência da própria bailarina com a lista das alternativas à sutura — o 3º parágrafo do capítulo remete a elas
+      “no passo a passo”. Os estudos de cada alternativa (números, ressalvas) ficam na seção do material complementar. */
   function fixSheetHTML(title, foot, pageNo) {
     const F = D.fixation; if (!F) return '';
+    const alts = fixAltNames(F);
     return `<section class="sheet extra fx-sheet"><div class="sh-top"><span>${esc(title)}</span><span>Fixação em bailarina · passo a passo</span></div>
       <h2>${rich(F.title || 'Fixação em bailarina — passo a passo')}</h2>
       <ol class="fx-mini">${arr(F.steps).map((st) => `<li>${fixSVG(+st.k, { id: 'fxp' + st.k })}<h3>${esc(st.k)}. ${rich(st.title)}</h3><p>${rich(leadSentences(st.text, 280))}</p></li>`).join('')}</ol>
-      <p class="sh-refs">Esquemas sem escala, vista de cima (canhão à esquerda). *CHG: esponja ou gel com clorexidina, se padronizado. Movimentos, cuidados e alternativas: seção “Fixação em bailarina” do material complementar.${arr(F.sources).length ? ' Fontes: ' + refNums(F.sources).map((n) => '[' + n + ']').join(' ') + '.' : ''}</p>
+      ${F.evidence || alts.length ? `<div class="fx-ev">${F.evidence ? `<p>${rich(F.evidence)}</p>` : ''}${alts.length ? `<p class="fx-alt"><strong>Alternativas à sutura</strong> (estudos, números e ressalvas na seção “Fixação em bailarina” do material complementar): ${esc(alts.join('; '))}. As instruções do fabricante do cateter e o protocolo do serviço orientam a escolha.</p>` : ''}</div>` : ''}
+      <p class="sh-refs">Esquemas sem escala, vista de cima (canhão à esquerda). *CHG: esponja ou gel com clorexidina, se padronizado. Movimentos e cuidados de cada etapa, complicações e cuidados após a fixação: seção “Fixação em bailarina” do material complementar.${arr(F.sources).length ? ' Fontes: ' + refNums(F.sources).map((n) => '[' + n + ']').join(' ') + '.' : ''}</p>
       <div class="sh-foot"><span>${esc(foot)}</span><span>${pageNo}</span></div></section>`;
   }
 
@@ -2340,7 +2358,7 @@
         const g = c.structure ? glossEntry(c.structure) : null;
         return `<article class="comp" data-ci="${i}"><h3>${rich(c.name)}</h3>
           ${g ? `<p class="struct"><i style="--c:${GROUP_COLORS[g.group] || 'var(--teal)'}"></i>${esc(stripTags(g.name))}</p>` : ''}
-          <dl>${c.mechanism ? `<dt>Mecanismo</dt><dd>${rich(c.mechanism)}</dd>` : ''}${c.recognition ? `<dt>Reconhecimento</dt><dd>${rich(c.recognition)}</dd>` : ''}${c.prevention ? `<dt>Prevenção</dt><dd>${rich(c.prevention)}</dd>` : ''}${c.incidence ? `<dt>Frequência</dt><dd>${rich(c.incidence)}</dd>` : ''}</dl>
+          <dl>${c.mechanism ? `<dt>Mecanismo</dt><dd>${rich(c.mechanism)}</dd>` : ''}${c.recognition ? `<dt>Reconhecimento</dt><dd>${rich(c.recognition)}</dd>` : ''}${c.prevention ? `<dt>Prevenção descrita</dt><dd>${rich(c.prevention)}</dd>` : ''}${c.incidence ? `<dt>Frequência</dt><dd>${rich(c.incidence)}</dd>` : ''}</dl>
           <div class="comp-foot"><span class="refs">${c.source != null ? 'Fonte ' + refLinks(c.source) : ''}</span>${c.structure ? `<button type="button" class="btn small" data-show="${esc(c.structure)}" data-ci="${i}">Ver no 3D</button>` : ''}</div></article>`;
       }).join('')
       : '<p class="empty">Lista não disponível.</p>';

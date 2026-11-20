@@ -716,6 +716,11 @@ mark { background: var(--gold-soft); color: inherit; border-radius: 2px; padding
 .sheet .fx-mini .fx-svg { border-radius: 1.5mm; height: calc(var(--hero) * 0.4); width: auto; max-width: 100%; margin: 0 auto; }
 .sheet .fx-mini h3 { margin: 1.4mm 0 0.8mm; font: 700 calc(var(--fs) * 0.95) / 1.25 var(--sans); color: #173331; }
 .sheet .fx-mini p { margin: 0; font-size: calc(var(--fs) * 0.82); line-height: 1.38; color: #24403c; }
+/* evidência da bailarina + alternativas à sutura (folha extra): caixa em 2 colunas abaixo das miniaturas */
+.sheet .fx-ev { margin-top: 3.2mm; padding: 2.4mm 3.4mm; border-radius: 2mm; background: #eef3ef; columns: 2; column-gap: 6mm; font-size: calc(var(--fs) * 0.8); line-height: 1.38; color: #24403c; }
+.sheet .fx-ev p { margin: 0 0 1mm; }
+.sheet .fx-ev p:last-child { margin-bottom: 0; }
+.sheet .fx-ev strong { color: #173331; }
 
 /* ---------- responsivo ---------- */
 @media (max-width: 1300px) {

@@ -841,21 +841,24 @@ ATLAS.define('instruments', async function (ctx) {
     };
     for (const [key, k] of Object.entries(kinds)) {
       const g = new THREE.Group(); g.name = 'Sítio: ' + key; g.visible = false; grp.add(g); k.grp = g; k.mats = [];
-      const place = (m, lift) => { m.position.copy(entryEff).addScaledVector(nq, lift); m.quaternion.copy(quat); m.userData.exitMark = true; m.raycast = () => {}; };
+      // malhas SEM registro (info null): o destaque do dispositivo (E.highlight) não as alcança — o clone de destaque
+      // congelaria a opacidade e saturaria o sítio; a opacidade é toda controlada por set(). O nome fica para depuração.
+      const place = (m, lift) => { m.name = k.info.name; m.position.copy(entryEff).addScaledVector(nq, lift); m.quaternion.copy(quat); m.userData.exitMark = true; m.raycast = () => {}; };
       if (k.halo) { // halo róseo (reação local, pele perfundida), mais longo no sentido da saída
-        const mt = decalMat('#b4584c', 0.26, -3, haloTex); k.mats.push(mt);
-        const h = mesh(new THREE.CircleGeometry(k.halo, 28), mt, g, k.info, { cast: false, receive: false }); place(h, 0.01); h.scale.set(1.25, 1, 1); h.renderOrder = 2;
+        const mt = decalMat('#b4584c', 0.26, -3, haloTex); mt.userData.halo = true; k.mats.push(mt);
+        const h = mesh(new THREE.CircleGeometry(k.halo, 28), mt, g, null, { cast: false, receive: false }); place(h, 0.01); h.scale.set(1.25, 1, 1); h.renderOrder = 2;
       }
       // anel escuro (crosta/fibrina e a sombra da borda do orifício) rente ao dispositivo: elipse r × r/sen θ
       const mc = decalMat('#6a2a22', k.crustOp, -4); k.mats.push(mc);
-      const ring = mesh(new THREE.RingGeometry(k.r * 1.0, k.r * (key === 'needle' ? 1.45 : 1.22), 28), mc, g, k.info, { cast: false, receive: false });
+      const ring = mesh(new THREE.RingGeometry(k.r * 1.0, k.r * (key === 'needle' ? 1.45 : 1.22), 28), mc, g, null, { cast: false, receive: false });
       place(ring, 0.012); ring.scale.set(1 / sinA, 1, 1); ring.renderOrder = 3;
     }
-    /** pres = {needle, dilator, catheter} ∈ [0, 1] (presença do dispositivo atravessando a pele); k = esmaecimento geral. */
-    const set = (pres, k) => {
+    /** pres = {needle, dilator, catheter} ∈ [0, 1] (presença do dispositivo atravessando a pele); k = esmaecimento geral;
+        haloK = fator do halo róseo (0 com a pele fantasma: só o anel fino, sem disco flutuando sobre a veia). */
+    const set = (pres, k, haloK = 1) => {
       for (const [key, d] of Object.entries(kinds)) {
         const f = C.clamp(pres[key] || 0, 0, 1) * k; d.grp.visible = f > 0.02;
-        if (d.grp.visible) d.mats.forEach((m) => { m.opacity = m.userData.op0 * f; });
+        if (d.grp.visible) d.mats.forEach((m) => { m.opacity = m.userData.op0 * f * (m.userData.halo ? haloK : 1); });
       }
     };
     return { grp, set, info: { center: entryEff.toArray().map((x) => +x.toFixed(2)), crossingDeg: +(Math.asin(sinA) * 180 / Math.PI).toFixed(1), ellipse: Object.fromEntries(Object.entries(kinds).map(([key, d]) => [key, [+d.r.toFixed(3), +(d.r / sinA).toFixed(3)]])) } };
@@ -1391,10 +1394,18 @@ float gloveHeight(vec3 p, vec3 n) {
     }
     const dP = best.dP;
     const { head, tail } = best;
-    const shaftEnd = head.clone().addScaledVector(dP, -0.78);
+    const shaftEnd = head.clone().addScaledVector(dP, -0.82);
     mesh(C.segmentGeometry(tail.toArray(), shaftEnd.toArray(), 0.09, 0.09, 14), mats.gold, thumbArrow, info, { cast: false });
-    const cone = mesh(new THREE.ConeGeometry(0.32, 0.86, 20), mats.gold, thumbArrow, info, { cast: false });
-    cone.position.copy(head.clone().addScaledVector(dP, -0.43)); cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dP);
+    /* Ponta ACHATADA (cone elíptico 1 : 0,3), larga de frente para as vistas com a mão: com a ponta cônica redonda, a
+       base aparecia como um disco (vista ~40° por trás do eixo) e a seta lia-se como tachinha/alfinete cravado na
+       pele. Achatada, a base vira um traço e a silhueta é um triângulo (seta) nessas vistas; de lado, ponta estreita. */
+    const nFace = new THREE.Vector3();
+    [[views[0], 1], [views[1], 1], [views[2], 0.5]].forEach(([vd, w]) => nFace.addScaledVector(vd.clone().addScaledVector(dP, -vd.dot(dP)), w));
+    nFace.normalize();
+    const xFace = new THREE.Vector3().crossVectors(dP, nFace).normalize(); // largura da ponta (⊥ à seta e à visada)
+    const cone = mesh(new THREE.ConeGeometry(0.36, 0.9, 24), mats.gold, thumbArrow, info, { cast: false });
+    cone.position.copy(head.clone().addScaledVector(dP, -0.45));
+    cone.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(xFace, dP, nFace)); cone.scale.set(1, 1, 0.3);
     // "ondas" de depressão na pele, entre a polpa do polegar e a seta (arcos concêntricos que acompanham a pele)
     const n0 = surfNormal(skinZ, tT.x, tT.y), e1 = new THREE.Vector3(1, 0, 0).addScaledVector(n0, -n0.x).normalize(), e2 = new THREE.Vector3().crossVectors(n0, e1);
     const a0 = (best.deg * Math.PI) / 180;
@@ -1515,8 +1526,8 @@ float gloveHeight(vec3 p, vec3 n) {
       const fixOn = Math.round(+state.phase || 0) >= 6 && fs > 0;
       const fixK = !fixOn ? 1 : fixMod && !(fixMod.api && fixMod.api.available === false) ? 1 - C.smooth(0, 0.3, fs) : fs >= 8.5 ? 0 : 1;
       const gh = ctx.engine && ctx.engine.ghosts ? ctx.engine.ghosts().skin : null; // pele "fantasma": marca proporcional
-      const k = layers.skin.visible ? (gh == null ? 1 : C.clamp(1.5 * gh, 0, 1)) : 0;
-      exitSite.set({ needle: cur.nd * C.smooth(sSkin, sSkin + 0.2, cur.s), dilator: C.clamp(cur.dil, 0, 1) * C.smooth(sSkin, sSkin + 0.2, cur.dS), catheter: C.smooth(0.3, 0.6, cur.cath) * fixK }, k);
+      const k = layers.skin.visible ? (gh == null ? 1 : C.clamp(gh, 0, 1)) : 0; // fantasma: tão tênue quanto a própria pele
+      exitSite.set({ needle: cur.nd * C.smooth(sSkin, sSkin + 0.2, cur.s), dilator: C.clamp(cur.dil, 0, 1) * C.smooth(sSkin, sSkin + 0.2, cur.dS), catheter: C.smooth(0.3, 0.6, cur.cath) * fixK }, k, gh == null ? 1 : 0);
     }
     dilLimit.userData.mat.depthTest = layers.skin.visible; // com a pele visível, o anel fica sob ela (sem "flutuar")
     const instOn = layers.instrument.visible;

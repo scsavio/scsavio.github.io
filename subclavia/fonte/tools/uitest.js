@@ -14,6 +14,9 @@
 // lote [fora, dentro] do IntersectionObserver e salvaguarda do 'offscreen', curativo só na etapa 9 e campo estéril
 // religado ao voltar, teclado/vista/zoom soltam a câmera da animação, stepper = api.steps, cartão "na fixação",
 // inset do cap. 11 sem repetir a introdução, insets Medidas/Assimetria com as linhas do capítulo.
+// Onda 5: campo estéril na animação em tempo real (7 → 9, a cada quadro, um só aviso), tema após recarregar (robusto à
+// carga; distingue armazenamento perdido × script do <head>), inset Assimetria = scene.insetRows exatas, fitSheets em
+// décimos exatos e folha extra da fixação com a evidência e as alternativas à sutura.
 // Saída: JSON com {ok, falhas[], detalhes} e capturas shots/ui_inset_*.png.
 const { chromium } = require('playwright');
 const path = require('path');
@@ -37,6 +40,7 @@ const GL_ARGS = ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-s
     W.prototype = IO.prototype; window.IntersectionObserver = W;
   });
   const page = await ctx.newPage();
+  page.setDefaultNavigationTimeout(420000); // arquivo único sob carga alta: o padrão de 30 s não basta para carregar/recarregar
   page.on('pageerror', (e) => errs.push('PAGEERROR ' + e.message));
   page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errs.push(m.text()); });
   await page.goto(url + '#cap-05');
@@ -126,14 +130,26 @@ const GL_ARGS = ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-s
   info.png = await page.evaluate(async () => { const u = await APP.composeSnapshot(400, 250, { labels: true, fmt: 'image/png' }); return u.slice(0, 22) + '… ' + u.length; });
   check(/^data:image\/png/.test(info.png), 'captura PNG falhou');
 
-  // tema persistido
+  // tema persistido. Recarregar sob carga alta: tempo-limite de navegação longo (o padrão de 30 s não basta para o
+  // arquivo único) e uma pausa antes do reload (a gravação do localStorage chega ao processo do navegador de forma
+  // assíncrona). Se o tema não voltar, distingue: armazenamento perdido no reload (corrida do navegador → repete uma
+  // vez) × valor salvo mas não aplicado (bug real do script do <head> → falha sem repetir).
+  const themeReload = async () => {
+    await page.waitForTimeout(400);
+    await page.reload({ timeout: 420000 });
+    await page.waitForFunction(() => window.__ready === true, null, { timeout: 420000 });
+    return page.evaluate(() => ({ attr: document.documentElement.getAttribute('data-theme'), saved: localStorage.getItem('atlas-theme') }));
+  };
   await page.click('#btnTheme');
   info.theme = await page.evaluate(() => ({ attr: document.documentElement.getAttribute('data-theme'), saved: localStorage.getItem('atlas-theme') }));
   check(info.theme.attr === 'dark' && info.theme.saved === 'dark', 'tema não persistiu');
-  await page.reload();
-  await page.waitForFunction(() => window.__ready === true, null, { timeout: 420000 });
-  info.themeAfterReload = await page.evaluate(() => document.documentElement.getAttribute('data-theme'));
-  check(info.themeAfterReload === 'dark', 'tema não restaurado após recarregar');
+  let thr = await themeReload();
+  info.themeAfterReload = thr.attr; info.themeReloads = [thr];
+  if (thr.attr !== 'dark' && thr.saved !== 'dark') { // armazenamento perdido no reload: grava de novo e repete uma vez
+    await page.evaluate(() => APP.setTheme('dark'));
+    thr = await themeReload(); info.themeAfterReload = thr.attr; info.themeReloads.push(thr);
+  }
+  check(info.themeAfterReload === 'dark', 'tema não restaurado após recarregar: ' + JSON.stringify(info.themeReloads));
   await page.evaluate(() => { APP.still(); localStorage.removeItem('atlas-theme'); });
 
   // cartão: abre via glossário e fecha com Esc
@@ -292,10 +308,19 @@ const GL_ARGS = ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-s
   info.engine = await page.evaluate(() => {
     const E = APP.E, CP = E.C.clipPlanes, ix = (id) => APP.data.chapters.findIndex((c) => c.id === id);
     const audit = () => {
-      let mats = 0, bad = 0, helpers = 0, pre = 0, shells = 0, orphan = 0, ghostMats = 0, hlMats = 0;
+      let mats = 0, bad = 0, helpers = 0, pre = 0, shells = 0, orphan = 0, ghostMats = 0, hlMats = 0, optOut = 0;
       E.world.traverse((o) => {
         if (!o.isMesh) return;
-        if (o.userData.__helper) { helpers++; if (o.material.name === 'ghost-depth-prepass') pre++; else shells++; if (!o.parent || !o.parent.isMesh) orphan++; if (o.material.clippingPlanes !== CP) bad++; return; }
+        if (o.userData.__helper) {
+          // auxiliares do motor: pré-passagem do fantasma e casca do contorno, filhas da malha de origem (mesma geometria).
+          // Outras malhas com __helper são de módulos que pedem para ficar fora do destaque/fantasma (ex.: sítio de
+          // saída na pele, instruments.js): só o corte é conferido nelas.
+          const nm = o.material && o.material.name, isPre = nm === 'ghost-depth-prepass', isShell = nm === 'highlight-outline';
+          if (!isPre && !isShell) { optOut++; if (o.material && o.material.clippingPlanes && o.material.clippingPlanes !== CP) bad++; return; }
+          helpers++; if (isPre) pre++; else shells++;
+          if (!o.parent || !o.parent.isMesh || o.parent.geometry !== o.geometry) orphan++;
+          if (o.material.clippingPlanes !== CP) bad++; return;
+        }
         const m = o.material; if (!m || Array.isArray(m)) return; mats++;
         if (m.clippingPlanes && m.clippingPlanes !== CP) bad++;
         if (/ghostfx/.test(m.customProgramCacheKey ? m.customProgramCacheKey() : '')) ghostMats++;
@@ -472,6 +497,52 @@ const GL_ARGS = ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-s
   check(info.dress.at9 !== false, 'fixação: curativo ausente na etapa 9');
   check(info.dress.drapeOffAt9 !== false && info.dress.drapeBack !== false, 'fixação: campo estéril não retirado no curativo ou não religado ao voltar');
 
+  // campo estéril na animação em tempo real (▶ da fixação, etapas 7 → 9): visível até o fim da etapa 8, retirado uma
+  // única vez já com k = 8 (pausa antes do curativo) e sem voltar até o fim — amostra a cada quadro
+  // (requestAnimationFrame) e conta os avisos "Campo estéril retirado para o curativo" (regressão: piscava no 1º quadro
+  // do movimento da 9).
+  info.dressAnim = await page.evaluate(async () => {
+    const E = APP.E, D = APP.data, fi = D.chapters.findIndex((c) => c.id === 'fixacao');
+    if (fi < 0 || !E.results.fixation || !E.layers.drape || matchMedia('(prefers-reduced-motion: reduce)').matches) return { skipped: true };
+    window.scrollTo(0, 0);
+    APP.go(fi, { animate: false }); APP.stopFix(); APP.resume();
+    document.querySelector('#fixStepper [data-fix="7"]').click(); APP.tickAnims(0);
+    if (!E.layers.drape.visible) document.querySelector('[data-layer="drape"]').click();
+    APP.tickAnims(0);
+    const r = { startVisible: E.layers.drape.visible, frames: 0, log: [], notices: 0, offK: null, offEarly: false, backOn: false };
+    const nb = document.getElementById('notice');
+    const mo = new MutationObserver((recs) => { recs.forEach((q) => { if ([...q.addedNodes].some((n) => /Campo estéril retirado/.test(n.textContent || ''))) r.notices++; }); });
+    if (nb) mo.observe(nb, { childList: true });
+    document.getElementById('fixPlay').click();
+    r.startK = APP.anims.fix ? APP.anims.fix.k : null;
+    await new Promise((done) => {
+      const t0 = performance.now(); let prev = '', off = false;
+      const sample = () => {
+        const F = APP.anims.fix, v = E.layers.drape.visible, k = F ? F.k : null;
+        r.frames++;
+        const key = k + (F && F.move ? '>' : '') + (v ? ' campo' : ' sem');
+        if (key !== prev) { prev = key; r.log.push(key); }
+        if (!v && !off) { off = true; r.offK = k; }
+        if (v && off) r.backOn = true;
+        if (!v && F && F.k < 8) r.offEarly = true;
+        if (!F || performance.now() - t0 > 120000) return done();
+        requestAnimationFrame(sample);
+      };
+      requestAnimationFrame(sample);
+    });
+    await new Promise((res) => setTimeout(res, 50)); // entrega dos últimos registros do MutationObserver
+    mo.disconnect();
+    r.timedOut = !!APP.anims.fix;
+    r.end = { step: +E.state.fixStep, drape: E.layers.drape.visible };
+    APP.stopFix(); APP.go(0, { animate: false });
+    return r;
+  });
+  if (!info.dressAnim.skipped) {
+    const d = info.dressAnim;
+    check(d.startVisible && d.startK === 7 && !d.timedOut && d.end.step === 9, 'fixação: animação 7 → 9 não completou: ' + JSON.stringify(d));
+    check(!d.offEarly && d.offK === 8 && !d.backOn && d.end.drape === false && d.notices === 1, 'fixação: campo estéril piscou ou foi retirado fora da etapa 8 → 9 na animação: ' + JSON.stringify(d));
+  }
+
   // teclado e botões de vista/zoom soltam a câmera da animação da fixação; textos da fixação (stepper = api.steps,
   // cartão "na fixação", inset sem repetir a introdução) e insets com as linhas do capítulo
   {
@@ -502,6 +573,14 @@ const GL_ARGS = ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-s
       const dist = txt('distancias'), asym = txt('vasos');
       r.distOk = dist == null || (/clavícula–veia/.test(dist) && !/Expiração completa|escaleno/.test(dist));
       r.asymOk = asym == null || (/Artéria subclávia/.test(asym) && /Linfáticos/.test(asym));
+      // scene.insetRows do cap. 03 (Assimetria fixa): exatamente essas linhas, cada consulta casando com uma só
+      const vc = APP.data.chapters[ix('vasos')], q = vc && vc.scene && vc.scene.insetRows;
+      if (asym != null && Array.isArray(q) && q.length) {
+        const nrm = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+        const topics = [...document.querySelectorAll('#painel .inset-asymmetry .mini-list li strong')].map((e) => e.textContent);
+        r.asymRows = topics;
+        r.asymOk = r.asymOk && topics.length === q.length && q.every((s) => typeof s === 'number' || topics.filter((t) => nrm(t).indexOf(nrm(s)) >= 0).length === 1);
+      }
       APP.go(0, { animate: false });
       return r;
     }, fi);
@@ -526,9 +605,23 @@ const GL_ARGS = ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-s
   });
 
   // impressão (diagramação)
-  info.print = await page.evaluate(async () => { await APP.buildPrint({ print: false, placeholder: true }); const sh = [...document.querySelectorAll('#printRoot .sheet')]; return { sheets: sh.length, main: sh.filter((s) => !s.classList.contains('extra')).length, extra: sh.filter((s) => s.classList.contains('extra')).length, overflow: sh.filter((s) => s.dataset.fit !== 'ok').length, overflowAt: sh.map((s, i) => (s.dataset.fit !== 'ok' ? i : -1)).filter((i) => i >= 0), chapters: APP.data.chapters.length }; });
+  // fitSheets: corpo em décimos exatos (9,2 − 5 × 0,2 em ponto flutuante passava de 8,2 e o 2º estágio descia a 8,0),
+  // 7–9,2 pt, ilustração 58–92 mm (capa: até 104). Folha extra da fixação: evidência da própria bailarina e lista das
+  // alternativas à sutura (o 3º parágrafo do capítulo remete a elas "no passo a passo").
+  info.print = await page.evaluate(async () => {
+    await APP.buildPrint({ print: false, placeholder: true });
+    const sh = [...document.querySelectorAll('#printRoot .sheet')];
+    const fit = sh.map((s) => [parseFloat(s.style.getPropertyValue('--fs')), parseFloat(s.style.getPropertyValue('--hero'))]);
+    const fx = document.querySelector('#printRoot .fx-sheet'), F = APP.data.fixation;
+    return { sheets: sh.length, main: sh.filter((s) => !s.classList.contains('extra')).length, extra: sh.filter((s) => s.classList.contains('extra')).length, overflow: sh.filter((s) => s.dataset.fit !== 'ok').length, overflowAt: sh.map((s, i) => (s.dataset.fit !== 'ok' ? i : -1)).filter((i) => i >= 0), chapters: APP.data.chapters.length,
+      fit: fit.map(([f, h]) => f.toFixed(2) + '/' + h), fitBad: fit.map(([f, h], i) => ((Math.abs(f * 10 - Math.round(f * 10)) > 1e-6 || f < 7 - 1e-6 || f > 9.2 + 1e-6 || h < 58 || h > (i ? 92 : 104)) ? i : -1)).filter((i) => i >= 0),
+      fxEvidence: !F || !F.evidence || (!!fx && /Howes/.test(fx.textContent) && /Earley/.test(fx.textContent)),
+      fxAlts: !F || !(F.alternatives || []).length || (!!fx && /Alternativas à sutura/.test(fx.textContent) && /ancoragem subcutânea/i.test(fx.textContent)) };
+  });
   check(info.print.main === info.print.chapters + 1 && info.print.overflow === 0, 'folhas de impressão incorretas');
   check(!info.fix.chapter || info.print.extra === 1, 'folha extra da fixação ausente');
+  check(!info.print.fitBad.length, 'impressão: ajuste fora dos estágios (corpo/ilustração) nas folhas ' + info.print.fitBad.join(',') + ': ' + info.print.fit.join(' '));
+  check(!info.fix.chapter || (info.print.fxEvidence && info.print.fxAlts), 'impressão: folha extra da fixação sem a evidência ou sem as alternativas à sutura');
 
   // SPEC §4: âncoras e ids obrigatórios presentes na cena completa (todos os módulos)
   info.spec = await page.evaluate(() => {

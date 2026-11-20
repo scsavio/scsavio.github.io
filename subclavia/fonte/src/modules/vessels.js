@@ -771,19 +771,21 @@ ATLAS.define('vessels', function (ctx) {
       for (let i = 0; i < cut.length; i++) if (cut[i] && near(P[i * 3], P[i * 3 + 1], P[i * 3 + 2])) seam.push({ p: new V3(P[i * 3], P[i * 3 + 1], P[i * 3 + 2]), n: new V3(N[i * 3], N[i * 3 + 1], N[i * 3 + 2]).normalize() });
     }
     if (!seam.length) return;
+    // caixa da costura (+ folga): os vértices fora dela não são visitados (os canais têm dezenas de milhares de vértices)
+    const lo = new V3(1e9, 1e9, 1e9), hi = new V3(-1e9, -1e9, -1e9);
+    for (const s of seam) { lo.min(s.p); hi.max(s.p); }
+    const pad = Math.max(w, 0.6), out = (x, y, z) => x < lo.x - pad || x > hi.x + pad || y < lo.y - pad || y > hi.y + pad || z < lo.z - pad || z > hi.z + pad;
     // normal do tronco no ponto da costura: a do vértice do tronco mais próximo, fora do ramo (os vértices `cut` do tronco
     // são a borda do furo, 0,07 cm dentro do ramo); o alvo é a bissetriz das duas normais
+    const tv = []; // [x, y, z, nx, ny, nz] dos vértices do tronco perto da costura
+    for (const m of trunkMeshes) {
+      const P = m.geometry.attributes.position.array, N = m.geometry.attributes.normal.array, cut = m.geometry.userData.cut;
+      for (let i = 0; i < P.length / 3; i++) if (!(cut && cut[i]) && !out(P[i * 3], P[i * 3 + 1], P[i * 3 + 2])) tv.push(P[i * 3], P[i * 3 + 1], P[i * 3 + 2], N[i * 3], N[i * 3 + 1], N[i * 3 + 2]);
+    }
     for (const s of seam) {
-      let bd = 1e9, bN = null, bk = 0;
-      for (const m of trunkMeshes) {
-        const P = m.geometry.attributes.position.array, cut = m.geometry.userData.cut;
-        for (let i = 0; i < P.length / 3; i++) {
-          if (cut && cut[i]) continue;
-          const d = (P[i * 3] - s.p.x) ** 2 + (P[i * 3 + 1] - s.p.y) ** 2 + (P[i * 3 + 2] - s.p.z) ** 2;
-          if (d < bd) { bd = d; bN = m.geometry.attributes.normal.array; bk = i * 3; }
-        }
-      }
-      s.t = bN ? s.n.clone().add(new V3(bN[bk], bN[bk + 1], bN[bk + 2]).normalize()).normalize() : s.n.clone();
+      let bd = 1e9, bk = -1;
+      for (let k = 0; k < tv.length; k += 6) { const d = (tv[k] - s.p.x) ** 2 + (tv[k + 1] - s.p.y) ** 2 + (tv[k + 2] - s.p.z) ** 2; if (d < bd) { bd = d; bk = k; } }
+      s.t = bk >= 0 ? s.n.clone().add(new V3(tv[bk + 3], tv[bk + 4], tv[bk + 5]).normalize()).normalize() : s.n.clone();
     }
     const n = new V3();
     for (const m of branchMeshes.concat(trunkMeshes)) {
@@ -791,6 +793,7 @@ ATLAS.define('vessels', function (ctx) {
       let any = false;
       for (let i = 0; i < P.length / 3; i++) {
         const x = P[i * 3], y = P[i * 3 + 1], z = P[i * 3 + 2];
+        if (out(x, y, z)) continue;
         let bd = w * w, bs = null;
         for (const s of seam) { const d = (s.p.x - x) ** 2 + (s.p.y - y) ** 2 + (s.p.z - z) ** 2; if (d < bd) { bd = d; bs = s; } }
         if (!bs) continue;
@@ -1208,7 +1211,8 @@ ATLAS.define('vessels', function (ctx) {
     // A VBC E chega 0,35 cm ANTERIOR ao eixo da VCS (LM) e sua face anterior ficava rente à da VCS até x ≈ 2: a parede
     // anterolateral esquerda da origem da VCS sobe ~0,28 cm ao encontro dela (funil da confluência) e a recebe já no
     // ombro esquerdo da VCS (borda visível da VBC E até x ≈ 1,75, antes 2,05; centro da VCS em x = 2,45).
-    bulges: [{ t: tAt(chRC, 1, -2.1, 0.5, 1), w: 0.9, k: 0.3, dir: [-0.56, 0.05, 0.83] }, { t: tSvc, w: 0.85, k: 0.18, dir: [-0.93, 0.12, 0.3] }, { t: tAt(chRC, 0, 6.0, 0, 0.6), w: 0.42, k: 0.13, dir: [0.41, 0.91, -0.11] },
+    bulges: [{ t: tAt(chRC, 1, -2.1, 0.5, 1), w: 0.9, k: 0.22, dir: [-0.9, 0.05, 0.43] }, // mais à E que à frente: a parede anterior da VCS não alcança a reflexão pleural D (k 0,3 / dir z 0,83 atravessava a pleura)
+      { t: tSvc, w: 0.85, k: 0.18, dir: [-0.93, 0.12, 0.3] }, { t: tAt(chRC, 0, 6.0, 0, 0.6), w: 0.42, k: 0.13, dir: [0.41, 0.91, -0.11] },
       { t: tAt(chRC, 0, 11.4, 0, 0.6), w: 0.45, k: 0.1, dir: [0.62, 0.43, 0.65] }],
     valves: [{ s: tAt(chRC, 0, 6.4) * chRlen, k: 0.035 }], noise: veinNoise(22), mat: MAT.vein,
     pieces: [
@@ -1302,7 +1306,7 @@ ATLAS.define('vessels', function (ctx) {
   //      FORA da veia — a cefálica voltava para cima e saía da axilar como um gancho de ponta arredondada.
   const cephLast = VV.cephalicR.pts[VV.cephalicR.pts.length - 1];
   const cephR = VV.cephalicR.pts.concat([P3(chRC.getPointAt(tAt(chRC, 0, cephLast[0] - 0.4, 0, tCornerR)))]);
-  const cephRr = [0.22, 0.225, 0.23, 0.235, 0.24, 0.245, 0.25, 0.25];
+  const cephRr = [0.22, 0.225, 0.23, 0.235, 0.237, 0.24, 0.243, 0.245, 0.25, 0.25]; // um raio por ponto de LM (9) + o ponto interno
   const CEPH = {};
   ['R', 'L'].forEach((side) => {
     const L = side === 'L';
@@ -1587,7 +1591,8 @@ ATLAS.define('vessels', function (ctx) {
   const shown = (o) => { for (; o; o = o.parent) if (!o.visible) return false; return true; };
   return {
     anchors,
-    /** Veias superficiais (VJE): visíveis com o plano superficial (camada da pele) ou quando destacadas.
+    /** Veias superficiais (VJE): visíveis com o plano superficial (camada da pele), quando destacadas ou com a camada de
+        músculos ligada e opaca (sobre o ECM).
         Óstio da VCS no AD: união com o coração no primeiro quadro; tampa visível só com o coração oculto. */
     update() {
       if (!heartTried) {

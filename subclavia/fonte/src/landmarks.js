@@ -275,7 +275,7 @@
     // Jugular externa direita: superficial ao ECM, cruza-o obliquamente; drena na veia subclávia lateral ao escaleno anterior.
     ejvR: { pts: [[5.0, 11.0, -0.45], [5.35, 7.5, -0.7], [5.95, 4.5, -0.6], [6.35, 2.6, -0.65], [6.25, 1.3, -0.62], [6.0, 0.75, -0.55]], r: [0.22, 0.24, 0.26, 0.27, 0.28, 0.28] },
     // Cefálica direita: sulco deltopeitoral → perfura a fáscia clavipeitoral → veia axilar logo abaixo da clavícula.
-    cephalicR: { pts: [[16.6, -9.0, 0.55], [15.3, -5.0, 0.85], [14.3, -2.2, 0.7], [13.4, -0.85, 0.55], [12.4, -0.2, 0.35], [11.8, -1.15, -0.32], [11.25, -1.85, -0.78]], r: [0.25, 0.27, 0.28, 0.28, 0.29, 0.3, 0.32] }, // (onda 4: termina na veia axilar rebaixada)
+    cephalicR: { pts: [[16.6, -9.0, 0.55], [15.3, -5.0, 0.85], [14.3, -2.2, 0.7], [13.4, -0.87, 0.57], [13.12, -0.59, 0.49], [12.77, -0.46, 0.34], [12.42, -0.51, 0.14], [12.14, -0.72, -0.06], [11.25, -1.85, -0.78]], r: [0.25, 0.27, 0.28, 0.28, 0.285, 0.29, 0.295, 0.3, 0.32] }, // (onda 4: termina na veia axilar rebaixada; arco terminal em filete de raio ≈0,9 cm, sem vértice em grampo)
     // Vertebral direita: da face superior da 1ª parte da subclávia ao forame transverso de C6
     vertebralAR: { pts: [[3.2, 1.75, -3.5], [3.0, 2.9, -4.3], [2.35, 4.5, -5.35], [1.7, 6.0, -6.15], [1.32, 6.8, -6.46], [1.36, 9.6, -5.8], [1.34, 11.0, -5.5]], r: 0.2 },
     // Torácica interna direita: da face inferior da 1ª parte, desce atrás das cartilagens, ~1–1,5 cm da borda esternal

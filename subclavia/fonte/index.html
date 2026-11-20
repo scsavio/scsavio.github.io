@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="description" content="Atlas 3D educacional da punção infraclavicular da veia subclávia direita por marcos anatômicos: anatomia em camadas, mão esquerda, planos da agulha, pleura e respiração.">
+<title>Punção da subclávia direita · Atlas 3D</title>
+<script>/* tema salvo aplicado antes do CSS (evita piscar) */try{var t=localStorage.getItem('atlas-theme');if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t);}catch(e){}</script>
+<link rel="stylesheet" href="src/app.css">
+</head>
+<body>
+<a class="skip" href="#painel">Ir para o texto do capítulo</a>
+
+<header class="masthead">
+  <div class="brand">
+    <p class="eyebrow">Atlas espacial 3D<span class="eb-extra"> · ensino e simulação</span></p>
+    <h1 id="docTitle">Punção da subclávia direita</h1>
+    <p class="subtitle" id="docSubtitle">Anatomia em camadas · marcos de superfície · mão esquerda · planos da agulha · pleura e respiração</p>
+  </div>
+  <div class="mast-side">
+    <p class="seal" id="docSeal"><strong>Modelo 3D didático e sintético.</strong><br>Sem escala clínica e sem medidas de um paciente.</p>
+    <div class="mast-actions">
+      <button type="button" class="btn icon" id="btnTheme" aria-pressed="false" aria-label="Alternar tema escuro" title="Tema claro/escuro">
+        <svg viewBox="0 0 24 24" aria-hidden="true" class="i-moon"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z"/></svg>
+        <svg viewBox="0 0 24 24" aria-hidden="true" class="i-sun"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/></svg>
+      </button>
+      <button type="button" class="btn" id="btnPrint" aria-label="Imprimir ou salvar em PDF (uma folha por capítulo)" title="Imprimir / PDF">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 9V3.5h10V9M7 17.5H4.5v-7A1.5 1.5 0 0 1 6 9h12a1.5 1.5 0 0 1 1.5 1.5v7H17"/><path d="M7 14h10v6.5H7z"/></svg>
+        <span>Imprimir / PDF</span>
+      </button>
+      <button type="button" class="btn icon" id="btnFull" aria-pressed="false" aria-label="Visor em tela cheia" title="Tela cheia">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<nav class="chapnav" aria-label="Capítulos">
+  <div class="chapnav-row">
+    <ol class="chap-list" id="chapList"></ol>
+    <a class="chap-more" href="#material">Material complementar <span aria-hidden="true">↓</span></a>
+  </div>
+  <div class="chap-progress" aria-hidden="true"><span id="chapBar"></span></div>
+</nav>
+
+<main class="stage" id="stage">
+  <section class="visual" aria-label="Modelo 3D interativo">
+    <div class="viewer" id="viewer">
+      <svg class="leaders" id="leaders" aria-hidden="true"></svg>
+      <div class="labels" id="labels" aria-hidden="true"></div>
+
+      <!-- telas de toque: até ser ativado, o visor deixa a página rolar (app.js → setupTouchShield) -->
+      <button type="button" class="touch-shield" id="touchShield" hidden aria-label="Ativar o modelo 3D: girar com um dedo e ampliar com pinça">
+        <span class="ts-pill" id="tsPill"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11.5V5.2a1.6 1.6 0 0 1 3.2 0v5.3M12.2 10.2V8.6a1.6 1.6 0 0 1 3.2 0v2.2M15.4 10.4a1.6 1.6 0 0 1 3.2 0v3.8c0 3.8-2.4 6.3-5.9 6.3-2.6 0-4-1.1-5.4-3.2L4.9 13.8a1.5 1.5 0 0 1 2.4-1.8L9 14"/></svg>Toque para girar e ampliar o 3D</span>
+      </button>
+
+      <div class="vp-top">
+        <p class="orient" id="orientNote"><span class="orient-dot" aria-hidden="true"></span>Direita do paciente = esquerda da tela</p>
+        <div class="clip-badge" id="clipBadge" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20 20 4M7 4h13v13"/></svg>
+          <span id="clipBadgeText">Corte ativo</span>
+          <button type="button" class="mini-x" id="clipBadgeOff" aria-label="Remover corte">×</button>
+        </div>
+        <button type="button" class="btn small glass ts-done" id="touchDone" hidden aria-label="Concluir: o visor volta a deixar a página rolar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5 10 17.5 19 7"/></svg>Concluir</button>
+      </div>
+
+      <div class="vp-views" role="toolbar" aria-label="Vistas predefinidas" id="viewBar"></div>
+
+      <div class="vp-zoom" role="group" aria-label="Zoom e cena">
+        <button type="button" class="btn icon glass" id="zoomIn" aria-label="Aproximar" title="Aproximar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+        <button type="button" class="btn icon glass" id="zoomOut" aria-label="Afastar" title="Afastar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/></svg></button>
+        <button type="button" class="btn icon glass" id="sceneReset" aria-label="Restaurar a cena do capítulo" title="Restaurar cena"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3M4.5 4.5v4h4"/></svg></button>
+      </div>
+
+      <div class="legend" id="legend">
+        <ul class="legend-keys">
+          <li><i style="--c:#2d5e9c"></i>Veia</li>
+          <li><i style="--c:#c0392f"></i>Artéria</li>
+          <li><i style="--c:#e9c64f"></i>Nervo</li>
+          <li><i style="--c:#8fbf63"></i>Linfático</li>
+          <li><i style="--c:#a8463d"></i>Músculo</li>
+          <li><i style="--c:#e2d3b1"></i>Osso</li>
+          <li><i style="--c:#e0a3a3"></i>Pulmão</li>
+        </ul>
+        <p class="legend-hint"><span class="hint-mouse">Arraste para girar · Shift/botão direito desloca · roda aproxima · clique identifica</span><span class="hint-touch">Arraste para girar · pinça para zoom · toque identifica</span></p>
+      </div>
+
+      <svg class="gizmo" id="gizmo" viewBox="-54 -54 108 108" role="img" aria-label="Orientação da câmera: eixos cranial, direita do paciente e anterior"></svg>
+
+      <div class="tooltip" id="tooltip" role="status" hidden></div>
+
+      <aside class="card" id="card" hidden aria-labelledby="cardName" role="dialog" aria-modal="false" tabindex="-1">
+        <button type="button" class="mini-x card-x" id="cardClose" aria-label="Fechar cartão (Esc)">×</button>
+        <p class="card-group" id="cardGroup"></p>
+        <h3 class="card-name" id="cardName"></h3>
+        <p class="card-desc" id="cardDesc"></p>
+        <div class="card-rel" id="cardRelWrap"><p class="card-rel-h">Relevância para a punção</p><p id="cardRel"></p></div>
+        <div class="card-actions">
+          <button type="button" class="btn small" id="cardFocus"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2.5v4M12 17.5v4M2.5 12h4M17.5 12h4"/></svg>Focar</button>
+          <button type="button" class="btn small" id="cardHl" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.4 5.6L20 9.5l-4.4 3.9 1.3 5.9L12 16.3l-4.9 3 1.3-5.9L4 9.5l5.6-.9Z"/></svg>Destacar</button>
+          <a class="card-link" id="cardGloss" href="#glossario">Glossário</a>
+        </div>
+      </aside>
+
+      <div class="notice" id="notice" hidden></div>
+
+      <div class="loader" id="loader" role="status" aria-live="polite">
+        <div class="loader-box">
+          <svg class="loader-mark" viewBox="0 0 64 64" aria-hidden="true"><path d="M6 30c10-8 20-9 26-5s14 4 26-3" /><path d="M10 40c12 3 26 2 44-6" /><circle cx="32" cy="27" r="3"/></svg>
+          <p class="loader-title">Construindo o modelo 3D</p>
+          <p class="loader-step" id="loaderStep">Preparando…</p>
+          <div class="loader-bar"><span id="loaderBar"></span></div>
+          <p class="loader-hint">O texto dos capítulos já pode ser lido ao lado.</p>
+        </div>
+      </div>
+
+      <div class="nogl" id="nogl" hidden>
+        <div>
+          <p class="nogl-title">O visor 3D não pôde ser iniciado</p>
+          <p id="noglMsg">Este navegador não oferece WebGL. Abra o arquivo em um navegador atualizado (Chrome, Edge, Firefox ou Safari recentes). Todo o conteúdo textual, a prancha e os esquemas continuam disponíveis abaixo.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="controls" id="controls">
+      <details class="ctl ctl-layers" data-ctl open>
+        <summary><span>Camadas</span></summary>
+        <div class="ctl-body">
+          <div class="ctl-line layer-opts">
+            <label class="switch"><input type="checkbox" id="ghostToggle"><span class="sw" aria-hidden="true"></span>Músculos translúcidos</label>
+            <label class="switch"><input type="checkbox" id="labelsToggle" checked><span class="sw" aria-hidden="true"></span>Rótulos</label>
+          </div>
+          <div class="chips" id="layerChips" role="group" aria-label="Camadas visíveis"></div>
+        </div>
+      </details>
+
+      <details class="ctl ctl-motion" data-ctl open>
+        <summary><span>Mão e respiração</span></summary>
+        <div class="ctl-body">
+          <div class="slider-row">
+            <button type="button" class="btn icon play" id="handPlay" aria-pressed="false" aria-label="Animar a mão: preparar e apoiar"><svg viewBox="0 0 24 24" aria-hidden="true" class="i-play"><path d="M8 5.5v13l10.5-6.5z"/></svg><svg viewBox="0 0 24 24" aria-hidden="true" class="i-pause"><path d="M8 5.5v13M16 5.5v13"/></svg></button>
+            <div class="slider">
+              <div class="slider-top"><span class="slider-name">Mão</span><output id="handOut">Apoiar</output></div>
+              <input type="range" id="handRange" min="0" max="100" value="100" aria-label="Postura da mão: preparar a apoiar">
+              <div class="slider-ends"><span>Preparar</span><span>Apoiar</span></div>
+            </div>
+          </div>
+          <div class="slider-row">
+            <button type="button" class="btn icon play" id="breathPlay" aria-pressed="false" aria-label="Animar a respiração"><svg viewBox="0 0 24 24" aria-hidden="true" class="i-play"><path d="M8 5.5v13l10.5-6.5z"/></svg><svg viewBox="0 0 24 24" aria-hidden="true" class="i-pause"><path d="M8 5.5v13M16 5.5v13"/></svg></button>
+            <div class="slider">
+              <div class="slider-top"><span class="slider-name">Respiração</span><output id="breathOut">Expiração</output></div>
+              <input type="range" id="breathRange" min="0" max="100" value="0" aria-label="Fase respiratória: expiração a inspiração">
+              <div class="slider-ends"><span>Expiração</span><span>Inspiração</span></div>
+            </div>
+          </div>
+        </div>
+      </details>
+
+      <details class="ctl ctl-needle" data-ctl open>
+        <summary><span>Etapas da agulha</span></summary>
+        <div class="ctl-body">
+          <div class="stepper-head">
+            <button type="button" class="btn icon play" id="seqPlay" aria-pressed="false" aria-label="Reproduzir a sequência da agulha (aproximação até a luz venosa)"><svg viewBox="0 0 24 24" aria-hidden="true" class="i-play"><path d="M8 5.5v13l10.5-6.5z"/></svg><svg viewBox="0 0 24 24" aria-hidden="true" class="i-pause"><path d="M8 5.5v13M16 5.5v13"/></svg></button>
+            <p class="stepper-now"><b id="phaseNum">0</b><span id="phaseName">Sem agulha</span></p>
+          </div>
+          <ol class="stepper" id="stepper" aria-label="Etapa da agulha"></ol>
+          <div class="ctl-line">
+            <label class="switch"><input type="checkbox" id="wireToggle"><span class="sw" aria-hidden="true"></span>Trajeto anômalo do fio (VJI)</label>
+            <label class="switch"><input type="checkbox" id="planesToggle"><span class="sw" aria-hidden="true"></span>Planos/ângulos</label>
+          </div>
+        </div>
+      </details>
+
+      <details class="ctl ctl-cut" data-ctl open>
+        <summary><span>Corte, coxim e captura</span></summary>
+        <div class="ctl-body">
+          <div class="cut-row">
+            <label class="switch"><input type="checkbox" id="clipToggle"><span class="sw" aria-hidden="true"></span>Corte</label>
+            <div class="slider compact">
+              <input type="range" id="clipRange" min="-40" max="40" value="0" step="1" aria-label="Posição do plano de corte ao longo da normal (centímetros)" disabled>
+              <output id="clipOut">0,0 cm</output>
+            </div>
+          </div>
+          <div class="seg-row">
+            <span class="seg-label" id="rollLabel">Coxim</span>
+            <div class="seg" role="radiogroup" aria-labelledby="rollLabel" id="rollSeg">
+              <button type="button" role="radio" data-roll="none" aria-checked="true">Nenhum</button>
+              <button type="button" role="radio" data-roll="interscapular" aria-checked="false">Interescapular</button>
+              <button type="button" role="radio" data-roll="ipsilateral" aria-checked="false">Ipsilateral</button>
+            </div>
+          </div>
+          <button type="button" class="btn small wide" id="btnSnap"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2.2l1.6-2.2h5.4L16.3 7h2.2A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5z"/><circle cx="12" cy="13" r="3.4"/></svg>Capturar imagem (PNG)</button>
+        </div>
+      </details>
+    </div>
+  </section>
+
+  <article class="panel" id="painel" tabindex="-1" aria-labelledby="chTitle"></article>
+  <p class="sr-only" id="srStatus" role="status" aria-live="polite"></p>
+</main>
+
+<div class="material" id="material">
+  <div class="material-head">
+    <p class="eyebrow">Material complementar</p>
+    <h2 class="material-title">Prancha, esquemas, tabelas e referências</h2>
+    <nav class="toc" aria-label="Seções do material complementar">
+      <a href="#prancha">Prancha</a><a href="#planos">Planos da agulha</a><a href="#tecidos">Tecidos atravessados</a><a href="#usg">Ultrassom</a><a href="#medidas">Medidas</a><a href="#assimetria">Assimetria D×E</a><a href="#complicacoes">Complicações</a><a href="#checklist">Checklist</a><a href="#glossario">Glossário</a><a href="#fontes">Fontes e limites</a><a href="#licencas">Licenças</a>
+    </nav>
+  </div>
+
+  <section class="sec" id="prancha" aria-labelledby="h-prancha">
+    <div class="sec-head"><p class="eyebrow">Prancha ilustrada</p><h2 id="h-prancha">Mão esquerda: marcos e apoio</h2></div>
+    <div class="prancha" id="pranchaBody"></div>
+  </section>
+
+  <section class="sec" id="planos" aria-labelledby="h-planos">
+    <div class="sec-head"><p class="eyebrow">Leitura dos planos</p><h2 id="h-planos">Direção e inclinação são grandezas diferentes</h2>
+      <p class="lede">A direção é lida no plano frontal (para onde a agulha aponta na superfície); a inclinação, no plano sagital (quanto ela se aprofunda em relação à pele). Os dois esquemas separam conceitos e não são projeções calibradas da mesma passagem.</p></div>
+    <div id="planesBody"></div>
+  </section>
+
+  <div class="sec-grid">
+    <section class="sec" id="tecidos" aria-labelledby="h-tecidos">
+      <div class="sec-head"><p class="eyebrow">Do superficial ao profundo</p><h2 id="h-tecidos">Tecidos atravessados</h2></div>
+      <div id="layersBody"></div>
+    </section>
+    <section class="sec" id="usg" aria-labelledby="h-usg">
+      <div class="sec-head"><p class="eyebrow">Esquema, não imagem real</p><h2 id="h-usg">Ultrassom: janela infraclavicular</h2></div>
+      <div id="usgBody"></div>
+    </section>
+  </div>
+
+  <section class="sec" id="medidas" aria-labelledby="h-medidas">
+    <div class="sec-head"><p class="eyebrow">Com ressalvas</p><h2 id="h-medidas">Medidas publicadas</h2>
+      <p class="lede">Números de estudos com métodos, populações e posições diferentes. Servem para entender ordens de grandeza e variabilidade — não são alvos nem margens para um paciente.</p></div>
+    <div id="measBody"></div>
+  </section>
+
+  <section class="sec" id="assimetria" aria-labelledby="h-assim">
+    <div class="sec-head"><p class="eyebrow">Direita × esquerda</p><h2 id="h-assim">Assimetrias que importam</h2></div>
+    <div id="asymBody"></div>
+  </section>
+
+  <section class="sec" id="complicacoes" aria-labelledby="h-comp">
+    <div class="sec-head"><p class="eyebrow">Por estrutura</p><h2 id="h-comp">Complicações e suas estruturas</h2>
+      <p class="lede">Selecione “Ver no 3D” para destacar a estrutura envolvida no modelo.</p></div>
+    <div class="comp-grid" id="compBody"></div>
+  </section>
+
+  <section class="sec" id="checklist" aria-labelledby="h-check">
+    <div class="sec-head"><p class="eyebrow">Treino supervisionado</p><h2 id="h-check">Checklist do preceptor</h2></div>
+    <div id="checkBody"></div>
+  </section>
+
+  <section class="sec" id="glossario" aria-labelledby="h-gloss">
+    <div class="sec-head"><p class="eyebrow">Estruturas do modelo</p><h2 id="h-gloss">Glossário</h2></div>
+    <div class="gloss-tools">
+      <label class="search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg><input type="search" id="glossSearch" placeholder="Buscar estrutura (ex.: frênico, cúpula, subclávio)" aria-label="Buscar no glossário"></label>
+      <div class="chips filters" id="glossFilters" role="group" aria-label="Filtrar por grupo"></div>
+      <label class="switch"><input type="checkbox" id="glossLeft"><span class="sw" aria-hidden="true"></span>Incluir homólogos do lado esquerdo</label>
+    </div>
+    <p class="gloss-count" id="glossCount" aria-live="polite"></p>
+    <div class="gloss-grid" id="glossBody"></div>
+    <div class="gloss-more"><button type="button" class="btn" id="glossMore" hidden>Mostrar mais</button></div>
+  </section>
+
+  <section class="sec" id="fontes" aria-labelledby="h-fontes">
+    <div class="sec-head"><p class="eyebrow">Transparência</p><h2 id="h-fontes">Fontes e limites do modelo</h2></div>
+    <div class="sources" id="sourcesBody"></div>
+  </section>
+
+  <section class="sec" id="licencas" aria-labelledby="h-lic">
+    <div class="sec-head"><p class="eyebrow">Créditos</p><h2 id="h-lic">Licenças</h2></div>
+    <div class="licenses">
+      <details>
+        <summary>three.js r160 — licença MIT</summary>
+        <pre>The MIT License
+
+Copyright © 2010-2023 three.js authors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.</pre>
+      </details>
+      <details>
+        <summary>Malha da mão — WebXR Input Profiles / generic-hand (mão esquerda) — licença MIT</summary>
+        <p class="hint">Malha da mão: WebXR Input Profiles / generic-hand, mão esquerda. Copyright 2019 Amazon.com, Inc. ou afiliadas. Licença MIT. Geometria, pose e material de luva adaptados para este atlas.</p>
+        <pre>MIT License
+
+Copyright (c) 2019 Amazon
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is furnished
+to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice (including the next
+paragraph) shall be included in all copies or substantial portions of the
+Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS
+OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF
+OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.</pre>
+      </details>
+      <p class="hint">Fotografia da prancha: imagem sintética gerada para este atlas. Geometria anatômica 3D: procedural, criada para este atlas, sem segmentação de exames de pacientes.</p>
+    </div>
+  </section>
+</div>
+
+<footer class="foot">
+  <div class="foot-inner">
+    <p id="footDisclaimer"><strong>Material educacional para profissionais e simulação supervisionada.</strong> Não substitui preceptoria, avaliação individual, ultrassom quando indicado nem protocolo institucional. O arquivo não fornece trajetória nem profundidade seguras para uso em pacientes.</p>
+    <p class="foot-meta" id="footMeta">Versão 2.0 · revisão editorial 19/11/2026</p>
+  </div>
+</footer>
+
+<div class="busy" id="busy" hidden role="status" aria-live="polite"><div class="busy-box"><span class="spin" aria-hidden="true"></span><p id="busyText">Preparando…</p></div></div>
+<div id="printRoot" aria-hidden="true"></div>
+
+<script src="vendor/three.js"></script>
+<script src="vendor/gltf.js"></script>
+<script src="data/hand.js"></script>
+<script src="data/prancha.js"></script>
+<script src="src/core.js"></script>
+<script src="src/landmarks.js"></script>
+<script src="src/engine.js"></script>
+<script src="src/modules/skeleton.js"></script>
+<script src="src/modules/vessels.js"></script>
+<script src="src/modules/muscles.js"></script>
+<script src="src/modules/nerves.js"></script>
+<script src="src/modules/viscera.js"></script>
+<script src="src/modules/skin.js"></script>
+<script src="src/modules/instruments.js"></script>
+<script src="src/data.js"></script>
+<script src="src/app.js"></script>
+</body>
+</html>

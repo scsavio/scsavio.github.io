@@ -16,10 +16,17 @@
      artérias cedem apenas a ossos. A acomodação usa os vértices/normais reais de `layers.bones`,
      o manúbrio analítico (LM.sternum, mesma construção do esqueleto) e os eixos das artérias.
    • Extremidades de recorte didático exibem parede + luz (sangue), como nas pranchas de atlas.
+   • A VCS termina ABERTA no óstio do átrio direito: tampa plana no plano da junção cavoatrial (SVC_END), que o módulo de
+     vísceras reconhece para abrir a cavidade do AD até ela (unionHeart fica como alternativa para extremidade arredondada).
    ========================================================================== */
 ATLAS.define('vessels', function (ctx) {
   'use strict';
   const { THREE, C, LM, layers } = ctx;
+  /* Extremidade da VCS: tampa PLANA no plano da junção cavoatrial (LM). O módulo de vísceras detecta a tampa plana e abre
+     o óstio do AD (a cavidade sobe ao plano; a esfera intrapericárdica recobre a borda do vaso; o que fica dentro da luz
+     é recortado) — luz da VCS contínua com a do átrio nos cortes. Com a tampa plana, a união por recorte (unionHeart,
+     usada quando a extremidade é arredondada) não é necessária e fica desligada. */
+  const SVC_END = 'cut';
   const VV = LM.vessels;
   const LV = layers.vein, LA = layers.artery;
   const Q = C.quality || 1;
@@ -515,11 +522,13 @@ ATLAS.define('vessels', function (ctx) {
     geo.attributes.position.needsUpdate = true;
   }
 
-  /** Recorta da malha (indexada) as partes com s < −eps; triângulos cortados exatamente no nível −eps. */
+  /** Recorta da malha (indexada) as partes com s < −eps; triângulos cortados exatamente no nível −eps.
+      A geometria devolvida marca em userData.cut (Uint8Array por vértice) os vértices criados sobre a curva de corte. */
   function trimGeometry(g, s, eps) {
     const idx = g.index.array;
     const P = Array.from(g.attributes.position.array), N = Array.from(g.attributes.normal.array), U = Array.from(g.attributes.uv.array), S = Array.from(s);
     const keep = (i) => S[i] >= -eps;
+    const nv0 = P.length / 3;
     const cache = new Map(), out = [];
     const cut = (a, b) => {
       const key = a < b ? a * 4194304 + b : b * 4194304 + a;
@@ -548,10 +557,10 @@ ATLAS.define('vessels', function (ctx) {
       }
     }
     // compacta (descarta vértices órfãos: raycast, verificações e memória)
-    const remap = new Int32Array(P.length / 3).fill(-1), P2 = [], N2 = [], U2 = [];
+    const remap = new Int32Array(P.length / 3).fill(-1), P2 = [], N2 = [], U2 = [], CUT = [];
     for (let f = 0; f < out.length; f++) {
       const v = out[f];
-      if (remap[v] < 0) { remap[v] = P2.length / 3; P2.push(P[v * 3], P[v * 3 + 1], P[v * 3 + 2]); N2.push(N[v * 3], N[v * 3 + 1], N[v * 3 + 2]); U2.push(U[v * 2], U[v * 2 + 1]); }
+      if (remap[v] < 0) { remap[v] = P2.length / 3; P2.push(P[v * 3], P[v * 3 + 1], P[v * 3 + 2]); N2.push(N[v * 3], N[v * 3 + 1], N[v * 3 + 2]); U2.push(U[v * 2], U[v * 2 + 1]); CUT.push(v >= nv0 ? 1 : 0); }
       out[f] = remap[v];
     }
     const ng = new THREE.BufferGeometry();
@@ -560,6 +569,7 @@ ATLAS.define('vessels', function (ctx) {
     ng.setAttribute('uv', new THREE.Float32BufferAttribute(U2, 2));
     ng.setIndex(out);
     ng.computeBoundingSphere();
+    ng.userData.cut = Uint8Array.from(CUT);
     return ng;
   }
 
@@ -1145,7 +1155,7 @@ ATLAS.define('vessels', function (ctx) {
   const iAx = VV.axillaryV.pts.length - 1, iCorner = axScv.length, iSvc = iCorner + VV.rbcv.pts.length - 1;
   const tCornerR = chRT[iCorner], tSvc = chRT[iSvc];
   const channelR = build({
-    kind: 'V', pts: chRpts, r: chRr, radial: 32, density: 8, start: 'cut', end: 'round', up: 'coronal', bones: true, sternum: true, margin: 0.06,
+    kind: 'V', pts: chRpts, r: chRr, radial: 32, density: 8, start: 'cut', end: SVC_END, up: 'coronal', bones: true, sternum: true, margin: 0.06,
     // folga de acomodação 0,06 cm (não 0,035): a extremidade esternal da clavícula, convexa, ficava 0,015 cm DENTRO do
     // canal (vista de dentro da luz nos cortes parassagitais como mancha cor de osso no disco azul)
     // razão (eixo no plano coronal ⟂ trajeto)/(AP): subclávia achatada entre clavícula e 1ª costela (<1);
@@ -1210,12 +1220,22 @@ ATLAS.define('vessels', function (ctx) {
   //      platisma): ficam na camada de veias, mas só aparecem com o plano superficial (camada da pele) ligado ou quando
   //      a própria VJE é destacada (glossário/seleção) — ver update(). Nas cenas profundas (pele desligada) deixam de
   //      encobrir artéria subclávia, frênico, plexo e cúpula nas vistas oblíquas direitas.
+  //      LM v2.1 assenta o eixo da VJE SOBRE a face superficial do ECM: medido na malha real do módulo de músculos, a
+  //      parede da veia (r 0,24–0,26) entrava ~0,09 cm no ventre do ECM em y 7–9,5. Nessa faixa o eixo é afastado para
+  //      FORA (direção ântero-lateral da face do músculo — a mesma da crista da VJE na pele) até 0,16 cm; abaixo de
+  //      y ≈ 6,5 (trígono posterior, onde a veia perfura a fáscia e mergulha para a subclávia) e no corte superior o
+  //      trajeto de LM fica intacto (âncora ejvR, válvulas e confluência com a subclávia inalteradas).
+  const EJV_OUT = new V3(0.57, 0, 0.82).normalize();
+  const ejvLift = (y) => 0.16 * C.smooth(6.5, 7.4, y) * (1 - C.smooth(8.9, 10.2, y));
+  const ejvC0 = C.curve(VV.ejvR.pts), ejvR0 = profileAt(ejvC0, VV.ejvR.pts, VV.ejvR.r);
+  const ejvPath = [];
+  { const n = Math.max(12, Math.round(ejvC0.getLength() / 0.45)); for (let i = 0; i <= n; i++) { const p = ejvC0.getPointAt(i / n), k = ejvLift(p.y); ejvPath.push(P3(p.addScaledVector(EJV_OUT, k))); } }
   const SUPERFICIAL = [];
   ['R', 'L'].forEach((side) => {
     const L = side === 'L';
-    const pts = L ? mirP(VV.ejvR.pts) : VV.ejvR.pts, c = C.curve(pts), len = c.getLength();
+    const pts = L ? mirP(ejvPath) : ejvPath, c = C.curve(pts), len = c.getLength();
     const sys = build({
-      kind: 'V', pts, r: VV.ejvR.r, radial: 20, density: 9, start: 'cut', end: 'round', ostium: { parent: L ? channelL : channelR, at: 'end', F: 0.17, reach: 0.55 },
+      kind: 'V', pts, r: (t) => ejvR0(t), radial: 20, density: 9, start: 'cut', end: 'round', ostium: { parent: L ? channelL : channelR, at: 'end', F: 0.17, reach: 0.55 },
       valves: [{ s: tAt(c, 1, 4.9) * len, k: 0.04 }, { s: tAt(c, 1, 1.75) * len, k: 0.04 }], noise: veinNoise(L ? 27 : 26), mat: MAT.vein,
       pieces: [{ t: 1, info: GV({ id: 'ejv-' + side, name: 'Veia jugular externa ' + (L ? 'esquerda' : 'direita'), desc: D.ejv }) }],
     });
@@ -1267,6 +1287,164 @@ ATLAS.define('vessels', function (ctx) {
   // ---- União das confluências (recorte das partes internas; ver trimAll)
   const tTrim0 = performance.now();
   trimAll();
+
+  /* =====================================================================
+     UNIÃO COM O CORAÇÃO — a VCS termina ABERTA no óstio do átrio direito
+     O coração (módulo de vísceras) é construído DEPOIS deste módulo; a união é feita no primeiro update() — ou antes,
+     se o módulo de vísceras chamar api.unionHeart(campo) com o próprio campo do coração (distância com sinal, + fora).
+     As partes da VCS que ficam DENTRO da superfície externa do coração são recortadas (com 0,04 cm de sobra dentro da
+     parede, para não abrir fresta na costura): nos cortes, a luz azul da VCS termina no óstio, sem a calota
+     arredondada que entrava ~0,9 cm na luz do AD. Uma tampa de recorte (parede + luz) fecha o óstio apenas enquanto o
+     coração não está visível (camada do mediastino desligada); sem o módulo de vísceras nada muda (calota original).
+     A aorta ascendente NÃO é recortada: sua calota inicial coincide com a cúpula da raiz aórtica do coração (mesmo
+     centro e raio em LM) — a curva de interseção seria mal condicionada (faixa |d| < 0,04 cm espalhada por 2,6 cm) e,
+     nos cortes, as cores de secção das duas paredes são praticamente iguais.
+     ===================================================================== */
+  const HEART_INSET = 0.04;
+  const OSTIUM_CAPS = [];
+  let heartMesh = null, heartTried = false;
+  /** Malha EXTERNA do coração (id 'heart', normais para fora; a malha da cavidade tem faces voltadas para dentro). */
+  function findHeart() {
+    if (!layers.mediastinum) return null;
+    let best = null, bv = 0;
+    const c = new V3(), sz = new V3();
+    layers.mediastinum.traverse((o) => {
+      if (!o.isMesh || !o.geometry || !o.geometry.attributes.normal || !o.userData.info || o.userData.info.id !== 'heart') return;
+      const g = o.geometry; if (!g.boundingBox) g.computeBoundingBox();
+      g.boundingBox.getCenter(c);
+      const P = g.attributes.position.array, N = g.attributes.normal.array;
+      let s = 0; for (let i = 0; i < P.length; i += 21) s += (P[i] - c.x) * N[i] + (P[i + 1] - c.y) * N[i + 1] + (P[i + 2] - c.z) * N[i + 2];
+      if (s <= 0) return;
+      g.boundingBox.getSize(sz); const vol = sz.x * sz.y * sz.z;
+      if (vol > bv) { bv = vol; best = o; }
+    });
+    return best;
+  }
+  /** Distância com sinal (+ fora) à malha externa do coração, só na caixa `roi` (planos tangentes ponderados dos
+      vértices mais próximos — malha lisa de superfície implícita, vértices a ~0,25 cm). */
+  function meshField(mesh, roi) {
+    ctx.world.updateMatrixWorld(true);
+    const M = new THREE.Matrix4().copy(ctx.world.matrixWorld).invert().multiply(mesh.matrixWorld), NM = new THREE.Matrix3().getNormalMatrix(M);
+    const g = mesh.geometry, pa = g.attributes.position, na = g.attributes.normal, v = new V3(), w = new V3();
+    const box = roi.clone().expandByScalar(1.8), PA = [], NA = [];
+    for (let i = 0; i < pa.count; i++) {
+      v.fromBufferAttribute(pa, i).applyMatrix4(M); if (!box.containsPoint(v)) continue;
+      w.fromBufferAttribute(na, i).applyMatrix3(NM).normalize(); PA.push(v.x, v.y, v.z); NA.push(w.x, w.y, w.z);
+    }
+    const n = PA.length / 3; if (n < 30) return null;
+    const cs = 0.3, ox = box.min.x, oy = box.min.y, oz = box.min.z;
+    const NX = Math.ceil((box.max.x - ox) / cs) + 1, NY = Math.ceil((box.max.y - oy) / cs) + 1, NZ = Math.ceil((box.max.z - oz) / cs) + 1;
+    const NC = NX * NY * NZ, start = new Int32Array(NC + 1), cell = new Int32Array(n);
+    for (let i = 0; i < n; i++) { cell[i] = (Math.floor((PA[i * 3 + 2] - oz) / cs) * NY + Math.floor((PA[i * 3 + 1] - oy) / cs)) * NX + Math.floor((PA[i * 3] - ox) / cs); start[cell[i] + 1]++; }
+    for (let k = 0; k < NC; k++) start[k + 1] += start[k];
+    const fill = start.slice(0, NC), item = new Int32Array(n);
+    for (let i = 0; i < n; i++) item[fill[cell[i]]++] = i;
+    const scan = (ix, iy, iz, R, fn) => {
+      for (let c = -R; c <= R; c++) { const zz = iz + c; if (zz < 0 || zz >= NZ) continue;
+        for (let b = -R; b <= R; b++) { const yy = iy + b; if (yy < 0 || yy >= NY) continue;
+          for (let a = -R; a <= R; a++) { const xx = ix + a; if (xx < 0 || xx >= NX) continue;
+            const cc = (zz * NY + yy) * NX + xx; for (let q = start[cc], e = start[cc + 1]; q < e; q++) fn(item[q] * 3); } } }
+    };
+    return (x, y, z) => {
+      const ix = Math.floor((x - ox) / cs), iy = Math.floor((y - oy) / cs), iz = Math.floor((z - oz) / cs);
+      let best = 1e9, R = 1;
+      for (; R <= 6; R++) { scan(ix, iy, iz, R, (j) => { const d = (x - PA[j]) ** 2 + (y - PA[j + 1]) ** 2 + (z - PA[j + 2]) ** 2; if (d < best) best = d; }); if (best <= (R * cs) ** 2) break; }
+      if (best > 1e8) return 9;
+      const lim = (Math.sqrt(best) + 0.07) ** 2; let sw = 0, sd = 0;
+      scan(ix, iy, iz, Math.min(R, 6), (j) => {
+        const dx = x - PA[j], dy = y - PA[j + 1], dz = z - PA[j + 2], d = dx * dx + dy * dy + dz * dz; if (d > lim) return;
+        const wgt = 1 / (d + 0.002); sw += wgt; sd += wgt * (dx * NA[j] + dy * NA[j + 1] + dz * NA[j + 2]);
+      });
+      return sw > 0 ? sd / sw : 9;
+    };
+  }
+  /** Tampa de recorte sobre um laço de borda NÃO planar (fim recortado pelo coração): leque parede → luz. */
+  function loopCap(loop, outward, kind, info, parent) {
+    const R = loop.length, c = new V3(); loop.forEach((p) => c.add(p)); c.multiplyScalar(1 / R);
+    const cl = CAPCOL[kind], wall = kind === 'V' ? 0.11 : 0.2;
+    const pos = [], cols = [], nrm = [], idx = [];
+    const add = (v, cc) => { pos.push(v.x, v.y, v.z); cols.push(cc.r, cc.g, cc.b); nrm.push(outward.x, outward.y, outward.z); return pos.length / 3 - 1; };
+    const o0 = [], o1 = [], o2 = [];
+    for (let k = 0; k < R; k++) {
+      const d = loop[k].clone().sub(c);
+      o0.push(add(loop[k], cl.wall)); o1.push(add(c.clone().addScaledVector(d, 1 - wall), cl.wall)); o2.push(add(c.clone().addScaledVector(d, 1 - wall - 0.06), cl.lumen));
+    }
+    const ci = add(c, cl.deep);
+    for (let k = 0; k < R; k++) {
+      const k1 = (k + 1) % R;
+      idx.push(o0[k], o0[k1], o1[k], o0[k1], o1[k1], o1[k], o1[k], o1[k1], o2[k], o1[k1], o2[k1], o2[k], o2[k], o2[k1], ci);
+    }
+    // orientação: normal média do leque central alinhada a `outward`
+    const A = new V3(), B = new V3(), nn = new V3(), t = new V3();
+    for (let k = 0; k < R; k++) { A.fromArray(pos, o2[k] * 3).sub(c); B.fromArray(pos, o2[(k + 1) % R] * 3).sub(c); nn.add(t.crossVectors(A, B)); }
+    if (nn.dot(outward) < 0) for (let i = 0; i < idx.length; i += 3) { const q = idx[i + 1]; idx[i + 1] = idx[i + 2]; idx[i + 2] = q; }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
+    g.setIndex(idx);
+    return C.mesh(g, kind === 'V' ? MAT.capV : MAT.capA, parent, info);
+  }
+  /** Laços de borda formados só por vértices criados no corte (userData.cut), ordenados. Os vértices são soldados por
+      posição (a costura da varredura duplica a coluna k = 0 / k = R: sem soldar, o laço se partiria ali). */
+  function cutLoops(g) {
+    const cut = g.userData.cut, ix = g.index.array, pa = g.attributes.position;
+    if (!cut) return [];
+    const weld = new Map(), canon = new Int32Array(pa.count).fill(-1);
+    for (let i = 0; i < pa.count; i++) {
+      if (!cut[i]) continue;
+      const key = Math.round(pa.getX(i) * 2e4) + ',' + Math.round(pa.getY(i) * 2e4) + ',' + Math.round(pa.getZ(i) * 2e4);
+      const c = weld.get(key); if (c === undefined) { weld.set(key, i); canon[i] = i; } else canon[i] = c;
+    }
+    const E = new Map();
+    for (let f = 0; f < ix.length; f += 3) for (let e = 0; e < 3; e++) {
+      const a0 = ix[f + e], b0 = ix[f + ((e + 1) % 3)]; if (!cut[a0] || !cut[b0]) continue;
+      const a = canon[a0], b = canon[b0]; if (a === b) continue;
+      const k = a < b ? a * 4194304 + b : b * 4194304 + a; E.set(k, (E.get(k) || 0) + 1);
+    }
+    const adj = new Map();
+    for (const [k, n] of E) { if (n !== 1) continue; const a = Math.floor(k / 4194304), b = k % 4194304; (adj.get(a) || adj.set(a, []).get(a)).push(b); (adj.get(b) || adj.set(b, []).get(b)).push(a); }
+    const seen = new Set(), loops = [];
+    for (const s of adj.keys()) {
+      if (seen.has(s)) continue;
+      const L = [s]; seen.add(s); let prev = -1, cur = s;
+      for (;;) { const nx = (adj.get(cur) || []).find((q) => q !== prev && !seen.has(q)); if (nx == null) break; L.push(nx); seen.add(nx); prev = cur; cur = nx; }
+      if (L.length >= 8) loops.push(L.map((i) => new V3().fromBufferAttribute(pa, i)));
+    }
+    return loops;
+  }
+  /** Recorta a VCS pela superfície externa do coração (idempotente). `field` opcional: campo exato do coração. */
+  function unionHeart(field) {
+    if (heartTried) return OSTIUM_CAPS.length > 0;
+    heartTried = true;
+    if (SVC_END === 'cut' && typeof field !== 'function') return false; // óstio aberto pelo módulo de vísceras (tampa plana)
+    heartMesh = findHeart();
+    const S = channelR, T1 = S.curve.getTangentAt(1), pEnd = S.curve.getPointAt(1);
+    // só os 3 cm finais do canal (a VCS também encosta, mais acima, em estruturas do pericárdio que não são o coração)
+    const p3 = S.curve.getPointAt(Math.max(0, 1 - 3.0 / S.len)), T3 = S.curve.getTangentAt(Math.max(0, 1 - 3.0 / S.len));
+    const svcMeshes = S.pieces.filter((p) => p.info.id === 'svc').map((p) => p.mesh);
+    const roi = new THREE.Box3(); svcMeshes.forEach((m) => { m.geometry.computeBoundingBox(); roi.union(m.geometry.boundingBox); });
+    roi.min.y = Math.max(roi.min.y, pEnd.y - 2.5); roi.max.y = Math.min(roi.max.y, p3.y + 0.5);
+    let f = typeof field === 'function' ? field : null;
+    if (!f) { if (!heartMesh || !ctx.world) return false; f = meshField(heartMesh, roi); if (!f) return false; }
+    let changed = false;
+    for (const m of svcMeshes) {
+      const g = m.geometry, PA = g.attributes.position.array, nv = PA.length / 3, s = new Float32Array(nv).fill(9);
+      let any = false;
+      for (let i = 0; i < nv; i++) {
+        const x = PA[i * 3], y = PA[i * 3 + 1], z = PA[i * 3 + 2];
+        if ((x - p3.x) * T3.x + (y - p3.y) * T3.y + (z - p3.z) * T3.z < 0) continue;
+        s[i] = f(x, y, z) + HEART_INSET; if (s[i] < 0) any = true;
+      }
+      if (!any) continue;
+      const ng = trimGeometry(g, s, 0); g.dispose(); m.geometry = ng; changed = true;
+      for (const loop of cutLoops(ng)) {
+        const cap = loopCap(loop, T1.clone(), 'V', m.userData.info, m.parent);
+        cap.userData.heartOstium = true; OSTIUM_CAPS.push(cap);
+      }
+    }
+    return changed;
+  }
   if (typeof location !== 'undefined' && /[?&]vxdbg=1/.test(location.search)) window.__vx = { SYS, sdfOf, AXES, trimMs: performance.now() - tTrim0, T0: T_START, manubriumAt, manubriumAnalytic, MANF, T_MAN };
 
   /* =====================================================================
@@ -1346,11 +1524,27 @@ ATLAS.define('vessels', function (ctx) {
   };
 
   const E = ctx.engine;
-  let supVis = null;
+  let supVis = null, capVis = null;
+  /** O objeto e todos os ancestrais visíveis? */
+  const shown = (o) => { for (; o; o = o.parent) if (!o.visible) return false; return true; };
   return {
     anchors,
-    /** Veias superficiais (VJE): visíveis com o plano superficial (camada da pele) ou quando destacadas. */
+    /** Veias superficiais (VJE): visíveis com o plano superficial (camada da pele) ou quando destacadas.
+        Óstio da VCS no AD: união com o coração no primeiro quadro; tampa visível só com o coração oculto. */
     update() {
+      if (!heartTried) {
+        try { unionHeart(); } catch (e) { /* a união é opcional: mantém a calota original */ }
+        // tampas criadas depois de a camada de veias ter virado "fantasma": reaplica o estado à camada
+        const gh = E && typeof E.ghosts === 'function' ? E.ghosts() : null;
+        if (OSTIUM_CAPS.length && gh && gh.vein != null && typeof E.setGhost === 'function') E.setGhost('vein', gh.vein);
+      }
+      if (OSTIUM_CAPS.length) {
+        if (heartMesh === null) heartMesh = findHeart() || false; // campo recebido antes da malha existir: procura uma vez
+        // tampa só com o coração oculto ou translúcido (camada do mediastino desligada ou em "fantasma")
+        const gh = E && typeof E.ghosts === 'function' ? E.ghosts() : null;
+        const cv = !(heartMesh && shown(heartMesh)) || !!(gh && gh.mediastinum != null);
+        if (cv !== capVis) { capVis = cv; OSTIUM_CAPS.forEach((m) => (m.visible = cv)); }
+      }
       const hl = E && typeof E.highlighted === 'function' ? E.highlighted() || '' : '';
       const v = !!(layers.skin && layers.skin.visible) || /^ejv-/.test(hl);
       if (v === supVis) return;
@@ -1360,6 +1554,9 @@ ATLAS.define('vessels', function (ctx) {
       /** Eixo amostrado (coords anatômicas) de um vaso registrado por este módulo. */
       axis: (id) => (AXES[id] ? AXES[id].map((p) => p.slice()) : null),
       ids: () => Object.keys(AXES),
+      /** Recorta a VCS pela superfície externa do coração (feito sozinho no 1º update()). `field(x, y, z)` opcional:
+          distância com sinal do coração (+ fora), p.ex. o campo exato do módulo de vísceras ao fim da sua construção. */
+      unionHeart: (field) => unionHeart(field),
     },
   };
 });

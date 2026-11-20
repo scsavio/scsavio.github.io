@@ -381,7 +381,7 @@
     E.markShadowDirty = () => { shadowDirty = true; };
     function shadowKey() {
       const st = E.state;
-      let k = st.phase + ',' + (+st.handPose || 0).toFixed(4) + ',' + (+st.breath || 0).toFixed(4) + ',' + st.wireMal + ',' + st.rollMode + ',' + st.showPlanes + ',' + st.fixStep + ',' + st.chapter + '|';
+      let k = st.phase + ',' + (+st.handPose || 0).toFixed(4) + ',' + (+st.breath || 0).toFixed(4) + ',' + st.wireMal + ',' + st.rollMode + ',' + st.showPlanes + ',' + st.fixStep + ',' + !!st.dilator + ',' + st.markers + ',' + st.chapter + '|';
       for (const n of ATLAS.LAYERS) k += layers[n].visible ? '1' : '0';
       k += '|' + [...ghostLayers.entries()].join(';') + '|' + hlId;
       for (const p of C.clipPlanes) k += '|' + p.normal.x.toFixed(4) + ',' + p.normal.y.toFixed(4) + ',' + p.normal.z.toFixed(4) + ',' + p.constant.toFixed(4);

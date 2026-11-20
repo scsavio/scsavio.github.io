@@ -1,5 +1,5 @@
 /* ==========================================================================
-   muscles.js — músculos, ligamento costoclavicular e fáscia clavipeitoral (camada 'muscle')
+   muscles.js — músculos, ligamentos costoclavicular e nucal e fáscia clavipeitoral (camada 'muscle')
    Coordenadas ANATÔMICAS (x = direita do paciente, y cranial, z anterior, cm) — ver landmarks.js.
    Lado direito construído a partir de LM; lado esquerdo por espelhamento (C.mirrorGeometry).
 
@@ -16,7 +16,9 @@
    - Peitoral maior com tendão bilaminar dobrado em "U" (prega axilar anterior); manguito rotador posterior
      (supraespinal, infraespinal, redondo menor) renderizado como leito do deltoide e do trapézio.
    - Músculos fusiformes/acintados (ECM, escalenos, subclávio, omo-hióideo, infra-hióideos): varreduras
-     de secção elíptica com orientação controlada.
+     de secção elíptica com orientação controlada; moldados contra os eixos REAIS dos vasos/nervos (deformação macia).
+   - Trapézio cervical assentado sobre os espinhosos reais do esqueleto (mapa de altura da linha média) e sobre o
+     ligamento nucal (septo mediano); sulco deltopeitoral aberto ao longo do eixo real da veia cefálica.
    - Cor por vértice: ventre muscular ↔ tendão/aponeurose (transição nítida de ~0,45 cm, junção miotendínea
      levemente escurecida) + mosqueado sutil;
      textura normal de fibras (C.mats.muscle) com v ao longo das fibras.
@@ -321,12 +323,33 @@ ATLAS.define('muscles', function (ctx) {
   // vasos de LM (as lâminas devem passar à frente/ao redor)
   const VS = LM.vessels;
   const obAxV = lmTube(VS.axillaryV.pts, 0.66, 0.05), obScv = lmTube(VS.scv.pts, 0.7, 0.05), obAxA = lmTube(VS.axillaryA.pts, 0.42, 0.05);
-  const obCeph = lmTube(VS.cephalicR.pts, 0.3, 0.05), obIJV = lmTube(VS.ijvR.pts, 0.82, 0.04), obCCA = lmTube(VS.ccaR.pts, 0.46, 0.04);
+  // cefálica: eixo REAL do módulo de vasos (LM v2 se ausente)
+  const obCeph = solidTube('cephalic-v-R', VS.cephalicR.pts, VS.cephalicR.r, 0.06), obIJV = lmTube(VS.ijvR.pts, 0.82, 0.04), obCCA = lmTube(VS.ccaR.pts, 0.46, 0.04);
   const obEJV = lmTube(VS.ejvR.pts, 0.28, 0.05);
   // cefálica no sulco deltopeitoral: as BORDAS das lâminas apenas a margeiam (folga fixa, não a meia-espessura inteira)
   const obCephEdge = (p, d) => obCeph(p, Math.min(d, 0.1));
   // borda anterior do deltoide (espessa, ≥ 0,6 cm): afasta-se mais, para a veia ficar NO sulco e não sob o músculo
   const obCephDelt = (p, d) => obCeph(p, Math.min(d, 0.32));
+  /* Parede LATERAL do sulco deltopeitoral (só para o deltoide): ao longo do eixo REAL da cefálica (sólido do módulo de
+     vasos; LM se ausente), no trecho em que ela corre no sulco (y −8,8 … −0,6), nenhum ponto do deltoide à altura da veia
+     ou à frente dela pode ficar medial a (eixo + r + 0,08 + meia-espessura): a borda anterior do músculo termina
+     LATERAL à veia, que fica visível no sulco entre deltoide e peitoral maior (antes a borda a cobria entre y −6,3 e −2). */
+  const obCephGroove = (() => {
+    const sc = (ATLAS.solids || []).find((q) => q.id === 'cephalic-v-R');
+    const P0 = sc ? sc.pts : C.sample(VS.cephalicR.pts, 40), rF = sc ? sc.r : C.profile(VS.cephalicR.r);
+    // trecho ascendente (do braço até o ponto mais alto, antes de mergulhar para a veia axilar), amostrado por y
+    let top = 0; P0.forEach((q, i) => { if (q[1] > P0[top][1]) top = i; });
+    const A = P0.slice(0, top + 1).map((q, i) => ({ x: q[0], y: q[1], z: q[2], r: rF(i / (P0.length - 1)) })).sort((a, b) => a.y - b.y);
+    const at = (y) => { for (let k = 1; k < A.length; k++) if (y <= A[k].y) { const a = A[k - 1], b = A[k], w = (y - a.y) / Math.max(1e-6, b.y - a.y); return { x: lerp(a.x, b.x, w), z: lerp(a.z, b.z, w), r: lerp(a.r, b.r, w), tx: b.x - a.x, ty: b.y - a.y }; } return null; };
+    return (p, d) => {
+      if (p.y < -8.8 || p.y > -0.6) return;
+      const a = at(p.y); if (!a || p.z < a.z - 1.6) return;
+      // distância perpendicular à veia no plano frontal = afastamento horizontal × cos(inclinação do sulco)
+      const nx = Math.abs(a.ty) / (Math.hypot(a.tx, a.ty) || 1), s = (p.x - a.x) * nx;
+      const need = a.r + 0.08 + d, w = sm(-8.8, -7.6, p.y) * (1 - sm(-1.5, -0.6, p.y));
+      if (s < need) p.x += (need - s) / Math.max(0.5, nx) * w; // desloca só em x (lateral)
+    };
+  })();
 
   /* =====================================================================
      Parede costal: raster polar (θ, y) → raio externo ρ (envoltório das costelas + cartilagens + esterno)
@@ -559,8 +582,8 @@ ATLAS.define('muscles', function (ctx) {
       const k = j * W + i, p = P[k], u = i / nu, v = j / nv;
       const U = o.uvFn ? o.uvFn(u, v, arc[k]) : [u * uvW / (o.tileU || 3.4), arc[k] / (o.tileV || 12)];
       uv.set(U, k * 2); uv.set(U, (NV + k) * 2);
-      // tendon(u, v, w) → k ou [k, junção]; w = largura (em v) de uma rampa de RW cm nesta coluna de fibras
-      const tv = o.tendon ? o.tendon(u, v, RW / Math.max(1, arc[nv * W + i])) : 0;
+      // tendon(u, v, w, p) → k ou [k, junção]; w = largura (em v) de uma rampa de RW cm nesta coluna de fibras; p = ponto final
+      const tv = o.tendon ? o.tendon(u, v, RW / Math.max(1, arc[nv * W + i]), p) : 0;
       const kt = clamp(Array.isArray(tv) ? tv[0] : tv, 0, 1), jt = Array.isArray(tv) ? tv[1] : 0;
       const c = musRGB(o.colFn ? o.colFn(u, v) : (o.col || COL.mus), kt, p.x, p.y, p.z, o.seed || 0, jt);
       if (o.grooveFn) { const gq = 1 - 0.22 * o.grooveFn(u, v) * (1 - kt); c[0] *= gq; c[1] *= gq; c[2] *= gq; }
@@ -755,12 +778,17 @@ ATLAS.define('muscles', function (ctx) {
       (s, w) => ({ base: COL.deep, k: 0.85 * ramp(s, 0.945, w) + 0.3 * (1 - ramp(s, 0.03, w)), j: band(s, 0.945, w) }), 21);
     // a VJI (medial), a veia subclávia (anterior), a artéria subclávia (posterior) e os ramos que cruzam a face anterior
     // (supraescapular, cervical transversa) moldam o ventre: as faces em contato são achatadas, sem invadir os vasos
+    // arco da subclávia: eixo REAL do módulo de vasos e, além dele, o eixo-mestre LM v2 (arco elevado, r 0,44–0,48) —
+    // se os dois divergirem, a face posterior não invade nenhum deles. Ramos que cruzam a face anterior (supraescapular,
+    // cervical transversa D/E) com folga maior (0,1 cm): pequenas mudanças no rebase dos ramos não voltam a penetrar.
     const obsSA = [solidTube('ijv-R', VS.ijvR.pts, VS.ijvR.r, 0.06), solidTube('scv-R', VS.scv.pts, VS.scv.r, 0.05), solidTube('sca-R', VS.scaR.pts, VS.scaR.r, 0.05),
-      solidTube('suprascapular-a-R', null, 0, 0.03), solidTube('transverse-cervical-a-R', null, 0, 0.03),
-      solidTube('thyrocervical-R', null, 0, 0.03), solidTube('inferior-thyroid-a-R', null, 0, 0.03), solidTube('vertebral-a-R', null, 0, 0.03),
+      obTube(frames(VS.scaR.pts, { rx: VS.scaR.r, ry: VS.scaR.r, step: 0.2 }), 0.06),
+      solidTube('suprascapular-a-R', null, 0, 0.1), solidTube('transverse-cervical-a-R', null, 0, 0.1),
+      solidTube('thyrocervical-R', null, 0, 0.05), solidTube('inferior-thyroid-a-R', null, 0, 0.05), solidTube('vertebral-a-R', null, 0, 0.03),
       // ramos do lado esquerdo (não exatamente simétricos): o mesmo leito serve à malha espelhada
-      solidTube('suprascapular-a-L', null, 0, 0.03), solidTube('transverse-cervical-a-L', null, 0, 0.03)];
-    deformSoft(g, (p) => { for (const ob of obsSA) ob(p, 0); }, { passes: 3, smooth: 2 });
+      solidTube('suprascapular-a-L', null, 0, 0.1), solidTube('transverse-cervical-a-L', null, 0, 0.1)];
+    // smooth 3: a prega da borda medial (y ≈ 3,3, junto à VJI e aos ramos) é alisada; tol 0,02 na correção final
+    deformSoft(g, (p) => { for (const ob of obsSA) ob(p, 0); }, { passes: 3, smooth: 3, tol: 0.02 });
     const info = G({ id: 'scalene-ant-R', name: 'Músculo escaleno anterior direito',
       desc: 'Dos tubérculos anteriores de C3–C6 ao tubérculo do escaleno da 1ª costela. A veia subclávia passa ANTERIOR a ele; a artéria subclávia e o plexo braquial, POSTERIORES — barreira entre veia e artéria.' });
     addR(g, MUS, info);
@@ -797,7 +825,8 @@ ATLAS.define('muscles', function (ctx) {
     const obTr = LM.nerves.plexusTrunks.map((T) => lmTube(T.pts, 0.26, 0.05));
     // tronco inferior: sobre a 1ª costela fica ATRÁS da 3ª parte da artéria (que o afasta para baixo/trás) e à frente
     // da inserção do escaleno médio — canaleta também nessa posição (o módulo de nervos o assenta ali)
-    obTr.push(lmTube([[4.45, 3.6, -4.85], [4.94, 2.34, -3.67], [5.4, 1.88, -3.53], [5.7, 1.72, -3.36], [5.86, 2.02, -3.2], [6.15, 2.13, -3.25], [6.54, 2.0, -3.18], [7.06, 1.6, -3.1], [8.0, 1.1, -2.8]], 0.25, 0.08));
+    // (onda 3: segue o trajeto assentado pelo módulo de nervos, monotônico em y sobre a 1ª costela — sem o vale antigo)
+    obTr.push(lmTube([[4.43, 3.59, -4.68], [4.98, 2.5, -3.79], [5.5, 1.81, -3.4], [5.74, 1.63, -3.3], [6.01, 1.51, -3.2], [6.33, 1.5, -3.16], [6.64, 1.48, -3.05], [6.95, 1.43, -2.96], [7.24, 1.3, -2.87], [7.5, 1.14, -2.88], [7.75, 0.92, -2.92]], 0.25, 0.08));
     const obScaM = solidTube('sca-R', VS.scaR.pts, VS.scaR.r, 0.06);
     deformSoft(g, (p) => { for (const ob of obTr) ob(p, 0); obScaM(p, 0); },
       { weight: (p) => sm(1.0, 1.7, p.y) * (1 - sm(8.0, 8.8, p.y)), passes: 4, smooth: 3, tol: Infinity }); // sem correção dura final (recriaria dobras); os troncos são assentados pelo módulo de nervos
@@ -1254,7 +1283,7 @@ ATLAS.define('muscles', function (ctx) {
         // borda anterior arredondada e espessa (≥ 0,6 cm) no sulco deltopeitoral
         return belly * part * lerp(0.62, 1, sm(0, 0.12, u)) * lerp(0.42, 1, sm(1, 0.82, u));
       },
-      out: (p) => [p.x - 17.2, 0.3, p.z + 3.8], obst: [obHeadCuff, obGTCuff, obLT, obHum, obAcrom, obClav, obCorac, obSup, obInf, obTMin, obSpine, obPMaj, obCephDelt, obPM],
+      out: (p) => [p.x - 17.2, 0.3, p.z + 3.8], obst: [obHeadCuff, obGTCuff, obLT, obHum, obAcrom, obClav, obCorac, obSup, obInf, obTMin, obSpine, obPMaj, obCephDelt, obPM, obCephGroove],
       gap: 0.06, iters: 4, lam: 0.5, pin: (i, j) => j === 0 || j === nv, smoothTop: 12, topMax: 1.35,
       col: COL.mus, tendon: (u, v, w) => [ramp(v, 0.925, w) + 0.3 * (1 - ramp(v, 0.025, w)) + 0.25 * sm(0.64, 0.72, u) * (1 - ramp(v, 0.06, w)), band(v, 0.925, w)],
       uvW: 24, seed: 101, bundles: 11, grooveAmp: 0.12,
@@ -1265,13 +1294,63 @@ ATLAS.define('muscles', function (ctx) {
   }
 
   /* =====================================================================
-     12) Trapézio — fibras superiores (corte em y = 11), médias e inferiores; inserção no terço lateral
-         da clavícula, acrômio e espinha da escápula
+     12a) Processos espinhosos REAIS (malhas das vértebras do esqueleto) como mapa de altura da linha média:
+          zB(x, y) = z mais posterior dos elementos posteriores em |x| ≤ 1,3 (dilatado ±0,24 × ±0,48 cm, para a grade
+          do trapézio, de ~0,45 cm na linha média, não "cortar" a ponta entre amostras). Leito do trapézio e do
+          ligamento nucal; acompanha o esqueleto real (p.ex. o espinhoso longo de C7, ponta em z ≈ −12,6).
      ===================================================================== */
+  const spineHF = (() => {
+    const X0 = -1.6, DX = 0.08, NX = 41, Y0 = -26, DY = 0.08, NY = 476, BIG = 1e9;
+    const Z = new Float32Array(NX * NY).fill(BIG), tips = {};
+    const bones = layers.bones; bones.updateMatrixWorld(true);
+    const inv = new THREE.Matrix4().copy(bones.matrixWorld).invert(), M = new THREE.Matrix4();
+    const a = new Vec(), b = new Vec(), c = new Vec(), q = new Vec(), e1 = new Vec(), e2 = new Vec();
+    const splat = (x, y, z) => { const i = Math.round((x - X0) / DX), j = Math.round((y - Y0) / DY); if (i < 0 || j < 0 || i >= NX || j >= NY) return; const k = j * NX + i; if (z < Z[k]) Z[k] = z; };
+    bones.traverse((o) => {
+      const id = o.isMesh && o.userData.info && o.userData.info.id;
+      if (!id || !/^vertebra-/.test(id)) return;
+      M.multiplyMatrices(inv, o.matrixWorld);
+      const pos = o.geometry.attributes.position, idx = o.geometry.index, n = idx ? idx.count : pos.count;
+      let tip = null;
+      for (let t = 0; t < n; t += 3) {
+        a.fromBufferAttribute(pos, idx ? idx.getX(t) : t).applyMatrix4(M);
+        b.fromBufferAttribute(pos, idx ? idx.getX(t + 1) : t + 1).applyMatrix4(M);
+        c.fromBufferAttribute(pos, idx ? idx.getX(t + 2) : t + 2).applyMatrix4(M);
+        if (Math.min(a.x, b.x, c.x) > 1.3 || Math.max(a.x, b.x, c.x) < -1.3) continue;
+        // só elementos posteriores (lâminas, espinhosos): o corpo/pedículos nunca limitam o trapézio
+        if (Math.min(a.z, b.z, c.z) > LM.spineFront((a.y + b.y + c.y) / 3) - 2.6) continue;
+        for (const v of [a, b, c]) if (Math.abs(v.x) < 1 && (!tip || v.z < tip.z)) tip = v.clone();
+        const ns = Math.max(1, Math.ceil(Math.max(a.distanceTo(b), a.distanceTo(c), b.distanceTo(c)) / 0.07));
+        e1.subVectors(b, a); e2.subVectors(c, a);
+        for (let i = 0; i <= ns; i++) for (let j = 0; i + j <= ns; j++) { q.copy(a).addScaledVector(e1, i / ns).addScaledVector(e2, j / ns); splat(q.x, q.y, q.z); }
+      }
+      if (tip) tips[id.slice(9)] = arr(tip);
+    });
+    // dilatação (mínimo de z, separável: ±0,24 cm em x, ±0,48 cm em y) — ponta romba equivalente para a grade grossa
+    const Dx = new Float32Array(NX * NY).fill(BIG), D = new Float32Array(NX * NY).fill(BIG), ri = 3, rj = 6;
+    for (let j = 0; j < NY; j++) for (let i = 0; i < NX; i++) { let m = BIG; for (let di = Math.max(0, i - ri); di <= Math.min(NX - 1, i + ri); di++) { const z = Z[j * NX + di]; if (z < m) m = z; } Dx[j * NX + i] = m; }
+    for (let j = 0; j < NY; j++) for (let i = 0; i < NX; i++) { let m = BIG; for (let dj = Math.max(0, j - rj); dj <= Math.min(NY - 1, j + rj); dj++) { const z = Dx[dj * NX + i]; if (z < m) m = z; } D[j * NX + i] = m; }
+    /** z mais posterior do osso perto de (x, y) (mínimo das 4 células vizinhas); BIG se não há osso */
+    const zAt = (x, y) => {
+      const fi = (x - X0) / DX, fj = (y - Y0) / DY, i = Math.floor(fi), j = Math.floor(fj);
+      if (i < 0 || j < 0 || i >= NX - 1 || j >= NY - 1) return BIG;
+      return Math.min(D[j * NX + i], D[j * NX + i + 1], D[(j + 1) * NX + i], D[(j + 1) * NX + i + 1]);
+    };
+    /** obstáculo: mantém o ponto POSTERIOR ao osso (desloca só em −z) */
+    const ob = (p, d) => { const z = zAt(p.x, p.y); if (z < BIG && p.z > z - d) p.z = z - d; };
+    return { zAt, ob, tips, BIG };
+  })();
+
+  /* =====================================================================
+     12) Trapézio — fibras superiores (corte em y = 11), médias e inferiores; inserção no terço lateral
+         da clavícula, acrômio e espinha da escápula. Parte cervical sobre o ligamento nucal: a nuca fica ~3 cm
+         atrás das pontas dos espinhosos C4–C6 (AP do pescoço ≈ 13 cm com a pele) e a aponeurose em losango
+         (C6–T3), fina, deixa saliente a ponta de C7 (vértebra proeminente).
+     ===================================================================== */
+  let trapNuchal = null; // linha média da face profunda do trapézio cervical (para o ligamento nucal)
   {
     const tipZ = (y) => LM.spinousTipZ(y);
     const midZ = (y) => tipZ(y) - 0.42;
-    const nf = 10, keyU = Array.from({ length: nf }, (_, i) => i / (nf - 1));
     // origem: borda do corte (anterior → linha média) e linha média (ligamento nucal → T12)
     const xm = -0.025; // a linha média é ligeiramente ultrapassada para que as metades D/E se encontrem sem fresta
     const O = [[5.55, 11, -7.75], [3.6, 11, -11.25], [xm, 11, midZ(11)], [xm, 6.6, midZ(6.6)], [xm, 2.4, midZ(2.4)], [xm, -2.0, midZ(-2.0)], [xm, -7.2, midZ(-7.2)], [xm, -12.8, midZ(-12.8)], [xm, -18.4, midZ(-18.4)], [xm, -23.6, midZ(-23.6)]];
@@ -1282,29 +1361,87 @@ ATLAS.define('muscles', function (ctx) {
     const R1 = [[7.35, 7.4, -6.35], [6.8, 8.3, -10.6], [4.8, 8.4, -13.75], [4.6, 5.0, -14.6], [4.4, 1.6, -15.75], [3.6, -2.35, -16.35], [3.1, -6.6, -16.6], [2.8, -11.6, -16.45], [2.7, -16.3, -16.2], [2.6, -20.7, -15.9]];
     const R2 = [[9.65, 4.25, -4.1], [10.6, 5.0, -7.2], [10.0, 4.65, -11.0], [9.3, 3.15, -13.0], [8.4, 1.25, -15.1], [6.9, -1.6, -16.45], [5.85, -4.6, -16.7], [5.1, -8.0, -16.65], [4.6, -11.4, -16.45], [4.25, -14.8, -16.25]];
     const f0 = ctrlPatch([O, R1, R2, ins]);
-    const nu = 56, nv = 32;
+    /* Nuca anteriorizada: a face posterior do pescoço (antes −14,5 em y = 8, AP ≈ 15 cm com a pele) avança ~2 cm.
+       Campo Δz(x, y, z): pleno na nuca (x ≤ 5,5, partes posteriores z < −11,5); zero na borda anterior do músculo
+       (z > −8), no ombro (x ≥ 10, inserções) e no dorso torácico; a rampa inferior começa em T1–T2 na linha média e
+       sobe lateralmente (yR), de modo que o ângulo superior da escápula e o supraespinal não são tocados. */
+    const yR = (x) => 0.4 + 0.15 * Math.max(0, x - 2);
+    const dZ = (x, y, z) => ((1.95 + 0.2 * sm(0.5, 2.5, Math.abs(x))) * sm(yR(x), yR(x) + 2.6, y) - 0.2 * sm(9, 11, y)) * sm(-8, -11.5, z) * (1 - sm(5.5, 10, x));
+    // aponeurose em losango (speculum rhomboideum) em coordenadas físicas: C6 (y 6,6) → T3 (y −2,2), meia-largura
+    // máxima ~2,3 cm na altura de C7–T1 (y ≈ 3)
+    const diaK = (x, y) => {
+      const s = (y + 2.2) / 8.8; if (s <= 0 || s >= 1) return 0;
+      const hw = 2.3 * Math.pow(Math.sin(Math.PI * Math.pow(s, 1.32)), 0.6);
+      // rampa ~0,7 cm, ALARGADA onde a meia-largura é pequena (ápices: hw varia depressa e a grade de ~0,45 × 0,4 cm
+      // produzia degraus na metade superior do losango)
+      const rw = 0.35 + 0.45 * (1 - sm(0.4, 1.4, hw));
+      return sm(-rw, rw + 0.05, hw - Math.abs(x));
+    };
+    const thBase = (u, v) => {
+      const reg = lerp(1.25, 0.55, sm(0.12, 0.62, u)); // espesso no pescoço, fino nas fibras inferiores
+      const prof = 0.35 + 0.65 * Math.pow(Math.sin(Math.PI * clamp(v * 0.95 + 0.04, 0, 1)), 0.6);
+      return reg * prof * lerp(0.55, 1, sm(0, 0.08, u)) * lerp(0.6, 1, sm(1, 0.9, u));
+    };
+    const fT = (u, v) => {
+      const p = f0(u, v), z1 = p[2] + dZ(p[0], p[1], p[2]);
+      const pp = [p[0], p[1], z1], k = diaK(pp[0], pp[1]);
+      // pré-assentamento sobre os espinhosos (mínimo suave, sem vinco): vale também para a linha média fixada (pin)
+      const zb = spineHF.zAt(pp[0], pp[1]);
+      if (zb < spineHF.BIG) { const lim = zb - (thBase(u, v) * (1 - 0.5 * k) / 2 + 0.1), h = 0.35; pp[2] = z1 - h * Math.log(1 + Math.exp((z1 - lim) / h)); }
+      return pp;
+    };
+    // nu 80 (antes 56): ~0,45 cm por coluna na linha média cervical — borda do losango e saliência de C7 sem degraus
+    const nu = 80, nv = 32;
     const tSh = sheet({
-      nu, nv, f: f0,
-      th: (u, v) => {
-        const reg = lerp(1.25, 0.55, sm(0.12, 0.62, u)); // espesso no pescoço, fino nas fibras inferiores
-        const prof = 0.35 + 0.65 * Math.pow(Math.sin(Math.PI * clamp(v * 0.95 + 0.04, 0, 1)), 0.6);
-        return reg * prof * lerp(0.55, 1, sm(0, 0.08, u)) * lerp(0.6, 1, sm(1, 0.9, u));
-      },
-      out: (p) => [p.x * 0.3, 0.4, -1], obst: [obClav, obAcrom, obSpine, obSup, obInf, obScapSup, scap.obPost],
-      gap: 0.12, iters: 5, lam: 0.42, pin: (i, j) => j === nv || (j === 0 && i > 8),
-      col: COL.mus, tendon: (u, v, w) => {
-        // aponeurose em losango (C6–T3): a borda é DIAGONAL na grade (losango de ~5 × 4 células), então a rampa precisa
-        // de ~2–3 células (dia ≈ 0,6) para não serrilhar
-        // para não serrilhar; aponeurose das fibras inferiores sobre o tubérculo da espinha (borda nítida, alinhada à grade)
-        const dia = Math.max(0, 1 - Math.abs(u - 0.4) / 0.085 - v / 0.13);
-        return [0.9 * sm(0.0, 0.6, dia) + 0.3 * (1 - ramp(v, 0.02, w)) * sm(0.25, 0.35, u) + ramp(v, 0.925, w) * sm(0.6, 0.75, u) * 0.8,
-          0.8 * band(v, 0.925, w) * sm(0.6, 0.75, u)];
+      nu, nv, f: fT,
+      // a aponeurose em losango é fina (~metade da espessura muscular vizinha)
+      th: (u, v) => { const p = fT(u, v); return thBase(u, v) * (1 - 0.5 * diaK(p[0], p[1])); },
+      out: (p) => [p.x * 0.3, 0.4, -1], obst: [obClav, obAcrom, obSpine, obSup, obInf, obScapSup, scap.obPost, spineHF.ob],
+      gap: 0.12, iters: 5, lam: 0.42, softPasses: 5, pin: (i, j) => j === nv || (j === 0 && i > 12),
+      col: COL.mus, tendon: (u, v, w, p) => {
+        // losango aponeurótico definido no espaço físico (borda lisa, sem o serrilhado do losango em u,v); aponeurose
+        // das fibras inferiores sobre o tubérculo da espinha (borda nítida, alinhada à grade)
+        const kd = diaK(p.x, p.y);
+        return [0.9 * kd + 0.3 * (1 - ramp(v, 0.02, w)) * sm(0.25, 0.35, u) + ramp(v, 0.925, w) * sm(0.6, 0.75, u) * 0.8,
+          0.8 * band(v, 0.925, w) * sm(0.6, 0.75, u) + 2 * kd * (1 - kd)]; // junção na borda do losango
       },
       uvW: 30, seed: 111, bundles: 12, grooveAmp: 0.1,
     });
     addR(tSh.geo, MUS, G({ id: 'trapezius-R', name: 'Músculo trapézio direito',
       desc: 'Fibras superiores, médias e inferiores da linha média (ligamento nucal, processos espinhosos) ao terço lateral da clavícula, acrômio e espinha da escápula; limite posterior do trígono cervical posterior.' }));
     anchors.trapeziusR = tSh.at(0.12, 0.45, 1, 0.02);
+    // linha média da face profunda (origem, v = 0) entre y 11 e C7, para o ligamento nucal
+    trapNuchal = [];
+    // (a face profunda junto à rafe é a mais anterior entre a borda de origem e a 1ª fileira: o septo, com ±0,1 cm de
+    // largura, não a atravessa)
+    for (let k = 0; k <= 60; k++) { const uu = lerp(0.2, 0.5, k / 60), q = tSh.at(uu, 0, -1), q1 = tSh.at(uu, 1 / 32, -1); q[2] = Math.max(q[2], q1[2]); if (q[1] <= 11.001 && q[1] >= 3) trapNuchal.push(q); }
+  }
+
+  /* =====================================================================
+     12b) Ligamento nucal — septo mediano das pontas dos espinhosos C4–C7 até a face profunda do trapézio
+          (parte funicular, onde o trapézio se origina); corte em y = 11
+     ===================================================================== */
+  {
+    const T = spineHF.tips, tipPts = ['C4', 'C5', 'C6', 'C7'].filter((n) => T[n]).map((n) => T[n]);
+    if (tipPts.length >= 2 && trapNuchal.length >= 4) {
+      const yLo = T.C7 ? T.C7[1] + 0.05 : tipPts[tipPts.length - 1][1];
+      // borda anterior: pelas pontas (0,08 cm dentro do osso — inserção sem fresta), prolongada até o corte
+      const a0 = tipPts[0], a1 = tipPts[1], up = [0, 11.2, a0[2] + (a0[2] - a1[2]) / (a0[1] - a1[1]) * (11.2 - a0[1]) * 0.6];
+      const lowC = new THREE.CatmullRomCurve3([up].concat(tipPts).map((q) => new Vec(0, q[1], q[2] + 0.08)), false, 'centripetal');
+      const lowS = lowC.getPoints(80);
+      const zLow = (y) => { let best = lowS[0], bd = 1e9; for (const q of lowS) { const d = Math.abs(q.y - y); if (d < bd) { bd = d; best = q; } } return best.z; };
+      const back = trapNuchal.slice().sort((p, q) => p[1] - q[1]);
+      const zBack = (y) => { for (let k = 1; k < back.length; k++) if (y <= back[k][1]) { const p = back[k - 1], q = back[k], w = (y - p[1]) / Math.max(1e-6, q[1] - p[1]); return lerp(p[2], q[2], w); } return back[back.length - 1][2]; };
+      const yTop = Math.min(11, back[back.length - 1][1]);
+      const sh = sheet({ nu: 28, nv: 4, iters: 0, th: (u, v) => 0.2 * (0.6 + 0.4 * Math.sin(Math.PI * v)), out: () => [1, 0, 0],
+        // borda posterior 0,06 cm à frente da face profunda do trapézio; anterior nas pontas dos espinhosos
+        f: (u, v) => { const y = lerp(yLo, yTop, u), zl = zLow(y), zb = Math.min(zBack(y) + 0.06, zl - 0.02); return [0, y, lerp(zl, zb, v)]; },
+        // fibras (v da textura) no sentido craniocaudal, como na parte funicular
+        uvFn: (u, v) => [v * 0.8, u * (yTop - yLo) / 2.5], col: COL.apo });
+      addR(sh.geo, LIG, G({ id: 'nuchal-ligament', name: 'Ligamento nucal',
+        desc: 'Septo fibroso mediano da nuca, das pontas dos processos espinhosos cervicais (C7 = vértebra proeminente, palpável) à protuberância occipital externa; origem da parte descendente do trapézio.' }), { noMirror: true });
+      anchors.nuchalLig = arr(new Vec(0, 7.5, (zLow(7.5) + zBack(7.5)) / 2));
+    }
   }
 
   /* =====================================================================

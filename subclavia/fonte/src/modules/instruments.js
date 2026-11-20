@@ -376,7 +376,7 @@ ATLAS.define('instruments', async function (ctx) {
         Os trajetos intravasculares são DERIVADOS de LM.vessels (eixo + raio), não escritos à mão: se os marcos
         mudarem, fio e cateter acompanham — e uma autoverificação acusa qualquer saída da luz (engine.errors).
      ====================================================================== */
-  const R_WIRE = 0.0445;
+  const R_WIRE = 0.0445, R_CATH = 0.1167; // fio 0,035″ (0,89 mm); cateter 7 Fr (2,33 mm)
   // ponta em J (raio 3 mm): a partir de 'start', avança em 'head' e retorna pelo lado 'side'
   const jPts = (start, head, side, rad) => { const out = []; const cc = start.clone().addScaledVector(side, rad); for (let k = 1; k <= 8; k++) { const ph = (k / 8) * Math.PI; out.push(cc.clone().addScaledVector(side, -rad * Math.cos(ph)).addScaledVector(head, rad * Math.sin(ph))); } out.push(out[out.length - 1].clone().addScaledVector(head, -0.12)); return out; };
   const perpTo = (v, axis) => v.clone().addScaledVector(axis, -v.dot(axis)).normalize();
@@ -394,17 +394,48 @@ ATLAS.define('instruments', async function (ctx) {
   // dentro da agulha: da boca do canhão até a ponta (último ponto = ponta)
   const insideNeedle = (sTip) => { const out = []; for (let k = 1; k <= 4; k++) out.push(hubRear(sTip).addScaledVector(dir, -(L_HUB1 - 0.02) * (k / 4))); return out; };
   /** Trajeto intravascular: parte de 'start' (já na luz), segue 'dir0' por ~3,5 mm e converge suavemente ao eixo
-      do vaso (o afastamento inicial do eixo decai em ~1 cm) até o comprimento de arco sEnd da cadeia. */
-  function veinRoute(tab, start, dir0, sEnd, step = 0.55) {
+      do vaso (o afastamento inicial do eixo decai em ~1 cm) até o comprimento de arco sEnd da cadeia.
+      bend (opcional, de cornerBend): o trecho [s0, s1] da cadeia é trocado pela curva suavizada da confluência. */
+  function veinRoute(tab, start, dir0, sEnd, step = 0.55, bend = null) {
     const a = start.clone().addScaledVector(dir0, 0.35);
     const n0 = nearestOn(tab, a), off0 = a.clone().sub(tab[n0.k].p);
-    const pts = [a], ss = [n0.s];
+    const offAt = (s) => { const q = atS(tab, s); return off0.clone().addScaledVector(q.T, -off0.dot(q.T)).multiplyScalar(Math.exp(-(s - n0.s) / 0.8)); };
+    const useBend = !!bend && bend.s0 > n0.s + 0.3 && bend.s1 < sEnd - 0.3;
+    const pts = [a], ss = [n0.s]; let bendDone = false;
     for (let s = n0.s + 0.5; s < sEnd - 0.25; s += step) {
-      const q = atS(tab, s), w = Math.exp(-(s - n0.s) / 0.8);
-      pts.push(q.p.clone().add(off0.clone().addScaledVector(q.T, -off0.dot(q.T)).multiplyScalar(w))); ss.push(s);
+      if (useBend && s > bend.s0 - 0.15 && s < bend.s1 + 0.15) { // janela da confluência: insere a curva uma vez
+        if (!bendDone) { bend.pts.forEach((p, i) => { const sb = C.lerp(bend.s0, bend.s1, i / (bend.pts.length - 1)); pts.push(p.clone().add(offAt(sb))); ss.push(sb); }); bendDone = true; }
+        continue;
+      }
+      pts.push(atS(tab, s).p.add(offAt(s))); ss.push(s);
     }
     pts.push(atS(tab, sEnd).p); ss.push(sEnd);
     return { pts, ss };
+  }
+  /* Confluências: nos ângulos venosos as cadeias de LM fazem curvas de raio ~0,2 cm (subclávia → braquiocefálica:
+     ~75°; subclávia → VJI: ~100°) — um fio de 0,035″ ou um cateter 7 Fr não dobram assim. cornerBend troca o trecho
+     a ±a cm do vértice sC por uma Bézier quadrática (controle no eixo em sC, deslocado `off` cm ao longo de offDir),
+     escolhendo o menor a (dentre aMin…aMax) com raio de curvatura mínimo ≥ rMin e folga de luz ≥ 0,05 cm para um
+     dispositivo de raio `rad` (distância ao eixo das cadeias `tabs` menos o raio do vaso). */
+  const bez2 = (A, Cc, B, t) => A.clone().multiplyScalar((1 - t) ** 2).addScaledVector(Cc, 2 * (1 - t) * t).addScaledVector(B, t * t);
+  const bezMinRad = (A, Cc, B) => { let m = 1e9; for (let k = 1; k < 40; k++) { const t = k / 40, e = 1e-3; const p0 = bez2(A, Cc, B, t - e), p1 = bez2(A, Cc, B, t), p2 = bez2(A, Cc, B, t + e); const a = p1.distanceTo(p0), b = p2.distanceTo(p1), c = p2.distanceTo(p0); const ar = new THREE.Vector3().crossVectors(p1.clone().sub(p0), p2.clone().sub(p0)).length() / 2; if (ar > 1e-12) m = Math.min(m, (a * b * c) / (4 * ar)); } return m; };
+  const lumenFree = (pts, tabs, rad) => { let m = 1e9; for (const p of pts) { let b = 1e9; for (const tb of tabs) { const q = nearestOn(tb, p); b = Math.min(b, q.d - q.r); } m = Math.min(m, -(b + rad)); } return m; };
+  function cornerBend(tab, sC, { rad, tabs, offDir, offs, aMin, aMax, rMin = 0.7 }) {
+    let res = null;
+    for (const off of offs) {
+      const ctrl = atS(tab, sC).p.clone().addScaledVector(offDir, off);
+      for (let a = aMin; a <= aMax + 0.01; a += 0.1) {
+        const A = atS(tab, sC - a).p, B = atS(tab, sC + a).p, r = bezMinRad(A, ctrl, B);
+        if (r < rMin && !(res && res.r < rMin && r > res.r)) continue;
+        const n = Math.max(6, Math.round((a * 2) / 0.25)), pts = []; for (let k = 0; k <= n; k++) pts.push(bez2(A, ctrl, B, k / n));
+        const lm = lumenFree(pts, tabs, rad); if (lm < 0.05 && r >= rMin) continue;
+        res = { a, off, r, pts, lm };
+        if (r >= rMin && lm >= 0.05) break;
+      }
+      if (res && res.r >= rMin && res.lm >= 0.05) break;
+    }
+    if (!res) return null;
+    return { s0: sC - res.a, s1: sC + res.a, a: +res.a.toFixed(2), off: res.off, minRadius: +res.r.toFixed(2), lumenMargin: +res.lm.toFixed(3), pts: res.pts };
   }
   /** Autoverificação: o eixo do dispositivo (raio rad) deve permanecer dentro da luz (distância ao eixo < r − rad). */
   const lumenReport = {};
@@ -445,7 +476,17 @@ ATLAS.define('instruments', async function (ctx) {
   const sJ = Math.min(sAtY(tabMain, -5.0, sSvc0) ?? (sSvc0 + 2.7), sCathTip - 0.45);
   const jA = atS(tabMain, sJ), jStart = jA.p, jHead = jA.T;
   const wireJ = jPts(jStart, jHead, perpTo(new THREE.Vector3(-1, 0, 0.25), jHead), 0.3);
-  const wireVein = veinRoute(tabMain, tipVein, dir, sJ);
+  /* Trajeto NORMAL no ângulo venoso (subclávia → braquiocefálica D): mesma suavização do trajeto anômalo, comum ao
+     fio e ao cateter (folga calculada para o cateter, o mais calibroso). Controle no próprio vértice — a curva corta a
+     quina pelo lado interno, ~0,3·a do eixo —; raio-alvo ≥ 0,9 cm (mínimo exigido 0,6). */
+  mark('preBend');
+  const sVAmain = nearestOn(tabMain, v3(vs.venousAngleR)).s;
+  const mainBend = (() => {
+    const Tin = atS(tabMain, sVAmain - 0.8).T, Tout = atS(tabMain, sVAmain + 0.8).T, inward = Tout.clone().sub(Tin).normalize();
+    return cornerBend(tabMain, sVAmain, { rad: R_CATH, tabs: [tabMain], offDir: inward, offs: [0, 0.1, -0.1], aMin: 0.6, aMax: 2.0, rMin: 0.9 });
+  })();
+  mark('bend');
+  const wireVein = veinRoute(tabMain, tipVein, dir, sJ, 0.55, mainBend);
   const wirePath = [...wireExternal(sTip4), ...insideNeedle(sTip4), ...wireVein.pts, ...wireJ];
   lumenCheck('fio-guia', [tipVein, ...wireVein.pts, ...wireJ], [tabMain], R_WIRE);
   const infoWire = GI({ id: 'guidewire', name: 'Fio-guia com ponta em J (0,035″ / 0,89 mm)', desc: 'Passa pela agulha sem resistência; a ponta em J reduz o risco de lesão da parede. Trajeto esperado: subclávia → braquiocefálica direita → VCS. Nunca soltar o fio; atenção a arritmias.' });
@@ -467,34 +508,15 @@ ATLAS.define('instruments', async function (ctx) {
   const sVA = nearestOn(tabMal, v3(vs.venousAngleR)).s;
   const sMalEnd = sAtYUp(tabMal, 5.6, sVA) ?? (tabMal.L - 1);
   const malRoute = veinRoute(tabMal, tipVein, dir, sMalEnd);
-  /* No ângulo venoso a cadeia subclávia → VJI faz uma quina (~100°): um fio de 0,035″ não dobra assim. Os pontos a
-     ±a cm de sVA são trocados por uma Bézier quadrática (controle na confluência, desviado 0,25 cm medialmente),
-     com a escolhido para raio de curvatura mínimo ≥ 0,7 cm. */
-  const malBend = (() => {
-    const bez = (A, Cc, B, t) => A.clone().multiplyScalar((1 - t) ** 2).addScaledVector(Cc, 2 * (1 - t) * t).addScaledVector(B, t * t);
-    const minRad = (A, Cc, B) => { let m = 1e9; for (let k = 1; k < 40; k++) { const t = k / 40, e = 1e-3; const p0 = bez(A, Cc, B, t - e), p1 = bez(A, Cc, B, t), p2 = bez(A, Cc, B, t + e); const a = p1.distanceTo(p0), b = p2.distanceTo(p1), c = p2.distanceTo(p0); const ar = new THREE.Vector3().crossVectors(p1.clone().sub(p0), p2.clone().sub(p0)).length() / 2; if (ar > 1e-12) m = Math.min(m, (a * b * c) / (4 * ar)); } return m; };
-    // folga na luz (cm) dos pontos da curva: menor (r − distância ao eixo − raio do fio) nas duas cadeias
-    const lumenOK = (pts) => { let m = 1e9; for (const p of pts) { let b = 1e9; for (const tb of [tabMal, tabMain]) { const q = nearestOn(tb, p); b = Math.min(b, q.d - q.r); } m = Math.min(m, -(b + R_WIRE * 1.04)); } return m; };
-    let res = null;
-    for (const off of [0.25, 0.4, 0.1, 0]) {
-      const ctrl = atS(tabMal, sVA).p.clone().add(new THREE.Vector3(-off, 0, 0));
-      for (let a = 0.9; a <= 2.01; a += 0.1) {
-        const A = atS(tabMal, sVA - a).p, B = atS(tabMal, sVA + a).p, r = minRad(A, ctrl, B);
-        if (r < 0.7 && !(res && res.r < 0.7 && r > res.r)) continue;
-        const n = Math.max(6, Math.round((a * 2) / 0.25)), pts = []; for (let k = 0; k <= n; k++) pts.push(bez(A, ctrl, B, k / n));
-        const lm = lumenOK(pts); if (lm < 0.05 && r >= 0.7) continue;
-        res = { a, off, r, pts, lm };
-        if (r >= 0.7 && lm >= 0.05) break;
-      }
-      if (res && res.r >= 0.7 && res.lm >= 0.05) break;
-    }
-    return { a: +res.a.toFixed(2), off: res.off, minRadius: +res.r.toFixed(2), lumenMargin: +res.lm.toFixed(3), pts: res.pts };
-  })();
-  const malPts = [
+  /* No ângulo venoso a cadeia subclávia → VJI faz uma quina (~100°): os pontos a ±a cm de sVA são trocados por uma
+     Bézier quadrática (cornerBend; controle na confluência, desviado 0,25 cm medialmente), raio mínimo ≥ 0,7 cm. */
+  const malBend = cornerBend(tabMal, sVA, { rad: R_WIRE * 1.04, tabs: [tabMal, tabMain], offDir: new THREE.Vector3(-1, 0, 0), offs: [0.25, 0.4, 0.1, 0], aMin: 0.9, aMax: 2.0, rMin: 0.7 });
+  if (!malBend && ctx.engine && ctx.engine.errors) ctx.engine.errors.push('instruments: cornerBend sem solução no trajeto anômalo (usado o eixo sem suavização)');
+  const malPts = malBend ? [
     ...malRoute.pts.filter((p, i) => malRoute.ss[i] >= sVA - 1.2 && malRoute.ss[i] < sVA - malBend.a - 0.15),
     ...malBend.pts,
     ...malRoute.pts.filter((p, i) => malRoute.ss[i] > sVA + malBend.a + 0.15),
-  ];
+  ] : malRoute.pts.filter((p, i) => malRoute.ss[i] >= sVA - 1.2);
   const mA = atS(tabMal, sMalEnd), wireIJVTip = mA.p;
   const malJ = jPts(wireIJVTip, mA.T, perpTo(new THREE.Vector3(1, 0, 0.2), mA.T), 0.3);
   lumenCheck('fio-guia (trajeto anômalo)', [...malPts, ...malJ], [tabMal, tabMain], R_WIRE * 1.04);
@@ -507,10 +529,9 @@ ATLAS.define('instruments', async function (ctx) {
   /* ======================================================================
      6. Cateter venoso central 7 Fr (Ø 2,3 mm), triplo lúmen
      ====================================================================== */
-  const R_CATH = 0.1167;
   let xrayCath = null; // cópia "raio X" (seção 7) — compartilha a geometria do cateter
   // trecho interno: pele → trajeto da agulha (tecidos) → venotomia → eixo venoso até a ponta
-  const cathRoute = veinRoute(tabMain, tipVein, dir, sCathTip);
+  const cathRoute = veinRoute(tabMain, tipVein, dir, sCathTip, 0.55, mainBend);
   const cathInt = [entryEff.clone(), ...[1.2, 2.45, 3.65].map((d) => along(sSkin + d)).filter((p) => p.distanceTo(P0) + 0.2 < tipVein.distanceTo(P0)), along(sWall), tipVein.clone(), ...cathRoute.pts];
   lumenCheck('cateter', [tipVein, ...cathRoute.pts], [tabMain], R_CATH);
   const infoCath = GI({ id: 'catheter', name: 'Cateter venoso central 7 Fr, triplo lúmen', desc: 'Inserido sobre o fio (Seldinger); ponta na VCS distal, acima do átrio direito. Vias: distal (marrom), medial (azul) e proximal (branca). Confirmar a posição por imagem.' });
@@ -588,11 +609,16 @@ ATLAS.define('instruments', async function (ctx) {
   let extInfo = null; const extListeners = [];
   /* Assenta todo o trecho externo (canhão, saída do cateter, extensões, clampes e conectores) sobre a superfície de
      apoio atual (pele, ou pele + campo estéril). Refeito a cada troca pele ↔ campo (ver syncSurface). */
-  /* Fenestra do campo estéril (módulo skin: api.drapeWindow, se exportada; senão a cópia da geometria atual do campo
-     em skin.js — retângulo arredondado {cx, cy, hx, hy, r}). O canhão e as asas devem ficar sobre a PELE, dentro da
-     janela (fixação/sutura), com folga ≥ 0,4 cm. */
-  const skinApi = ctx.engine && ctx.engine.results && ctx.engine.results.skin && ctx.engine.results.skin.api;
-  const WIN = Object.assign({ cx: 6.2, cy: -0.45, hx: 8.3, hy: 4.45, r: 2.2 }, (skinApi && skinApi.drapeWindow) || {});
+  /* Fenestra do campo estéril — fonte única: E.results.skin.api.drapeWindow (retângulo arredondado {cx, cy, hx, hy, r},
+     plano frontal, cm). O canhão e as asas devem ficar sobre a PELE, dentro da janela (fixação/sutura), com folga
+     ≥ 0,4 cm. WIN_FALLBACK (cópia da janela de skin.js) só é usada se o módulo skin não existir ou não a exportar. */
+  const WIN_FALLBACK = { cx: 6.2, cy: -0.45, hx: 8.3, hy: 4.45, r: 2.2 };
+  const winApi = (() => {
+    const res = ctx.engine && ctx.engine.results && ctx.engine.results.skin, w = res && res.api && res.api.drapeWindow;
+    return w && ['cx', 'cy', 'hx', 'hy', 'r'].every((k) => Number.isFinite(+w[k])) && +w.hx > +w.r && +w.hy > +w.r ? w : null;
+  })();
+  const WIN = winApi ? { cx: +winApi.cx, cy: +winApi.cy, hx: +winApi.hx, hy: +winApi.hy, r: +winApi.r } : Object.assign({}, WIN_FALLBACK);
+  const WIN_SOURCE = winApi ? 'skin.api.drapeWindow' : 'cópia local (fallback)';
   const winD = (x, y) => { const qx = Math.abs(x - WIN.cx) - (WIN.hx - WIN.r), qy = Math.abs(y - WIN.cy) - (WIN.hy - WIN.r); return Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - WIN.r; };
     const bez3 = (P, t) => { const s = 1 - t; return P[0].clone().multiplyScalar(s * s * s).addScaledVector(P[1], 3 * s * s * t).addScaledVector(P[2], 3 * s * t * t).addScaledVector(P[3], t * t * t); };
   /** Menor raio de curvatura (cm) de uma polilinha densa (círculo por 3 pontos consecutivos). */
@@ -685,21 +711,34 @@ ATLAS.define('instruments', async function (ctx) {
     if (xrayCath) xrayCath.geometry = cath.geometry;
     { const cv = C.curve(cathPath), L = cv.getLength();
       for (const e of holes) { const t = 1 - e.userData.back / L, p = cv.getPointAt(t), T = cv.getTangentAt(t); const side = new THREE.Vector3(0, 0, 1).cross(T).normalize(); e.position.copy(p.addScaledVector(side, R_CATH * 0.93)); e.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), T); } }
-    // extensões: saem da traseira do canhão e se abrem em leque para inferomedial, sobre o peitoral (superfície plana)
+    /* extensões: saem da traseira do canhão e se abrem em leque INFERIOR/ÍNFERO-LATERAL, sobre o peitoral. Rumo final
+       da via central ≈ −88° (0° = lateral, −90° = caudal), ±0,34 rad por via; o lado interno da curva gira mais (não se
+       cruzam). Garantia: nenhum ponto das extensões, clampes ou conectores medial a X_LAT (1,5 cm medial à saída) —
+       nas vistas sem pele elas ficam laterais, longe do mediastino e da VCS (e dos rótulos dessa região); se o canhão
+       mudar de lugar e o leque invadir, ele gira para lateral em passos de 10°. */
     const toA = (lx, ly) => hubC.clone().addScaledVector(hubX, lx).addScaledVector(hubY, ly);
     const th0 = Math.atan2(-hubY.y, -hubY.x);
+    const X_LAT = entryEff.x - 1.5, CONN_L = 2.1;
     extReport = {};
-    // 1º passo: trajetos 2D em leque (a extensão do lado interno da curva gira mais — não se cruzam)
-    const paths = exts.map((E, i) => {
+    // 1º passo: trajetos 2D em leque
+    const fan = (thC) => exts.map((E, i) => {
       const side = extDefs[i][2], len = side === 0 ? 5.6 : 5.0;
-      const th1 = th0 - (1.0 - 0.34 * side);
+      const th1 = thC + 0.34 * side;
+      // rumo inicial = saída do canhão; giro pelo caminho mais curto até th1
+      const dTh = Math.atan2(Math.sin(th1 - th0), Math.cos(th1 - th0));
       const start = toA(side * 0.3, -1.05);
       const xy = [new THREE.Vector2(start.x, start.y)], N = 24;
-      for (let k = 1; k <= N; k++) { const s = (k - 0.5) / N, th = th0 + (th1 - th0) * C.smooth(0.0, 0.7, s); const p = xy[k - 1]; xy.push(new THREE.Vector2(p.x + Math.cos(th) * len / N, p.y + Math.sin(th) * len / N)); }
+      for (let k = 1; k <= N; k++) { const s = (k - 0.5) / N, th = th0 + dTh * C.smooth(0.0, 0.7, s); const p = xy[k - 1]; xy.push(new THREE.Vector2(p.x + Math.cos(th) * len / N, p.y + Math.sin(th) * len / N)); }
       const at2 = (u) => { const f = C.clamp(u, 0, 1) * N, k = Math.min(N - 1, Math.floor(f)); return xy[k].clone().lerp(xy[k + 1], f - k); };
       const tan2 = (u) => { const k = Math.min(N - 1, Math.floor(C.clamp(u, 0, 1) * N)); return xy[k + 1].clone().sub(xy[k]).normalize(); };
-      return { side, len, xy, N, at2, tan2 };
+      // ponto mais medial (x mínimo): trajeto + conector/tampa no prolongamento do último rumo (+ meia largura)
+      const tail = xy[N].clone().addScaledVector(tan2(0.97), CONN_L);
+      const minX = Math.min(tail.x, ...xy.map((q) => q.x)) - 0.4;
+      return { side, len, xy, N, at2, tan2, minX };
     });
+    let thC = -88 * Math.PI / 180, paths = fan(thC);
+    for (let it = 0; it < 6 && Math.min(...paths.map((q) => q.minX)) < X_LAT; it++) { thC += 10 * Math.PI / 180; paths = fan(thC); } // no máximo −28° (ínfero-lateral)
+    extReport.fanDeg = Math.round(thC * 180 / Math.PI); extReport.minX = +Math.min(...paths.map((q) => q.minX)).toFixed(2); extReport.xLat = +X_LAT.toFixed(2);
     // 2º passo: posição de cada clampe — o primeiro ponto (u ≥ 0,42) em que o clampe (1,5 × 0,5 cm) não encoste nas
     // outras extensões nem nos clampes já posicionados
     const segPts = (P, u) => { const c = P.at2(u), tg = P.tan2(u), out = []; for (let k = -3; k <= 3; k++) out.push(c.clone().addScaledVector(tg, k * 0.25)); return out; };
@@ -743,7 +782,7 @@ ATLAS.define('instruments', async function (ctx) {
       E.conn.position.copy(nose).addScaledVector(ax, -0.25); E.conn.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(X, Y, Zs));
       // folga residual: se ainda houver penetração (relevo fino), levanta a peça ao longo da normal
       for (const o of [E.clamp, E.conn]) { const pen = penetration(o, fz, 0.02, 2); if (pen > 0) o.position.z += pen; }
-      extReport[extDefs[i][1]] = { uc: +uc.toFixed(2), tube: +penetration(E.tube, fz, 0, 3).toFixed(2), clamp: +penetration(E.clamp, fz, 0, 2).toFixed(2), conn: +penetration(E.conn, fz, 0, 2).toFixed(2) };
+      extReport[extDefs[i][1]] = { end: tail.toArray().map((x) => +x.toFixed(2)), uc: +uc.toFixed(2), tube: +penetration(E.tube, fz, 0, 3).toFixed(2), clamp: +penetration(E.clamp, fz, 0, 2).toFixed(2), conn: +penetration(E.conn, fz, 0, 2).toFixed(2) };
     });
     extReport.hub = +penetration(hubLocal, fz, 0, 2).toFixed(2);
     extReport.cathExternal = (() => { const cv = C.curve(extPts), L = cv.getLength(); let m = -1e9; for (let u = 0; u <= L; u += 0.1) { const p = cv.getPointAt(Math.min(1, u / L)); if (p.distanceTo(entryEff) < 0.5) continue; m = Math.max(m, fz(p.x, p.y) + R_CATH - p.z); } return +m.toFixed(2); })(); // > 0: penetra a superfície (fora dos 5 mm da saída)
@@ -1324,7 +1363,7 @@ float gloveHeight(vec3 p, vec3 n) {
   // grupos de visibilidade para escalonar as transições: quem sai anda na 1ª metade, quem entra na 2ª
   const GRP = { s: 'nd', nd: 'nd', syr: 'syr', dil: 'dil', dS: 'dil', cath: 'cath', wire: 'wire', hL: 'hL' };
   let stag = {};
-  const stageOf = (st) => { const ph = +st.phase || 0; if ((st.dilator && ph >= 4.5) || (ph >= 5.25 && ph < 5.75)) return 7; return Math.max(0, Math.min(6, Math.round(ph))); };
+  const stageOf = (st) => { const ph = +st.phase || 0; if ((st.dilator && ph >= 4.5 && ph < 5.75) || (ph >= 5.25 && ph < 5.75)) return 7; return Math.max(0, Math.min(6, Math.round(ph))); };
   const cur = Object.assign({}, PH[0]); let from = Object.assign({}, PH[0]), to = PH[0], tt = 1, lastPhase = -1, dur = 0.6;
   const fade = (g, k) => { g.visible = k > 0.01; g.traverse((o) => { const m = o.material; if (!m || !m.isMaterial) return; if (m.userData.op0 === undefined) m.userData.op0 = m.opacity; m.opacity = m.userData.op0 * k; }); };
   const tipNow = new THREE.Vector3();
@@ -1390,7 +1429,15 @@ float gloveHeight(vec3 p, vec3 n) {
     }
     planes.visible = !!state.showPlanes;
     thumbArrow.visible = !!hand && hp > 0.85 && cur.hL > 0.97 && layers.hand.visible;
-    markers.forEach((m) => { m.visible = layers.skin.visible || layers.hand.visible; });
+    /* Anéis de marco (incisura jugular / região de entrada): só no contexto do procedimento — com a mão de apoio em
+       cena, ou a partir da fase 1 com a pele visível. Antes apareciam sempre que pele ou mão estavam visíveis (p.ex.
+       no cap. "distâncias", sem explicação). state.markers (true/false) força a escolha; a camada 'aids' continua
+       livre para o rolo e os demais auxílios. Sem pele nem mão não há superfície onde apoiá-los. */
+    const handShown = !!hand && layers.hand.visible && handRoot.visible;
+    const surfaceOn = layers.skin.visible || handShown;
+    const autoMk = handShown || (layers.skin.visible && ((+state.phase || 0) >= 1 || !!state.dilator));
+    const showMk = surfaceOn && (state.markers === undefined || state.markers === null ? autoMk : !!state.markers);
+    markers.forEach((m) => { m.visible = showMk; });
     if (+state.fixStep > 0) markers[1].visible = false; // a fixação (bailarina) ocupa o sítio de saída
     dilLimit.userData.mat.depthTest = layers.skin.visible; // com a pele visível, o anel fica sob ela (sem "flutuar")
     const instOn = layers.instrument.visible;
@@ -1421,7 +1468,7 @@ float gloveHeight(vec3 p, vec3 n) {
         prof, hasSkin, sSkin, sClav, sVein, sWall, sTip4, stage: lastPhase,
         phase3: Object.assign({ tip: along(sClav).toArray().map((x) => +x.toFixed(2)), beforeWall: +(sWall - sClav).toFixed(2) }, clavInfo),
         dilator: { tipS: +S_DIL.toFixed(2), pastWall: +(S_DIL - sWall).toFixed(2), tip: along(S_DIL).toArray().map((x) => +x.toFixed(2)), depthFromSkin: +(S_DIL - sSkin).toFixed(2) },
-        malBend: { a: malBend.a, off: malBend.off, minRadius: malBend.minRadius, lumenMargin: malBend.lumenMargin }, hubPlan: { deg: hubPlan.deg, d: hubPlan.d, psi: hubPlan.psi, hs: hubPlan.hs, center: hubPlan.hc.toArray().map((x) => +x.toFixed(2)), winMargin: -hubPlan.win, minRadius: hubPlan.minRadius, freeCath: hubPlan.free, score: hubPlan.score, nEval: hubPlan.nEval, window: WIN }, catheter: cathReport,
+        malBend: malBend && { a: malBend.a, off: malBend.off, minRadius: malBend.minRadius, lumenMargin: malBend.lumenMargin }, mainBend: mainBend && { a: mainBend.a, off: mainBend.off, minRadius: mainBend.minRadius, lumenMargin: mainBend.lumenMargin }, routeMinRadius: (() => { const mr = (pts) => { const cv = C.curve(pts), P = []; for (let k = 0; k <= 600; k++) P.push(cv.getPointAt(k / 600)); return +minRadius(P).toFixed(2); }; return { wireNoJ: mr([tipVein, ...wireVein.pts]), catheter: mr([tipVein, ...cathRoute.pts]) }; })(), hubPlan: { deg: hubPlan.deg, d: hubPlan.d, psi: hubPlan.psi, hs: hubPlan.hs, center: hubPlan.hc.toArray().map((x) => +x.toFixed(2)), winMargin: -hubPlan.win, minRadius: hubPlan.minRadius, freeCath: hubPlan.free, score: hubPlan.score, nEval: hubPlan.nEval, window: WIN, windowSource: WIN_SOURCE }, catheter: cathReport,
         needle4: { depthFromSkin: +(sTip4 - sSkin).toFixed(2), shaftOutsideSkin: +(NEEDLE_L - (sTip4 - sSkin)).toFixed(2), pastWall: +(sTip4 - sWall).toFixed(2) },
         lumen: lumenReport, external: extReport, heartStartY: heartHit && +heartHit.y.toFixed(2), cathTip: cathTipP.toArray().map((x) => +x.toFixed(2)),
         thumbArrow: thumbArrow.userData.choice, drapeMeshes, surface: surfKey,

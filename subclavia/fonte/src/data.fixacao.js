@@ -298,7 +298,7 @@
       'Laço frouxo (desliza e o cateter migra) ou apertado demais (achata, oclui ou lesa o cateter).',
       'Nó que isquemia a pele, fio sobre o orifício de saída, ou pele, extensões e clampes laçados junto.'
     ],
-    detail: 'A sequência 3D é esquemática: o fio está engrossado para leitura, as laçadas de cada nó estão resumidas e não se simulam atrito, tensão nem deformação de pele e cateter; o espaçamento e o número de cruzamentos (três) são nominais. O trecho externo do cateter é curto e a forma do canhão e das asas varia entre kits. O campo estéril foi omitido para não encobrir as asas — na prática, a fixação é feita com o campo mantido.',
+    detail: 'A sequência 3D é esquemática: o fio está engrossado para leitura, as laçadas de cada nó estão resumidas e não se simulam atrito, tensão nem deformação de pele e cateter; o espaçamento e o número de cruzamentos (três) são nominais. O trecho externo do cateter é curto, fica alguns milímetros acima da pele e a forma do canhão e das asas varia entre kits. Como a pele do modelo não se deforma, a agulha (1/2 círculo, cortante, ~2 cm) entra a ~55° — na prática, a contrapressão com a pinça everte a borda e a ponta entra perpendicular. A pinça de Adson e o dedo enluvado sobre o canhão são esquemáticos (mãos não modeladas). O campo estéril foi omitido para não encobrir as asas — na prática, a fixação é feita com o campo mantido e ele só é retirado para o curativo. A animação completa dura cerca de 1 min (cada etapa no ritmo do gesto); os botões numerados saltam direto para cada etapa.',
     sources: ALL_REFS.slice(),
     quiz: {
       q: 'Ao conferir uma bailarina recém-feita, qual achado indica fio apertado demais e exige refazer o laço?',

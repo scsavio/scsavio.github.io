@@ -663,12 +663,17 @@ ATLAS.define('viscera', function (ctx) {
       YA[i] = lerp(YA[i], Math.max(YA[i], -22.4), 1 - sstep(0.3, 0.46, da)); // arco do ligamento arqueado mediano (T12)
     }
     smoothC(YB, NU, 3); smoothC(YA, NU, 2);
+    /* a borda da aposição nunca fica ACIMA da cúpula naquele ponto (+0,1): no setor posteromediano (pilares, ligamento
+       arqueado mediano, atrás do hiato esofágico) a borda suavizada ficava até ~1 cm acima de Hdia
+       → a lâmina subia até a borda e descia para dentro (crista em grampo; faces traseiras visíveis de baixo/de trás).
+       Ali os pilares sobem direto até a cúpula, que continua subindo em direção ao centro tendíneo. */
+    for (let i = 0; i < NU; i++) { const th = TH[i]; if (Math.sin(th) > -0.2) continue; const hb = Hdia(Math.cos(th) * RB[i], GZ + Math.sin(th) * RB[i]); YB[i] = Math.min(YB[i], hb + 0.1); YA[i] = Math.min(YA[i], YB[i] - 0.9); }
     for (let i = 0; i < NU; i++) { const th = TH[i], c = Math.cos(th), sn = Math.sin(th); for (let j = 0; j < NS; j++) RS[i * (NS + 1) + j] = rayIn(c, sn, lerp(YA[i], YB[i], j / NS), RB[i] + 0.3); RS[i * (NS + 1) + NS] = RB[i]; }
     for (let j = 0; j < NS; j++) { const A = new Float32Array(NU), A0 = new Float32Array(NU); for (let i = 0; i < NU; i++) A0[i] = A[i] = RS[i * (NS + 1) + j]; smoothC(A, NU, 3); for (let i = 0; i < NU; i++) RS[i * (NS + 1) + j] = Math.min(A[i], A0[i], RB[i] + 0.3); }
     // pilares (setor posteromediano, borda junto à coluna): raio monotônico de baixo para cima (sem dobras na
     // lâmina que converge para o ligamento arqueado mediano); nunca maior que o bruto → não invade a coluna
     for (let i = 0; i < NU; i++) {
-      const th = TH[i]; if (Math.sin(th) > -0.5 || RB[i] > 6) continue;
+      const th = TH[i]; if (Math.sin(th) > -0.5 || RB[i] > 8.5) continue; // (até 8,5: a transição pilar D → arco lombocostal tinha fileiras inferiores 3 cm fora → abas)
       for (let j = NS - 1; j >= 0; j--) RS[i * (NS + 1) + j] = Math.min(RS[i * (NS + 1) + j], RS[i * (NS + 1) + j + 1]);
     }
     // espessamento dos pilares (faixas musculotendíneas de cada lado do hiato aórtico)
@@ -772,7 +777,9 @@ ATLAS.define('viscera', function (ctx) {
     // tronco pulmonar: valva (anterior-esquerda à raiz aórtica) → bifurcação na concavidade do arco
     // valva pulmonar atrás da 3ª articulação esternocostal E (a mais alta das valvas); valva aórtica abaixo e atrás
     pt: [[-1.95, -7.3, -1.2], [-2.55, -6.8, -1.95], [-2.7, -6.35, -2.45], [-2.5, -6.1, -3.0]], ptR: [1.07, 1.06, 1.05, 1.03],
-    rpa: [[-2.5, -6.1, -3.0], [-1.55, -7.25, -4.3], [0.0, -6.98, -4.95], [1.6, -7.3, -4.8], [2.6, -7.45, -4.78], [3.65, -7.55, -4.95]], rpaR: [0.95, 0.76, 0.76, 0.75, 0.73, 0.68],
+    // (integrador, onda 3: 2º/3º pontos 0,15/0,05 cm mais posteriores e calibre −0,04 → sai da parede posterior da aorta ascendente;
+    //  3º ponto 0,06 cm mais anterior → folga do brônquio principal D)
+    rpa: [[-2.5, -6.1, -3.0], [-1.55, -7.25, -4.45], [0.0, -6.98, -5.0], [1.6, -7.3, -4.74], [2.6, -7.45, -4.78], [3.65, -7.55, -4.95]], rpaR: [0.95, 0.72, 0.72, 0.74, 0.73, 0.68],
     lpa: [[-2.5, -6.1, -3.0], [-3.3, -5.55, -3.9], [-4.0, -5.6, -4.5], [-4.75, -5.85, -4.85]], lpaR: [0.95, 0.8, 0.76, 0.7],
     rspv: [[1.3, -9.45, -4.75], [2.6, -9.1, -4.68], [3.65, -8.9, -4.6]], rspvR: 0.58,
     ripv: [[1.3, -10.5, -5.0], [2.6, -10.8, -5.15], [3.55, -11.0, -5.3]], ripvR: 0.56,
@@ -832,6 +839,55 @@ ATLAS.define('viscera', function (ctx) {
   const ITL = SOLID('ita-L') && SOLID('itv-L') ? [chain(SOLID('ita-L').pts.filter((p) => p[1] < -2), 0.17), chain(SOLID('itv-L').pts.filter((p) => p[1] < -2), 0.18)]
     : [chain(C.mirror(LM.vessels.itaR.pts.slice(3)), 0.17, 6), chain([[-2.58, -9.0, 0.62], [-2.6, -13.3, 1.8]], 0.18, 4)];
   const itlD = (x, y, z) => (x > -1.6 || y > -7.5 ? 9 : Math.min(ITL[0].d(x, y, z), ITL[1].d(x, y, z)));
+  /* extremidades dos vasos que entram nas cavidades (malhas do módulo de vasos): trecho CONTÍGUO do eixo junto à
+     extremidade (a aorta volta a descer atrás do coração: um filtro só por y ligava a raiz à aorta descendente por
+     um tubo espúrio atravessando o AE) e o tipo de tampa — extensão da malha além do ponto final, ao longo do eixo.
+     Tampa PLANA (≤ 0,35 cm): a cavidade abre-se até o plano da extremidade → óstio da VCS no AD e saída da raiz
+     aórtica (nos cortes, a coluna azul/vermelha do vaso continua direto na luz). Calota REDONDA: a cavidade recua
+     0,15 cm em torno do vaso inteiro (a calota fica embutida na parede, nunca como domo dentro da luz). */
+  const vesselEnd = (id, atStart, ymax) => {
+    const S = SOLID(id); if (!S) return null;
+    const n = S.pts.length, idx = atStart ? [...Array(n).keys()] : [...Array(n).keys()].reverse(), P = [], R = [];
+    for (const i of idx) { if (S.pts[i][1] >= ymax) break; P.push(S.pts[i]); R.push(S.r(i / (n - 1))); }
+    if (P.length < 2) return null;
+    const P0 = P[0], d = V(P0).sub(V(P[Math.min(2, P.length - 1)])).normalize(); // para dentro do coração
+    let e = -9;
+    for (const L of [LY.vein, LY.artery]) L.traverse((o) => {
+      if (!o.isMesh || !o.userData.info || o.userData.info.id !== id) return;
+      const q = o.geometry.attributes.position;
+      const lim = (R[0] * 1.6) ** 2; // só a extremidade (a aorta descendente também se projeta ao longo de d)
+      for (let i = 0; i < q.count; i++) {
+        const ax = q.getX(i) - P0[0], ay = q.getY(i) - P0[1], az = q.getZ(i) - P0[2]; if (ax * ax + ay * ay + az * az > lim) continue;
+        const sx = ax * d.x + ay * d.y + az * d.z; if (sx > e) e = sx;
+      }
+    });
+    return { id, tube: chain(P, R), P0, d, r0: R[0], flat: e < 0.35, ext: e };
+  };
+  // a raiz aórtica fica SEMPRE no modo de recuo: com tampa plana na origem da aorta, o disco recortado do coração fica
+  // quase tangente ao plano de corte coronal (lascas brilhantes no teste); o domo da raiz dentro da aorta tem a cor de
+  // corte arterial (indistinguível) — o óstio é o da VCS no AD
+  const ENDS = [vesselEnd('svc', false, -7.0), vesselEnd('aorta', true, -7.5)].filter(Boolean);
+  ENDS.forEach((E) => { if (E.id === 'aorta') E.flat = false; });
+  const endSx = (E, x, y, z) => (x - E.P0[0]) * E.d.x + (y - E.P0[1]) * E.d.y + (z - E.P0[2]) * E.d.z; // + = além da extremidade (dentro do coração)
+  // VCS com tampa plana: o segmento intrapericárdico do AD recobre a borda do vaso no plano da extremidade (raio da
+  // esfera ≥ raio da VCS ali), sem sulco entre a VCS e o átrio; o que fica DENTRO da VCS acima do plano é recortado
+  {
+    const Es = ENDS.find((E) => E.id === 'svc');
+    if (Es && Es.flat) { const r = Es.r0 + 0.04, c = V(Es.P0).addScaledVector(Es.d, 0.3); HP.svcIn = chain([c.toArray(), [2.45, -10.3, -2.75]], r, 1); }
+  }
+  /** Recorte do coração dentro dos vasos de tampa plana, acima do plano da extremidade (≤ 0 = pode haver coração). */
+  const endsCarve = (x, y, z) => { let g = -9; for (const E of ENDS) { if (!E.flat) continue; const dt = E.tube.d(x, y, z); if (dt > 0.5) continue; g = Math.max(g, Math.min(-endSx(E, x, y, z), -dt)); } return g; };
+  /** ≤ 0 onde a cavidade pode estar junto às extremidades dos vasos. */
+  const endsG = (x, y, z) => {
+    let g = -9;
+    for (const E of ENDS) {
+      const dt = E.tube.d(x, y, z); if (dt > 1.2) continue;
+      // tampa plana: a cavidade sobe até 0,03 cm ALÉM do plano, dentro do vaso (escondida pela tampa; vista de dentro da
+      // luz, a tampa do vaso é o óstio); fora da secção do vaso, 0,15 cm de parede
+      g = Math.max(g, E.flat ? Math.min(-0.03 - endSx(E, x, y, z), 0.15 - dt) : 0.15 - dt);
+    }
+    return g;
+  };
   /** Campo do coração. */
   function heartF(x, y, z) {
     const vent = smin(HP.lv.d(x, y, z), smin(HP.rv.d(x, y, z), HP.rvApex.d(x, y, z), 0.8), 0.7);
@@ -848,7 +904,8 @@ ATLAS.define('viscera', function (ctx) {
     // face esternocostal afastada da parede: deixa passar as bordas anteriores dos pulmões/recessos costomediastinais
     // (exceto na "área nua", à E da linha média abaixo da 4ª cartilagem, onde o pericárdio toca a parede)
     f = smax(f, PERI_TH + 0.14 - itlD(x, y, z), 0.3);
-    return smax(f, z - (zWall(Math.abs(x), y) - PERI_TH - periInset(x, y)), 0.6);
+    f = smax(f, z - (zWall(Math.abs(x), y) - PERI_TH - periInset(x, y)), 0.6);
+    return Math.max(f, endsCarve(x, y, z));
   }
   const HEART_BOX = [-8.9, -16.7, -6.7, 5.0, -7.2, 3.0];
 
@@ -1076,7 +1133,7 @@ ATLAS.define('viscera', function (ctx) {
     R: yrev([[4, 2.4], [0, 2.2], [-2.3, 2.0], [-3.4, 1.4], [-4.6, 0.55], [-6, 0.3], [-18, 0.3]]),
     // incisura cardíaca do pulmão E: começa na 4ª cartilagem (y −9,25) e chega a ~4,2 cm da linha média na 5ª–6ª;
     // abaixo dela a língula volta a avançar medialmente
-    L: yrev([[4, 2.4], [0, 2.2], [-2.3, 2.0], [-3.4, 1.4], [-4.6, 0.55], [-8.6, 0.45], [-9.7, 1.5], [-10.9, 3.3], [-12.2, 4.1], [-13.0, 3.75], [-13.8, 3.25], [-14.6, 3.0], [-15.8, 2.8], [-18, 2.5]]),
+    L: yrev([[4, 2.4], [0, 2.2], [-2.3, 2.0], [-3.4, 1.4], [-4.6, 0.55], [-8.6, 0.45], [-9.7, 1.5], [-10.9, 3.3], [-12.2, 4.1], [-13.0, 3.7], [-13.8, 3.05], [-14.6, 2.75], [-15.8, 2.55], [-18, 2.4]]), // (língula: a abertura morfológica e a suavização recuam a borda da malha ~0,25 cm)
     pR: yrev([[4, 2.3], [0, 2.0], [-2.3, 0.9], [-4.6, 0.12], [-13.5, 0.15], [-15, 0.6], [-18, 1.0]]),
     pL: yrev([[4, 2.3], [0, 2.0], [-2.3, 0.9], [-4.6, 0.12], [-8.8, 0.3], [-10.0, 1.3], [-11.3, 2.3], [-14.2, 2.7], [-16, 2.6], [-18, 2.6]]),
   };
@@ -1373,8 +1430,6 @@ diffuseColor.rgb *= triT.rgb;`)
     /* cavidades (AD com a desembocadura da VCS, VD com o infundíbulo, AE, VE): superfícies do campo das câmaras
        recuadas pela espessura da parede, com faces voltadas PARA DENTRO da cavidade. Nos cortes, a parede aparece
        chapada (cor de corte do miocárdio) e a luz mostra o endocárdio sombreado; fora dos cortes ficam ocultas. */
-    const plugOf = (id, ymax) => { const S = SOLID(id); if (!S) return null; const n = S.pts.length, P = [], R = []; S.pts.forEach((p, i) => { if (p[1] < ymax) { P.push(p); R.push(S.r(i / (n - 1))); } }); return P.length > 1 ? chain(P, R) : null; };
-    const SVCP = plugOf('svc', -7.0), AOP = plugOf('aorta', -7.5);
     const cavF = (x, y, z) => {
       const lvO = HP.lv.d(x, y, z), lv = lvO + 0.85;                                 // VE: parede ~1 cm
       const rvO = smin(HP.rv.d(x, y, z), HP.rvApex.d(x, y, z), 0.8);
@@ -1384,10 +1439,15 @@ diffuseColor.rgb *= triT.rgb;`)
       const ra = Math.max(smin(raO + 0.22, HP.rau.d(x, y, z) + 0.16, 0.3), 0.15 - vent, 0.12 - laO); // septos AV e interatrial
       const la = Math.max(smin(laO + 0.25, HP.lau.d(x, y, z) + 0.15, 0.3), 0.15 - vent);
       const ao = HP.aoRoot.d(x, y, z) + 0.17;
-      // a extremidade arredondada da VCS e o início da aorta (malhas do módulo de vasos) não entram na luz: a cavidade
-      // recua 0,15 cm em torno deles (a calota fica na parede, não como domo azul/vermelho dentro do AD/raiz aórtica)
-      const plug = Math.min(SVCP ? SVCP.d(x, y, z) : 9, AOP ? AOP.d(x, y, z) : 9);
-      return Math.max(Math.min(lv, rv, ra, la, ao), heartAt(x, y, z) + 0.22, 0.15 - plug);
+      // extremidades da VCS e da aorta: óstio (tampa plana) ou recuo em torno da calota (endsG, acima). No óstio, um funil
+      // com o calibre da luz liga a câmara ao plano da extremidade, e ali a parede externa (recortada) não limita
+      let ch = Math.min(lv, rv, ra, la, ao), outer = heartAt(x, y, z) + 0.22;
+      for (const E of ENDS) {
+        if (!E.flat) continue; const dt = E.tube.d(x, y, z); if (dt > 0.6) continue;
+        const sx = endSx(E, x, y, z), fun = Math.max(dt + 0.15, -0.03 - sx, sx - 0.9);
+        ch = smin(ch, fun, 0.3); outer = Math.min(outer, fun);
+      }
+      return Math.max(ch, outer, endsG(x, y, z));
     };
     const cv = isoMesh(HEART_BOX, 0.28 * QH, cavF, { smooth: 2, narrow: true, T: 0.6, minTris: 60 });
     const ci = cv.geo.index.array; for (let t = 0; t < ci.length; t += 3) { const a = ci[t + 1]; ci[t + 1] = ci[t + 2]; ci[t + 2] = a; }
@@ -1531,7 +1591,15 @@ diffuseColor.rgb *= triT.rgb;`)
       // 2B − (A+C)/2) — o canto não recua ~0,4 cm para dentro (a borda alcança a parede posterior inclinada)
       const A = P.slice(pAt(i, NS - 2), pAt(i, NS - 2) + 3), B = P.slice(pAt(i, NS), pAt(i, NS) + 3), Cc = P.slice(pAt(i, NS + 2), pAt(i, NS + 2) + 3);
       const Bc = [0, 1, 2].map((a) => 2 * B[a] - 0.5 * (A[a] + Cc[a]));
-      for (let j = NS - 1; j <= NS + 1; j++) { const t = (j - NS + 2) / 4, q = pAt(i, j); for (let a = 0; a < 3; a++) P[q + a] = (1 - t) * (1 - t) * A[a] + 2 * t * (1 - t) * Bc[a] + t * t * Cc[a]; }
+      for (let j = NS - 1; j <= NS + 1; j++) {
+        const t = (j - NS + 2) / 4, q = pAt(i, j); for (let a = 0; a < 3; a++) P[q + a] = (1 - t) * (1 - t) * A[a] + 2 * t * (1 - t) * Bc[a] + t * t * Cc[a];
+        // sem ultrapassar a borda em raio, atrás (na goteira paravertebral a saia salta ~3 cm em raio entre as fileiras: a
+        // quadrática passava ~0,4 cm além da borda e voltava → dobra em grampo no canto saia→cúpula)
+        const rx = P[q], rz = P[q + 2] - GZ, rq = hyp(rx, rz); if (rq > rb && sn < -0.2) { P[q] = rx * rb / rq; P[q + 2] = GZ + rz * rb / rq; } // (só atrás: na frente o leve avanço cobre a margem)
+        // nem em altura: abaixo da borda a saia não passa dela; acima, a cúpula não sobe além da fileira seguinte
+        // (a tangente na borda, (C − A)/2, aponta para cima quando a saia é alta → a curva subia e voltava a descer)
+        P[q + 1] = Math.min(P[q + 1], j < NS ? B[1] : j > NS ? Math.max(B[1], Cc[1]) : P[q + 1]);
+      }
     }
     /* hiatos esofágico (~T10, com os troncos vagais) e da VCI (no centro tendíneo): elipses no plano xz centradas no
        EIXO do tubo na altura de cada ponto (tubos oblíquos × cúpula inclinada). Remove as células cujo centro cai
@@ -1552,6 +1620,7 @@ diffuseColor.rgb *= triT.rgb;`)
       holes.forEach((h, hi) => { if (hRho(h, x, y, z) < 1) { cut[i * rows + j] = 1; cutH[i * rows + j] = hi; } });
     }
     const rim = new Uint8Array(NU * rows); // vértice da borda de um hiato
+    const P0 = Float32Array.from(P); // antes da projeção da borda (para desfazer dobras)
     for (let i = 0; i < NU; i++) for (let j = 0; j < rows; j++) {
       let nc = 0, nk = 0, hh = -1;
       for (const [ci, cj] of [[i - 1, j - 1], [i, j - 1], [i - 1, j], [i, j]]) { if (cj < 0 || cj >= rows - 1) continue; const q = ((ci + NU) % NU) * rows + cj; if (cut[q]) { nc++; hh = cutH[q]; } else nk++; }
@@ -1563,6 +1632,24 @@ diffuseColor.rgb *= triT.rgb;`)
       if (j > NS) P[q + 1] = y + Hdia(nx, nz) - Hdia(x, z); // na cúpula acompanha a superfície; na saia (vertical) mantém y
       P[q] = nx; P[q + 2] = nz;
     }
+    /* a projeção radial da borda pode levar um vértice além do vizinho → célula mantida dobrada (lasca de face traseira
+       vista de baixo junto aos hiatos). Células que viram em relação à grade original devolvem seus vértices de borda
+       metade do caminho, até 4 vezes. */
+    {
+      const cellN = (A, i, j) => { const g = (ii, jj) => { const q = pAt(ii, jj); return [A[q], A[q + 1], A[q + 2]]; }; const a = g(i, j), b = g(i + 1, j), c2 = g(i + 1, j + 1), d = g(i, j + 1); const u = [c2[0] - a[0], c2[1] - a[1], c2[2] - a[2]], v = [d[0] - b[0], d[1] - b[1], d[2] - b[2]]; return [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]]; };
+      for (let pass = 0; pass < 4; pass++) {
+        let moved = 0;
+        for (let i = 0; i < NU; i++) for (let j = 0; j < rows - 1; j++) {
+          if (cut[i * rows + j]) continue;
+          const corners = [[i, j], [i + 1, j], [i + 1, j + 1], [i, j + 1]].filter(([a, b]) => rim[(a % NU) * rows + b]); if (!corners.length) continue;
+          const n0 = cellN(P0, i, j), n1 = cellN(P, i, j), l0 = hyp(...n0), l1 = hyp(...n1);
+          if (l0 < 1e-6 || (n0[0] * n1[0] + n0[1] * n1[1] + n0[2] * n1[2]) > 0.3 * l0 * l1) continue;
+          for (const [a, b] of corners) { const q = pAt(a, b); for (let k = 0; k < 3; k++) P[q + k] = 0.5 * (P[q + k] + P0[q + k]); }
+          moved++;
+        }
+        if (!moved) break;
+      }
+    }
     for (let j = 0; j < rows; j++) { const q0 = pAt(0, j), q1 = (NU * rows + j) * 3; P[q1] = P[q0]; P[q1 + 1] = P[q0 + 1]; P[q1 + 2] = P[q0 + 2]; }
     // normais da superfície média e espessura (tendão mais fino; pilares espessados junto ao hiato aórtico)
     const at = (i, j) => { i = (i + NU) % NU; j = clamp(j, 0, rows - 1); const q = pAt(i, j); return new THREE.Vector3(P[q], P[q + 1], P[q + 2]); };
@@ -1570,11 +1657,24 @@ diffuseColor.rgb *= triT.rgb;`)
     const mus = lin('#9e463b'), musD = lin('#86362f'), ten = lin('#e3dacb'), tenD = lin('#cfc4b0');
     const off = [];
     for (let i = 0; i <= NU; i++) for (let j = 0; j < rows; j++) {
-      const du = at(i + 1, j).sub(at(i - 1, j)), dv = at(i, j + 1).sub(at(i, j - 1));
+      // diferenças centrais com estêncil alargado onde colunas vizinhas coincidem (pilares: as colunas adensadas da
+      // goteira convergem no mesmo ponto da saia) — senão a normal gira ao acaso e as faces offset se cruzam
+      let k = 1, du = at(i + 1, j).sub(at(i - 1, j)); while (du.lengthSq() < 0.04 && k < 6) { k++; du = at(i + k, j).sub(at(i - k, j)); }
+      let m = 1, dv = at(i, j + 1).sub(at(i, j - 1)); while (dv.lengthSq() < 0.04 && m < 4) { m++; dv = at(i, j + m).sub(at(i, j - m)); }
       const n = new THREE.Vector3().crossVectors(dv, du); n.normalize(); if (!(n.lengthSq() > 0.5)) n.set(0, 1, 0);
       const p = at(i, j), tm = j > NS ? Math.max(tendonEdge(p.x, p.z), rim[(i % NU) * rows + j] ? 0.85 : 0) : 0;
       const crus = j <= NS ? DG.crus[i % NU] * Math.pow(1 - j / NS, 0.6) : 0;
       off.push([p, n, lerp(DIA_TH, TEND_TH, tm) + crus, tm]);
+    }
+    { // normais da saia/pilares suavizadas (média 3×3, 2 passadas): sem viradas bruscas entre colunas quase coincidentes
+      for (let pass = 0; pass < 2; pass++) {
+        const nn = off.map((o) => o[1].clone());
+        for (let i = 0; i <= NU; i++) for (let j = 0; j <= NS + 2 && j < rows; j++) {
+          const acc = new THREE.Vector3();
+          for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) { const ii = (((i + a) % NU) + NU) % NU, jj = clamp(j + b, 0, rows - 1); acc.addScaledVector(nn[ii * rows + jj], a === 0 && b === 0 ? 2 : 1); }
+          if (acc.lengthSq() > 1e-6) off[i * rows + j][1].copy(acc.normalize());
+        }
+      }
     }
     const probe = off[Math.floor(NU / 4) * rows + NS + 10][1]; const sgn = probe.y >= 0 ? 1 : -1;
     const NV = (NU + 1) * rows, vid = (f, i, j) => f * NV + i * rows + j;
@@ -1599,21 +1699,27 @@ diffuseColor.rgb *= triT.rgb;`)
     }
     for (let i = 0; i < NU; i++) for (const f of [0, 1]) tri(vid(f, i, rows - 1), vid(f, i + 1, rows - 1), cIdx[f], f === 0 ? wind : !wind);
     // borda livre inferior (linha de inserção): une as duas faces
-    for (let i = 0; i < NU; i++) { const a = vid(0, i, 0), b = vid(0, i + 1, 0), c2 = vid(1, i + 1, 0), d = vid(1, i, 0); idx.push(...(wind ? [a, b, c2, a, c2, d] : [a, c2, b, a, d, c2])); }
+    for (let i = 0; i < NU; i++) { if (cut[i * rows]) continue; const a = vid(0, i, 0), b = vid(0, i + 1, 0), c2 = vid(1, i + 1, 0), d = vid(1, i, 0); idx.push(...(wind ? [a, b, c2, a, c2, d] : [a, c2, b, a, d, c2])); } // (não sob um hiato que chega à inserção)
     // paredes dos hiatos: cada aresta entre célula removida e célula mantida vira um quadrilátero face0↔face1
-    const V3 = (k) => new THREE.Vector3(pos[k * 3], pos[k * 3 + 1], pos[k * 3 + 2]);
-    const wall = (e0, e1, kept, gone) => {
+    /* parede do hiato entre a célula mantida (nn, nj) e a removida: orientação TOPOLÓGICA — a aresta compartilhada é
+       percorrida no sentido oposto ao das faces da célula mantida (face0 e face1), então a parede fecha a lâmina sem
+       faces invertidas nem arestas soltas (o teste geométrico pela normal falhava nas células degeneradas junto aos
+       pilares, onde a borda é projetada sobre a elipse: lascas vermelhas em debug=faces). */
+    const wall = (e0, e1, nn, nj) => {
+      const col = (c) => { for (const k of [c, c - NU, c + NU]) if (k === nn || k === nn + 1) return k; return c; };
+      e0 = [col(e0[0]), e0[1]]; e1 = [col(e1[0]), e1[1]];
+      const cyc = [[nn, nj], [nn + 1, nj], [nn + 1, nj + 1], [nn, nj + 1]], at4 = (e) => cyc.findIndex((c) => c[0] === e[0] && c[1] === e[1]);
+      const fwd = (at4(e0) + 1) % 4 === at4(e1);            // e0→e1 no ciclo a→b→c→d da célula mantida
+      const keptE0E1 = fwd !== wind;                          // a face0 da célula mantida usa e0→e1?
       const a = vid(0, e0[0], e0[1]), b = vid(0, e1[0], e1[1]), c2 = vid(1, e1[0], e1[1]), d = vid(1, e0[0], e0[1]);
-      const nrm = new THREE.Vector3().crossVectors(V3(b).sub(V3(a)), V3(d).sub(V3(a))), dir = gone.clone().sub(kept);
-      if (nrm.dot(dir) >= 0) idx.push(a, b, c2, a, c2, d); else idx.push(a, c2, b, a, d, c2);
+      if (keptE0E1) idx.push(a, c2, b, a, d, c2); else idx.push(a, b, c2, a, c2, d);
     };
-    const cellC = (i, j) => at(i, j).add(at(i + 1, j)).add(at(i + 1, j + 1)).add(at(i, j + 1)).multiplyScalar(0.25);
     for (let i = 0; i < NU; i++) for (let j = 0; j < rows - 1; j++) {
       if (!cut[i * rows + j]) continue;
       const nb = [[i, j - 1, [i, j], [i + 1, j]], [i, j + 1, [i, j + 1], [i + 1, j + 1]], [i - 1, j, [i, j], [i, j + 1]], [i + 1, j, [i + 1, j], [i + 1, j + 1]]];
       for (const [ni, nj, e0, e1] of nb) {
         if (nj < 0 || nj >= rows - 1) continue; const nn = (ni + NU) % NU; if (cut[nn * rows + nj]) continue;
-        wall(e0, e1, cellC(nn, nj), cellC(i, j));
+        wall(e0, e1, nn, nj);
       }
     }
     // compacta: descarta os vértices das células removidas pelos hiatos (sem pontos soltos dentro da aorta/esôfago/VCI)
@@ -1642,11 +1748,20 @@ diffuseColor.rgb *= triT.rgb;`)
   const lungR = (x, y, z) => lungF('R', x, y, z), lungLf = (x, y, z) => lungF('L', x, y, z);
   const yO = (side, z) => { const T = fissTab[side], f = clamp((z + 13) / 16.2, 0, 1) * 100, i = Math.min(99, f | 0); return T[i * 2] + (T[i * 2 + 2] - T[i * 2]) * (f - i); };
   const malZ = -6.0, lbMal = yLBat(13.5, malZ), rfMal = yRFat(13.5, malZ);
+  /* base do pulmão D: na FACE ANTEROINFERIOR (entre a LHC e a LAA, ~0,8 cm acima da margem inferior), visível de
+     frente — o ponto da face diafragmática (raio vindo de baixo) ficava ~3 cm atrás da face anterior (rótulo
+     "profundo") e coincidia na tela com diaphragmR. A face anterior é quase vertical: com a descida do pulmão na
+     inspiração o ponto continua sobre ela. */
+  const lungBaseAnt = (() => {
+    const x = 10.5; let yb = -15.5, found = false;
+    for (let y = -13; y > -20; y -= 0.05) { const h = hit(lungR, [x, y, 9], [0, 0, -1], 14); if (h[2] < 8.9 && h[2] > -3.5) { yb = y; found = true; } else if (found) break; }
+    return hit(lungR, [x, yb + 0.8, 9], [0, 0, -1], 14);
+  })();
   const anchors = {
     cupulaR: LM.pleura.cupulaApex.slice(),
     lungApexR: hit(lungR, [4.4, 6, -5.7], [0, -1, 0]),
     lungR: hit(lungR, [8.6, -6.5, 8], [0, 0, -1]),
-    lungBaseR: hit(lungR, [7.0, -22, -4.5], [0, 1, 0]),
+    lungBaseR: lungBaseAnt,
     costophrenicR: hit((x, y, z) => pleuraF('R', x, y, z), [17, (lbMal + rfMal) / 2, malZ], [-1, 0, 0]),
     horizontalFissureR: hit(lungR, [10.4, yHor(10.4, -0.3), 8], [0, 0, -1]),
     obliqueFissureR: hit(lungR, [17, yO('R', malZ) + oblLift('R', 13.3, malZ), malZ], [-1, 0, 0]),

@@ -44,7 +44,11 @@ rows.forEach((r) => {
 const FIX_ANCHORS = new Set(['fixExit', 'fixAnchorStitch', 'fixAnchorKnot', 'fixTails', 'fixCross1', 'fixCross2', 'fixCross3',
   'fixFinalKnot', 'fixWingStitchA', 'fixWingStitchB', 'fixDressing', 'needleHolder', 'sutureNeedle']);
 const FIX_IDS = new Set(['suture-ballerina', 'suture-anchor', 'suture-wing', 'needle-holder', 'suture-needle', 'dressing-transparent', 'chg-pad']);
-const isAnchor = (k) => anchors.has(k) || FIX_ANCHORS.has(k);
+/* ---- âncoras e ids extras exportados pelos módulos além da tabela do SPEC §4 (dilatador, marca do cateter etc.):
+   aceitos aqui; com --registry, confere-se que existem de fato nos módulos construídos ---- */
+const EXTRA_ANCHORS = new Set(['dilatorTip', 'dilatorLimit', 'catheterSkinMark', 'catheterHub', 'syringe', 'needleGuide', 'angleArc', 'coronalPlane']);
+const EXTRA_IDS = new Set(['dilator', 'dilator-limit', 'guidewire-ijv', 'needle-angle', 'coronal-plane', 'needle-direction', 'landmark-entry', 'landmark-notch', 'thumb-vector', 'aspirated-blood']);
+const isAnchor = (k) => anchors.has(k) || FIX_ANCHORS.has(k) || EXTRA_ANCHORS.has(k);
 
 const err = [], warn = [];
 const LAYERS = ['skin', 'bones', 'muscle', 'vein', 'artery', 'nerve', 'lymph', 'lung', 'pleura', 'mediastinum', 'hand', 'instrument', 'drape', 'aids'];
@@ -85,6 +89,13 @@ D.chapters.forEach((c, i) => {
   const st = s.state || {};
   ['phase', 'handPose', 'breath', 'rollMode', 'wireMal', 'showPlanes'].forEach((k) => { if (!(k in st)) err.push(tag + ': state.' + k + ' ausente'); });
   if (!(st.phase >= 0 && st.phase <= 6)) err.push(tag + ': phase fora de 0–6');
+  // fases inteiras 0–6, mais a subfase do dilatador (instruments: 5,25–5,75)
+  else if (!Number.isInteger(st.phase) && !(st.phase >= 5.25 && st.phase < 5.75)) err.push(tag + ': phase fracionária fora da subfase do dilatador (5,25–5,75)');
+  if ('dilator' in st) { if (typeof st.dilator !== 'boolean') err.push(tag + ': state.dilator deve ser booleano'); }
+  /* state.dilator ausente: o app zera via DEFAULT_STATE a cada cena (sem vazamento) — não é aviso */
+  if (st.dilator && st.phase < 4.5) warn.push(tag + ': state.dilator sem efeito com phase < 4,5');
+  const dilOn = !!(st.dilator && st.phase >= 4.5) || (st.phase >= 5.25 && st.phase < 5.75);
+  if (dilOn && st.fixStep > 0) err.push(tag + ': dilatador e fixação na mesma cena (o dilatador oculta o cateter)');
   if (!['none', 'interscapular', 'ipsilateral'].includes(st.rollMode)) err.push(tag + ': rollMode inválido');
   if ('fixStep' in st) {
     if (!(Number.isInteger(st.fixStep) && st.fixStep >= 0 && st.fixStep <= 9)) err.push(tag + ': fixStep fora de 0–9 (inteiro)');
@@ -101,7 +112,11 @@ D.chapters.forEach((c, i) => {
   });
   const keys = (s.labels || []).map((l) => l[0]);
   if (new Set(keys).size !== keys.length) err.push(tag + ': âncora repetida nos rótulos');
-  if (s.highlight && !ids.has(s.highlight) && !(FIX_IDS.has(s.highlight) && c.id === 'fixacao')) err.push(tag + ': highlight não canônico ' + s.highlight);
+  if (s.highlight && !ids.has(s.highlight) && !EXTRA_IDS.has(s.highlight) && !(FIX_IDS.has(s.highlight) && c.id === 'fixacao')) err.push(tag + ': highlight não canônico ' + s.highlight);
+  if (s.highlight && !D.glossary[s.highlight]) err.push(tag + ': highlight sem entrada no glossário ' + s.highlight);
+  if (s.highlight === 'dilator' && !dilOn) warn.push(tag + ': destaque do dilatador sem o dilatador em cena');
+  if (keys.some((k) => /^dilator/.test(k)) && !dilOn) warn.push(tag + ': rótulo do dilatador sem o dilatador em cena');
+  if (keys.includes('catheterTip') && dilOn) warn.push(tag + ': rótulo da ponta do cateter com o dilatador em cena (cateter oculto)');
   if (!ANIMS.includes(s.anim)) err.push(tag + ': anim inválida');
   if (!INSETS.includes(c.inset)) err.push(tag + ': inset inválido');
   if (c.inset === 'fixation' && !D.fixation) err.push(tag + ": inset 'fixation' sem ATLAS_DATA.fixation");
@@ -181,6 +196,8 @@ async function registryCheck() {
     else if (e.info && e.info.group && gl[id].group !== e.info.group) groupDiff.push(id + ' (glossário ' + gl[id].group + ' × registro ' + e.info.group + ')');
   }
   missingGloss.forEach((id) => err.push('registro sem glossário: ' + id));
+  // destaque: o id precisa existir no registro (a mão GLB não carrega em Node: operator-hand fica de fora)
+  D.chapters.forEach((c) => { const h = c.scene && c.scene.highlight; if (h && h !== 'operator-hand' && !ATLAS.registry.has(h) && !(FIX_IDS.has(h) && !mods.includes('fixation'))) err.push('cap ' + c.id + ': highlight ' + h + ' não registrado pelos módulos'); });
   groupDiff.forEach((x) => warn.push('grupo divergente: ' + x));
   modErr.forEach((x) => warn.push('módulo (Node, sem render) falhou: ' + x));
   // âncoras usadas nos rótulos existem nos módulos construídos (a mão GLB não carrega em Node: indexTip/thumbTip/palm ficam de fora)

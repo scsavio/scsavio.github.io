@@ -224,6 +224,7 @@ input[type="range"]:focus-visible::-moz-range-thumb { outline: 2px solid var(--f
 }
 .lbl.occ { border-left-style: dashed; font-weight: 550; }
 .lbl.occ::after { content: " ·  profundo"; font-weight: 600; font-size: 10.5px; color: var(--ink-2); }
+.lbl.occ.under::after { content: " ·  sob a mão"; } /* encoberta só pela mão do operador: não está profunda */
 .labels.dim .lbl, .leaders.dim { opacity: 0.3; }
 .lbl.clash { opacity: 0; }
 /* visor estreito: marcador numerado na âncora + lista "n — texto" abaixo do visor (#lblKey) */
@@ -354,6 +355,9 @@ input[type="range"]:focus-visible::-moz-range-thumb { outline: 2px solid var(--f
 .slider output { font-size: 11.5px; color: var(--teal); font-weight: 650; font-variant-numeric: tabular-nums; }
 .slider-ends { display: flex; justify-content: space-between; font-size: 10.5px; color: var(--muted); margin-top: -2px; }
 .slider.compact { display: flex; align-items: center; gap: 8px; }
+/* mão fora de cena (a partir do fio-guia): slider e animação indisponíveis, com o motivo no texto de saída */
+.slider-row.off .slider-name, .slider-row.off .slider-ends { opacity: 0.55; }
+.slider-row.off output { color: var(--muted); font-style: italic; }
 .slider.compact output { min-width: 50px; text-align: right; }
 .controls .btn.icon.play { width: 32px; min-height: 32px; }
 .btn.play .i-pause { display: none; }
@@ -365,9 +369,10 @@ input[type="range"]:focus-visible::-moz-range-thumb { outline: 2px solid var(--f
 .stepper-head { display: flex; align-items: center; gap: 10px; }
 .stepper-now { margin: 0; display: flex; align-items: baseline; gap: 7px; font-size: 13px; font-weight: 650; min-width: 0; }
 .stepper-now b { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--gold-soft); color: var(--gold-ink); border: 1px solid var(--gold); font-size: 11.5px; flex: none; }
-.stepper { position: relative; display: grid; grid-template-columns: repeat(7, 1fr); margin: 2px 0 0; padding: 0; list-style: none; }
-.stepper::before { content: ""; position: absolute; left: 7%; right: 7%; top: 13px; height: 2px; background: var(--line-2); }
-.stepper::after { content: ""; position: absolute; left: 7%; top: 13px; height: 2px; width: calc(86% * var(--p, 0)); background: var(--teal); transition: width 0.3s; }
+/* 8 etapas (0–7, com o dilatador entre o fio e o cateter): linha de progresso do centro da 1ª ao da última coluna */
+.stepper { position: relative; display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); margin: 2px 0 0; padding: 0; list-style: none; container-type: inline-size; }
+.stepper::before { content: ""; position: absolute; left: 6.25%; right: 6.25%; top: 13px; height: 2px; background: var(--line-2); }
+.stepper::after { content: ""; position: absolute; left: 6.25%; top: 13px; height: 2px; width: calc(87.5% * var(--p, 0)); background: var(--teal); transition: width 0.3s; }
 .stepper li { position: relative; z-index: 1; display: flex; justify-content: center; } /* pontos acima da linha de progresso */
 .stepper button { position: relative; display: flex; flex-direction: column; align-items: center; gap: 3px; border: 0; background: transparent; padding: 2px 0; cursor: pointer; color: var(--muted); font-size: 9.5px; font-weight: 600; line-height: 1.1; min-width: 28px; }
 .stepper button .dot { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--surface); border: 1.5px solid var(--ctl-line); color: var(--muted); font-size: 11px; font-weight: 700; transition: all 0.15s; }
@@ -375,7 +380,9 @@ input[type="range"]:focus-visible::-moz-range-thumb { outline: 2px solid var(--f
 .stepper button.past .dot { border-color: var(--teal); color: var(--teal); }
 .stepper button[aria-pressed="true"] .dot { background: var(--teal); border-color: var(--teal); color: var(--on-teal); box-shadow: 0 0 0 3px var(--teal-soft); }
 .stepper button[aria-pressed="true"] { color: var(--ink); }
-.stepper .nm { max-width: 62px; text-align: center; }
+.stepper .nm { max-width: 62px; text-align: center; white-space: nowrap; }
+/* coluna estreita (desktop de 1181–1300 px, 3 colunas): rótulos curtos um pouco menores para não se tocarem */
+@container (max-width: 240px) { .stepper .nm { font-size: 8.6px; letter-spacing: -0.01em; } }
 .stepper-now span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .stepper-now { flex: 1; }
 /* fixação em bailarina (etapa 6): ocupa o lugar da linha de opções da agulha, com a mesma altura */
@@ -393,6 +400,7 @@ input[type="range"]:focus-visible::-moz-range-thumb { outline: 2px solid var(--f
 .fixer button[aria-pressed="true"] .dot { background: var(--gold); border-color: var(--gold); color: #1d1a12; box-shadow: 0 0 0 3px var(--gold-soft); }
 
 .cut-row { display: flex; align-items: center; gap: 12px; }
+.snap-short { display: none; }
 .cut-row .slider { flex: 1; }
 .seg-row { display: flex; align-items: center; gap: 6px 10px; flex-wrap: wrap; }
 .seg-label { font-size: 12px; font-weight: 650; }
@@ -708,17 +716,35 @@ mark { background: var(--gold-soft); color: inherit; border-radius: 2px; padding
 .sheet .fx-mini p { margin: 0; font-size: calc(var(--fs) * 0.82); line-height: 1.38; color: #24403c; }
 
 /* ---------- responsivo ---------- */
-@media (max-width: 1180px) {
-  .seal { display: none; }
+@media (max-width: 1300px) {
+  /* abaixo de ~1300 px três colunas apertariam o stepper de 8 etapas e o coxim: duas colunas + faixa de corte */
   .controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ctl-cut { grid-column: 1 / -1; border-top: 1px solid var(--line); }
-  /* corte | coxim lado a lado; captura numa segunda linha (o coxim precisa de ~240 px para os três rótulos) */
   /* corte | coxim | captura numa só linha (o coxim precisa de ~240 px para os três rótulos) */
   .ctl-cut .ctl-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) auto; align-items: center; gap: 8px 18px; }
   .ctl-cut .seg-row { flex-wrap: nowrap; }
   .ctl-cut .btn.wide { width: auto; justify-self: end; }
   .ctl-needle { border-right: 0; }
+}
+@media (max-width: 1180px) {
+  .seal { display: none; }
   .prancha-grid { grid-template-columns: 1fr; }
+}
+/* desktop baixo/estreito (981–1300 px): visor + controles numa tela de ~700 px de altura → controles ≤ 240 px.
+   Nada some: os títulos "Mão e respiração" e "Corte, coxim e captura" ficam só para leitores de tela (os controles
+   têm rótulos próprios: Mão, Respiração, Corte, Coxim, PNG) e o nome da etapa sobe para a linha do título da agulha. */
+@media (min-width: 981px) and (max-width: 1300px) {
+  .controls { grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); }
+  .ctl { padding-top: 6px; padding-bottom: 7px; }
+  .ctl-motion, .ctl-cut, .ctl-needle { position: relative; }
+  .ctl-motion > summary, .ctl-cut > summary { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; pointer-events: none; }
+  .ctl-motion .ctl-body { gap: 3px; }
+  .slider-ends { margin-top: -4px; line-height: 1.2; }
+  .ctl-needle > summary { pointer-events: none; }
+  .ctl-needle > summary::after { display: none; }
+  .ctl-needle .stepper-head { position: absolute; top: 4px; left: 158px; right: 14px; }
+  .ctl-cut .snap-long { display: none; }
+  .ctl-cut .snap-short { display: inline; }
 }
 @media (max-width: 980px) {
   .stage { display: block; }
@@ -766,7 +792,7 @@ mark { background: var(--gold-soft); color: inherit; border-radius: 2px; padding
   .legend-hint { display: none; }
   .gizmo { width: 84px; height: 84px; right: 4px; bottom: 4px; }
   .lbl { font-size: 11px; padding: 3px 6px 3px 7px; }
-  .lbl.occ::after { content: ""; }
+  .lbl.occ::after, .lbl.occ.under::after { content: ""; }
   .card { left: 8px; right: 8px; top: auto; bottom: 8px; width: auto; max-height: 64%; padding-bottom: 0; }
   .card-name { font-size: 18px; margin-bottom: 6px; }
   .card-desc { font-size: 12.8px; }
@@ -801,6 +827,13 @@ mark { background: var(--gold-soft); color: inherit; border-radius: 2px; padding
 @media (max-width: 380px) {
   .stepper .nm { display: none; }
   .fixer button .dot { width: 20px; height: 20px; font-size: 10px; }
+}
+/* 3 colunas (1301–1700 px: 1366×768, 1440×900) e telas muito estreitas: os 10 pontos da fixação não cabem com 22 px —
+   pontos menores, sem largura mínima e sem o rótulo "Fixação" (o nome da etapa já aparece acima) */
+@media (min-width: 1301px) and (max-width: 1700px), (max-width: 340px) {
+  .fix-lbl { display: none; }
+  .fixer button { min-width: 0; }
+  .fixer button .dot { width: 18px; height: 18px; font-size: 9.5px; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; scroll-behavior: auto !important; }

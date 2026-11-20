@@ -217,7 +217,10 @@ ATLAS.define('nerves', function (ctx) {
   const meshOf = (k) => {
     if (!(k in MOBS)) {
       const spec = { scMidR: [/^scalene-mid-R$/, 'muscle'], scAntR: [/^scalene-ant-R$/, 'muscle'], serrR: [/^serratus-anterior-R$/, 'muscle'], pecMajR: [/^pec-major-R$/, 'muscle'],
-        pecMinR: [/^pec-minor-R$/, 'muscle'], scapR: [/^scapula-R$/, 'bones'], omoR: [/^omohyoid-R$/, 'muscle'], rib1R: [/^rib-1-R$/, 'bones'], scAntL: [/^scalene-ant-L$/, 'muscle'], scMidL: [/^scalene-mid-L$/, 'muscle'] }[k];
+        pecMinR: [/^pec-minor-R$/, 'muscle'], scapR: [/^scapula-R$/, 'bones'], omoR: [/^omohyoid-R$/, 'muscle'], rib1R: [/^rib-1-R$/, 'bones'], scAntL: [/^scalene-ant-L$/, 'muscle'], scMidL: [/^scalene-mid-L$/, 'muscle'],
+        // vasos reais (o sólido registrado usa o raio-base; a parede real é elíptica/acomodada e pode ser maior)
+        artR: [/^(sca-R|axillary-a-R)$/, 'artery'], veinR: [/^(scv-R|axillary-v-R)$/, 'vein'], ijvR: [/^ijv-R$/, 'vein'],
+        rib1L: [/^rib-1-L$/, 'bones'], vertT: [/^vertebra-T[2-8]$/, 'bones'] }[k];
       MOBS[k] = spec ? meshObs(spec[0], spec[1]) : null;
     }
     return MOBS[k];
@@ -272,6 +275,21 @@ ATLAS.define('nerves', function (ctx) {
     if (tng) { const k = MP.dot(tng); const l2 = Math.sqrt(Math.max(0, 1 - k * k)); if (l2 > 0.35) { MP.addScaledVector(tng, -k).multiplyScalar(1 / l2); } }
     x.addScaledVector(MP, need - q.d);
     return need - q.d;
+  }
+
+  /** Acomoda uma geometria de tecido mole (gânglio, ducto) contra malhas reais: vértices dentro ou a menos de `gap` são
+      empurrados para fora pela normal local (deslocamentos pequenos, ≤ ~0,1 cm; normais de vértice mantidas). */
+  function conformGeo(g, keys, gap = 0.02) {
+    const pos = g.attributes.position, v = new THREE.Vector3(); let moved = 0;
+    for (const k of keys) {
+      const MO = meshOf(k); if (!MO) continue;
+      for (let i = 0; i < pos.count; i++) {
+        v.fromBufferAttribute(pos, i); if (!inBox(v, MO.box, 0.3)) continue;
+        if (pushOutMesh(MO, v, gap)) { pos.setXYZ(i, v.x, v.y, v.z); moved++; }
+      }
+    }
+    if (moved) { pos.needsUpdate = true; g.computeBoundingSphere(); }
+    return moved;
   }
 
   /* ---------------- sistema de relaxamento ----------------
@@ -552,11 +570,11 @@ ATLAS.define('nerves', function (ctx) {
 
   /* ---------------- construção de malhas ---------------- */
   const BUILT = []; // {key, side, pts}
-  /** Varredura de nervo. o: {r (perfil), flat (achatamento), radial, density, caps, capStart, capEnd, noise}. */
+  /** Varredura de nervo. o: {r (perfil), flat (achatamento) | rx/ry (semieixos explícitos; rx no eixo de `up`), radial, density, caps, capStart, capEnd, noise}. */
   function sweep(pts, o, mat, parent, info) {
     const rf = C.profile(o.r), fl = o.flat ?? (rf(0.5) > 0.15 ? 0.08 : 0.03);
     const g = C.sweepGeometry(pts, {
-      rx: (t) => rf(t) * (1 + fl), ry: (t) => rf(t) * (1 - fl), radial: o.radial || 12, density: o.density || 5,
+      rx: o.rx || ((t) => rf(t) * (1 + fl)), ry: o.ry || ((t) => rf(t) * (1 - fl)), radial: o.radial || 12, density: o.density || 5,
       caps: o.caps || 'round', capStart: o.capStart ?? true, capEnd: o.capEnd ?? true, up: o.up,
       noise: o.noise || null, vScale: o.vScale || 2.6,
     });
@@ -603,14 +621,20 @@ ATLAS.define('nerves', function (ctx) {
   // Os três eixos de LM convergem a ~0,2–0,4 cm entre si atrás da clavícula (x≈6–10); para que troncos/divisões
   // (r 0,2–0,3) não se fundam, afastam-se suavemente nessa zona preservando a ordem anatômica: superior em cima/anterior,
   // médio no meio, inferior embaixo/posterior (atrás da artéria). Fora da zona, os eixos de LM são mantidos.
-  const spread = (pts, off) => { const c = crv(pts), o = []; for (let i = 0; i <= 48; i++) { const q = c.getPointAt(i / 48), w = C.smooth(5.6, 7.0, q.x) * (1 - C.smooth(9.6, 11.0, q.x)); o.push([q.x + off[0] * w, q.y + off[1] * w, q.z + off[2] * w]); } return o; };
+  const spreadW = (x) => C.smooth(5.6, 7.0, x) * (1 - C.smooth(9.6, 11.0, x));
+  const spread = (pts, off) => { const c = crv(pts), o = []; for (let i = 0; i <= 48; i++) { const q = c.getPointAt(i / 48), w = spreadW(q.x); o.push([q.x + off[0] * w, q.y + off[1] * w, q.z + off[2] * w]); } return o; };
   // Tronco inferior (LM v2: arco da subclávia mais alto): entre x≈4,9 e 6,6 o eixo de LM passa por dentro da lâmina real do
-  // escaleno médio, que ali encosta na face posterior da 2ª parte da artéria. O guia segue a MESMA canaleta que o módulo de
-  // músculos escava para ele (muscles.js, "tronco inferior: sobre a 1ª costela fica ATRÁS da 3ª parte da artéria"): por
-  // baixo/atrás do arco, sobre a cúpula, e atrás da 3ª parte. Fora desse trecho, LM.
-  const TIp = LM.nerves.plexusTrunks[2].pts;
-  const TIg = [TIp[0], TIp[1], [4.94, 2.34, -3.67], [5.4, 1.88, -3.53], [5.7, 1.72, -3.36], [5.86, 2.02, -3.2], [6.15, 2.13, -3.25], [6.54, 2.0, -3.18], [7.06, 1.6, -3.1], ...TIp.slice(4)];
-  const TS = crv(spread(LM.nerves.plexusTrunks[0].pts, [0, 0.3, 0.15])), TM = crv(spread(LM.nerves.plexusTrunks[1].pts, [0, 0.05, -0.12])), TI = crv(spread(TIg, [0, -0.4, -0.2]));
+  // escaleno médio, que ali encosta na face posterior da 2ª parte da artéria. Guia próprio (TI_EFF = trajeto EFETIVO, já com
+  // o afastamento de `spread`; `unspread` o desconta), com y monotônico: desce sobre a cúpula, passa por baixo/atrás do arco,
+  // assenta quase horizontal (y≈1,5) na face superior da 1ª costela, atrás da 3ª parte da artéria e à frente da inserção do
+  // escaleno médio — o "bolsão" entre costela, escaleno e artéria em x≈6 (folgas medidas nas malhas reais: 0,00–0,03 cm) —
+  // e volta a descer além da borda lateral da costela. (A versão anterior subia a y 2,1 em x 5,9–6,5 e os obstáculos o
+  // empurravam de volta: vale + dobra de ~100°/cm.) Fora desse trecho, LM.
+  const TIp = LM.nerves.plexusTrunks[2].pts, offI = [0, -0.4, -0.2];
+  const unspread = (pts, off) => pts.map((q) => { const w = spreadW(q[0]); return [q[0] - off[0] * w, q[1] - off[1] * w, q[2] - off[2] * w]; });
+  const TI_EFF = [[4.94, 2.34, -3.67], [5.4, 1.84, -3.42], [5.75, 1.56, -3.27], [6.1, 1.48, -3.18], [6.5, 1.47, -3.12], [6.9, 1.42, -3.06], [7.3, 1.3, -3.0]];
+  const TIg = [TIp[0], TIp[1], ...unspread(TI_EFF, offI), ...TIp.slice(4)];
+  const TS = crv(spread(LM.nerves.plexusTrunks[0].pts, [0, 0.3, 0.15])), TM = crv(spread(LM.nerves.plexusTrunks[1].pts, [0, 0.05, -0.12])), TI = crv(spread(TIg, offI));
   // artéria subclávia → axilar (+ ponto extrapolado no braço, só para orientar os ramos terminais)
   const ART = crv([...VS.scaR.pts, ...VS.axillaryA.pts.slice(1), [15.5, -9.6, -4.35]]);
   function frameArt(x) {
@@ -650,7 +674,9 @@ ATLAS.define('nerves', function (ctx) {
   /* ---- troncos ---- */
   SR.path('trS', sub(TS, 0.08, tSd, 8), [[0, 0.22], [0.18, 0.28], [0.85, 0.3], [1, 0.26]], { mesh: mScal });
   SR.path('trM', sub(TM, 0.08, tMd, 8), [[0, 0.25], [0.85, 0.25], [1, 0.23]], { mesh: mScal });
-  SR.path('trI', sub(TI, 0.08, tId, 8), [[0, 0.24], [0.2, 0.255], [0.85, 0.255], [1, 0.24]], { mesh: [...mScal, { k: 'rib1R', gap: 0.03 }], obsGap: { artery: 0.12 } });
+  // tronco inferior: costela e artéria pelas malhas REAIS (o tubo de LM da 1ª costela, r 0,3, e a folga extra da artéria o
+  // erguiam/afastavam do bolsão e criavam o vale); o sólido da artéria fica só com a folga das malhas (−0,07 → 0,03 cm)
+  SR.path('trI', sub(TI, 0.08, tId, 8), [[0, 0.24], [0.2, 0.255], [0.85, 0.255], [1, 0.24]], { mesh: [...mScal, { k: 'rib1R', gap: 0.03 }, { k: 'artR', gap: 0.03 }], ignore: ['rib1'], obsGap: { artery: -0.07 } });
   /* ---- fascículos (guias: final dos eixos de LM → em torno da 2ª parte da axilar, atrás do peitoral menor) ---- */
   SR.path('cordL', [ptAt(TS, tSc), ptAt(TS, 0.92), LM.nerves.plexusTrunks[0].pts[5], around(12.4, 12, 0.74), around(13.3, -10, 0.72)], [[0, 0.22], [0.8, 0.23], [1, 0.17]], { mesh: mPec });
   SR.path('cordP', [ptAt(TM, tMc), ptAt(TM, 0.92), LM.nerves.plexusTrunks[1].pts[5], around(12.4, 92, 0.8), around(13.3, 98, 0.82)], [[0, 0.23], [0.75, 0.26], [1, 0.21]], { mesh: mPec });
@@ -671,7 +697,14 @@ ATLAS.define('nerves', function (ctx) {
   // linhagem lateral: fascículo lateral → raiz lateral → nervo mediano (o "M" se fecha com a raiz medial, que entra de lado)
   SR.path('latRoot', [LCe, around(13.65, -48, 0.74), around(13.95, 282, 0.66)], [[0, 0.17], [0.4, 0.155], [1, 0.165]], { mesh: mPec });
   SR.path('median', [around(13.95, 282, 0.66), around(14.4, 300, 0.7), around(14.85, 318, 0.72), around(15.3, 328, 0.75)], [[0, 0.165], [0.18, 0.2], [1, 0.2]], { fixEnd: true, mesh: mPec });
-  SR.path('medRoot', [MCe, around(13.55, 212, 0.76), around(13.8, 248, 0.72), around(13.95, 282, 0.66)], side(0.12, 0.13), { mesh: mPec, obsGap: { artery: 0.12, vein: 0.1 } });
+  // raiz medial: cruza a face ANTERIOR da 3ª parte da artéria axilar, por trás da veia axilar. Na geometria atual de vasos
+  // a veia encosta na face anteromedial da artéria (folga parede-parede ~0,06 cm em x 13,8–14,4, y −3,4…−5,8; medida nas
+  // malhas reais) — não cabe um nervo redondo. No cruzamento a raiz se achata em fita (0,13 × 0,34 cm) e se apoia na
+  // artéria (malha real, sem penetrar); a veia, complacente, "assenta" sobre ela (ver requests: veia axilar mais medial).
+  const mrR = C.profile(side(0.12, 0.13)), mrW = (t) => C.smooth(0.16, 0.38, t) * (1 - C.smooth(0.86, 0.98, t));
+  const mrThick = (t) => C.lerp(mrR(t), 0.065, mrW(t)), mrWide = (t) => C.lerp(mrR(t), 0.17, mrW(t));
+  SR.path('medRoot', [MCe, around(13.55, 216, 0.48), around(13.8, 248, 0.47), around(13.95, 282, 0.6)], mrThick,
+    { spacing: 0.17, ignore: ['vein'], mesh: [...mPec, { k: 'veinR', gap: 0 }, { k: 'artR', gap: 0.015 }], obsGap: { artery: -0.085 } });
   // musculocutâneo: sai de lado do fim do fascículo lateral; termina recuado (atrás do peitoral maior, rumo ao coracobraquial)
   SR.path('musculocut', [LCe, around(13.85, -38, 1.15), [15.2, -5.3, -2.0], [15.85, -7.3, -2.2], [16.15, -8.7, -2.18]], [[0, 0.125], [0.12, 0.14], [1, 0.14]], { fixEnd: true, mesh: mPec });
   SR.path('ulnar', [MCe, around(13.9, 185, 0.8), around(14.5, 190, 0.86), around(15.0, 196, 0.92), around(15.35, 200, 0.96)], [[0, 0.16], [0.3, 0.17], [1, 0.17]], { fixEnd: true, mesh: mPec });
@@ -739,8 +772,9 @@ ATLAS.define('nerves', function (ctx) {
     return ar(P.addScaledVector(N, 0.6 * ca).addScaledVector(B, 0.8 * sa).addScaledVector(nn, off));
   }
   const VAG_ESO_R = [[-6.7, -118], [-7.6, -128], [-9.0, -140], [-10.5, -150], [-12.0, -157], [-13.5, -163], [-15.0, -168], [-15.85, -171]];
+  // (junto ao ângulo venoso, a parede REAL da VJI — malha — é obstáculo: o sólido de raio-base deixava o vago 0,08 dentro dela)
   SR.path('vagus', [...LM.nerves.vagusR.slice(0, 5), [2.2, -1.25, -3.95], [1.3, -2.15, -4.5], [1.38, -3.0, -4.9], [1.35, -3.9, -5.45], [1.15, -4.7, -6.05], [0.92, -5.6, -6.6],
-    ...VAG_ESO_R.map(([y, a]) => esoAt(y, a, 0.185))], [[0, 0.15], [0.3, 0.14], [0.4, 0.13], [1, 0.12]], { maxDev: 0.6, spring: 0.12, pin: { y: -6.4, blend: 1.0 }, obsGap: { artery: 0.08, trachea: -0.06 } });
+    ...VAG_ESO_R.map(([y, a]) => esoAt(y, a, 0.185))], [[0, 0.15], [0.3, 0.14], [0.4, 0.13], [1, 0.12]], { maxDev: 0.6, spring: 0.12, pin: { y: -6.4, blend: 1.0 }, obsGap: { artery: 0.08, trachea: -0.06 }, mesh: [{ k: 'ijvR', gap: 0.03, y0: -1.5, y1: 6 }] });
   /* ---- laríngeo recorrente D: contorna a artéria subclávia por baixo e sobe no sulco traqueoesofágico ---- */
   SR.path('rln', [...LM.nerves.recurrentR, [0.8, 8.5, -2.1], [0.75, 10.6, -1.75]], 0.075, { maxDev: 0.6, spring: 0.12 });
   SR.attach('rln', 'start', 'vagus');
@@ -764,6 +798,11 @@ ATLAS.define('nerves', function (ctx) {
   { const p = SR.by.phrenic, c = crv(p.G.map(ar)); p.rf = (t) => { const y = c.getPointAt(t).y; return rPhr(y) * (t > 0.985 ? C.lerp(1, 0.55, (t - 0.985) / 0.015) : 1); }; p.R = p.R.map((_, i) => p.rf(i / p.n)); p.rmax = Math.max(...p.R); }
 
   mark('setupR'); SR.solve(18); SR.trimIntoVein('rld'); mark('solveR');
+  /* vago D entre a VJI (lateral) e a bifurcação do tronco braquiocefálico (y ≈ 0,6–1,5): a folga real entre as paredes é
+     ~0,19 cm — o nervo é afinado localmente (×0,66, transição suave) para caber sem invadir subclávia/carótida comum */
+  { const p = SR.by.vagus, base = p.rf, c = crv(p.P.map(ar));
+    p.rf = (t) => { const y = c.getPointAt(Math.min(1, Math.max(0, t))).y, k = C.smooth(0.2, 0.6, y) * (1 - C.smooth(1.5, 1.95, y)); return base(t) * (1 - 0.34 * k); };
+    p.R = p.R.map((_, i) => p.rf(i / p.n)); }
 
   /* ======================================================================
      MALHAS — lado direito (e esquerdo espelhado para as estruturas simétricas)
@@ -791,7 +830,8 @@ ATLAS.define('nerves', function (ctx) {
   const gStel = { R: grp('stellate-R', LN, G({ id: 'stellate-R', name: 'Gânglio cervicotorácico (estrelado) direito', desc: DESC.stellate })), L: grp('stellate-L', LN, G({ id: 'stellate-L', name: 'Gânglio cervicotorácico (estrelado) esquerdo', desc: DESC.stellate })) };
 
   const solidId = (mat, key, s, j) => (mat === MAT.duct ? 'lymph:' : 'nerve:') + key + (j ? '#' + j : '') + '-' + s;
-  /** Cria a malha D e (opcional) a espelhada E; registra sólido(s). spec: {grp, name(side)→str, mat, o, solid:[a,b], mirror} */
+  /** Cria a malha D e (opcional) a espelhada E; registra sólido(s). spec: {grp, name(side)→str, mat, o, solid:[a,b], mirror,
+      conform: {R|L: [chaves de meshOf]} (acomodação de tecido mole contra malhas reais)} */
   function build(sys, key, spec) {
     const out = {};
     const sides = spec.mirror === false ? [spec.side || 'R'] : ['R', 'L'];
@@ -802,6 +842,7 @@ ATLAS.define('nerves', function (ctx) {
       const g = spec.grp[s];
       const info = Object.assign({}, g.userData.info, { name: spec.name(s) });
       out[s] = sweep(pts, spec.o, spec.mat || MAT.nerve, g, info);
+      if (spec.conform && spec.conform[s]) conformGeo(out[s].geometry, spec.conform[s], 0.02);
       if (spec.solid !== false) {
         // eixo de colisão recortado nas extremidades conectadas (junções não contam como interpenetração)
         const tr = (v) => (v === true ? 1.3 : +v || 0), sl = spec.solid || [0, 0];
@@ -859,7 +900,22 @@ ATLAS.define('nerves', function (ctx) {
   build(SR, 'T1', { grp: gPlex, name: (s) => P_(s, 'raiz T1 (ramo anterior)'), o: { ...big, r: prof('T1'), capEnd: false }, solid: [0.4, 1.9] });
   [['divSP', 'divisão posterior do tronco superior'], ['divMA', 'divisão anterior do tronco médio'], ['divIP', 'divisão posterior do tronco inferior']].forEach(([k, n]) =>
     build(SR, k, { grp: gPlex, name: (s) => P_(s, n), o: { ...med, r: prof(k), capStart: false, capEnd: false }, solid: [1.1, 1.4] }));
-  build(SR, 'medRoot', { grp: gPlex, name: (s) => N_(s, 'Nervo mediano') + ' — raiz medial', o: { ...med, r: prof('medRoot'), capStart: false, capEnd: false }, solid: [1.1, 1.1] });
+  // secção elíptica: eixo fino (rx) na direção radial da artéria (artéria atrás, veia à frente), largo (ry) ao longo dela
+  // (normal local da parede real da artéria — ponto mais próximo da malha —; sem malha, eixo de LM)
+  const artRadial = (t, p) => {
+    const sx = p.x < 0 ? -1 : 1, x = Math.abs(p.x), MO = meshOf('artR'), q = MO && meshSD(MO, x, p.y, p.z);
+    if (q) return new THREE.Vector3(sx * (x - q.x), p.y - q.y, p.z - q.z);
+    const f = frameArt(x); return new THREE.Vector3(sx * (x - f.P.x), p.y - f.P.y, p.z - f.P.z);
+  };
+  // quadros suavizados ao longo do trajeto (a normal da malha muda depressa onde a raiz contorna a artéria: sem suavizar,
+  // a fita torcia e formava um vinco na transição redondo → achatado)
+  const mrUp = (() => {
+    const c = crv(SR.pts('medRoot')), K = 32, U = [];
+    for (let i = 0; i <= K; i++) U.push(artRadial(0, c.getPointAt(i / K)).normalize());
+    for (let pass = 0; pass < 6; pass++) for (let i = 1; i < K; i++) U[i] = U[i - 1].clone().add(U[i]).add(U[i]).add(U[i + 1]).normalize();
+    return (t, p) => { const u = U[Math.round(C.clamp(t, 0, 1) * K)].clone(); if (p.x < 0) u.x = -u.x; return u; };
+  })();
+  build(SR, 'medRoot', { grp: gPlex, name: (s) => N_(s, 'Nervo mediano') + ' — raiz medial', o: { ...med, r: prof('medRoot'), rx: mrThick, ry: mrWide, up: mrUp, capStart: false, capEnd: false }, solid: [1.1, 1.1], solidRadius: 0.065 });
   build(SR, 'musculocut', { grp: gPlex, name: (s) => N_(s, 'Nervo musculocutâneo') + ' (ramo terminal do plexo braquial)', o: { ...med, r: prof('musculocut'), caps: 'flat', capStart: false }, solid: [1.3, 0] });
   build(SR, 'axillary', { grp: gPlex, name: (s) => N_(s, 'Nervo axilar') + ' (ramo terminal do plexo braquial)', o: { ...med, r: prof('axillary'), capStart: false }, solid: [2, 0] });
   // colaterais
@@ -896,19 +952,21 @@ ATLAS.define('nerves', function (ctx) {
   build(SR, 'sym', { grp: gSym, name: (s) => `Tronco simpático ${sideName[s].a}`, mat: MAT.auto, o: { radial: 10, density: 4, r: symR, caps: 'flat' }, solidSegs: symSegs, solidRadius: 0.085 });
   build(SR, 'ansa', { grp: gSym, name: (s) => `Alça subclávia (${sideName[s].A})`, mat: MAT.auto, o: { ...thin, r: 0.055, capStart: false, capEnd: false }, solid: [1.2, 1.8], mirror: false });
   // gânglio cervical médio (≈C6) e gânglio estrelado: malhas próprias sobre o eixo relaxado do tronco
-  function ganglion(y0, y1, w, d, sides, grpS, nameF, extra) {
+  function ganglion(y0, y1, w, d, sides, grpS, nameF, extra, conf) {
     const i0 = symP.P.findIndex((p) => p.y <= y0), i1 = symP.P.findIndex((p) => p.y <= y1);
     const ptsR = symP.P.slice(Math.max(0, i0 - 1), i1 + 2).map(ar);
     const meshes = {};
     for (const s of sides) {
       const pts = s === 'R' ? ptsR : ptsR.map(mx);
       const g = C.sweepGeometry(pts, { up: [s === 'R' ? 1 : -1, 0, 0], rx: w, ry: d, radial: 16, density: 9, caps: 'round', noise: { amp: 0.08, freq: 2.6, seed: 21 }, vScale: 2 });
+      if (conf && conf[s]) conformGeo(g, conf[s], 0.02);
       meshes[s] = C.mesh(g, MAT.ganglion, grpS[s], Object.assign({}, grpS[s].userData.info, { name: nameF(s) }));
       if (extra) C.solid('nerve:' + extra + '-' + s, pts, (t) => C.profile(w)(t) * 0.8);
     }
     return { meshes, ptsR };
   }
-  const stel = ganglion(4.75, 2.55, [[0, 0.07], [0.12, 0.26], [0.3, 0.42], [0.55, 0.47], [0.78, 0.4], [0.92, 0.22], [1, 0.07]], [[0, 0.06], [0.15, 0.17], [0.4, 0.27], [0.6, 0.29], [0.85, 0.2], [1, 0.06]], ['R', 'L'], gStel, (s) => `Gânglio cervicotorácico (estrelado) ${sideName[s].a}`, 'stellate');
+  const stel = ganglion(4.75, 2.55, [[0, 0.07], [0.12, 0.26], [0.3, 0.42], [0.55, 0.47], [0.78, 0.4], [0.92, 0.22], [1, 0.07]], [[0, 0.06], [0.15, 0.17], [0.4, 0.27], [0.6, 0.29], [0.85, 0.2], [1, 0.06]], ['R', 'L'], gStel, (s) => `Gânglio cervicotorácico (estrelado) ${sideName[s].a}`, 'stellate',
+    { R: ['rib1R'], L: ['rib1L'] }); // borda medial (0,47 de semilargura) moldada contra a cabeça/colo da 1ª costela
   ganglion(7.35, 6.45, [[0, 0.07], [0.3, 0.2], [0.6, 0.21], [1, 0.07]], [[0, 0.06], [0.4, 0.15], [1, 0.06]], ['R', 'L'], gSym, (s) => `Gânglio cervical médio (${sideName[s].A})`, null);
 
   /* ---- linfáticos direitos ---- */
@@ -985,7 +1043,7 @@ ATLAS.define('nerves', function (ctx) {
   const gTD = grp('thoracic-duct', LL, { id: 'thoracic-duct', name: 'Ducto torácico', group: 'Linfáticos', desc: DESC.duct });
   const dP = SL.by.duct;
   const ductR = (t) => { const s = t * dP.len; const bead = 1 + 0.17 * Math.pow(0.5 + 0.5 * Math.cos((2 * Math.PI * s) / 0.95), 4); const amp = 1 + 0.4 * C.smooth(0.9, 0.985, t); return 0.13 * bead * amp; };
-  build(SL, 'duct', { grp: only(gTD), mirror: false, side: 'L', name: () => 'Ducto torácico', mat: MAT.duct, o: { radial: 12, density: 7, r: ductR, flat: 0.06 }, solid: [0.5, 1.1] });
+  build(SL, 'duct', { grp: only(gTD), mirror: false, side: 'L', name: () => 'Ducto torácico', mat: MAT.duct, o: { radial: 12, density: 7, r: ductR, flat: 0.06 }, solid: [0.5, 1.1], conform: { L: ['vertT'] } }); // contas (válvulas) moldadas contra os corpos de T4–T6 no cruzamento
   build(SL, 'ductJug', { grp: only(gTD), mirror: false, side: 'L', name: () => 'Tronco jugular esquerdo (afluente do ducto torácico)', mat: MAT.duct, o: { ...thin, r: SL.by.ductJug.rf, capStart: false }, solid: [1.5, 0] });
   // cisterna do quilo (dilatação saculiforme anterior a T12–L1, à direita da aorta) — topo funde-se com o início do ducto
   {

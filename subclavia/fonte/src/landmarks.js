@@ -246,7 +246,9 @@
      Veias: anteriores; artérias: posteriores ao escaleno anterior. Raios em cm. */
   LM.vessels = {
     // Veia axilar → subclávia direita → ângulo venoso (atrás da articulação esternoclavicular)
-    axillaryV: { pts: [[14.6, -7.2, -2.7], [13.8, -4.4, -2.1], [12.4, -2.0, -1.45], [10.4, -0.8, -0.75], [8.2, -0.05, -0.55], [6.6, 0.32, -0.5]], r: [0.55, 0.6, 0.62, 0.64, 0.65, 0.66] },
+    // (onda 3: trecho distal ~0,3–0,45 cm medial — veia MEDIAL/anterior à 3ª parte da artéria, com espaço para a raiz
+    //  medial do mediano cruzar a face anterior da artéria entre as duas)
+    axillaryV: { pts: [[14.35, -7.2, -2.65], [13.35, -4.4, -2.05], [12.4, -2.0, -1.45], [10.4, -0.8, -0.75], [8.2, -0.05, -0.55], [6.6, 0.32, -0.5]], r: [0.55, 0.6, 0.62, 0.64, 0.65, 0.66] },
     scv: { pts: [[6.6, 0.32, -0.5], [5.6, 0.45, -0.62], [4.6, 0.45, -0.95], [3.65, 0.38, -1.55], [2.95, 0.3, -2.15]], r: [0.66, 0.67, 0.68, 0.7, 0.72],
       note: 'Começa na borda lateral da 1ª costela (x≈6.6); termina atrás da articulação esternoclavicular unindo-se à VJI.' },
     venousAngleR: [2.95, 0.3, -2.15],

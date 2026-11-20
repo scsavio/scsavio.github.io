@@ -1,5 +1,5 @@
 // uishot.js — capturas e verificações automáticas da interface (Playwright + SwiftShader).
-// uso: node tools/uishot.js [--dist] [--sample] [--only=desktop,chapters,card,dark,print,mobile,checks,widths,material,fit,fixation,mobilechapters]
+// uso: node tools/uishot.js [--dist] [--sample] [--only=desktop,chapters,card,dark,print,mobile,checks,widths,material,fit,fixation,needle,mobilechapters]
 //                           [--chapters=all|1,5,9] [--prefix=ui] [--pdf] [--fastprint] [--dsf=1]
 //   --fastprint folhas de impressão com ilustração neutra (testa só a diagramação)
 //   --dist     abre dist/atlas.html (gere antes com python3 tools/build.py)
@@ -8,10 +8,12 @@
 //   --chapters capítulos (1-based) para capturas por cena (padrão: all)
 //   checks    (desktop) renderização sob demanda (renders com a cena parada), seleção através de camadas
 //             fantasma (cap. 02), foco do cartão aberto por teclado (glossário → cartão → Esc devolve o foco)
-//   widths    nota de orientação × barra de vistas e controles em 1024/1180/1280 px
+//   widths    nota de orientação × barra de vistas e controles em 981/1024/1180/1280 px
 //   material  capturas de elemento: prancha, planos, tecidos+ultrassom, fixação (desktop e celular)
-//   fit       visor + controles cabem abaixo da barra fixa (1440×900, 1366×768, 1280×720, 1920×1080, 1024×768)
+//   fit       visor + controles cabem abaixo da barra fixa (1440×900, 1366×768, 1280×720, 1920×1080, 1024×768,
+//             1100×700, 981×700 — meta: controles ≤ 240 px)
 //   fixation  capítulo da fixação: visor nas etapas 0/4/9, inset do painel, stepper e folha A4 extra
+//   needle    capítulo do cateter: etapas 5 (fio), 6 (dilatador até a parede da veia) e 7 (cateter), com os controles
 //   mobilechapters  390×844: visor com rótulos numerados + lista #lblKey por capítulo (usa --chapters)
 // Saídas: shots/<prefix>_*.png (+ .pdf com --pdf) e um resumo JSON no stdout
 // (erros de console, recursos ausentes, âncoras ausentes, sobreposição de rótulos, scroll horizontal).
@@ -88,9 +90,12 @@ async function labelChecks(page) {
   const browser = await chromium.launch({ args: GL_ARGS });
   // o laço de renderização contínuo satura o SwiftShader: congela um quadro estável antes de cada captura
   const still = (page) => page.evaluate(() => window.APP && APP.still && APP.still());
-  const shot = async (page, name, opt = {}) => { const p = out(name); await page.screenshot(Object.assign({ path: p, timeout: 120000 }, opt)); report.shots.push(path.relative(root, p)); };
+  // antes de cada captura, espera as transições CSS terminarem (sob carga do SwiftShader, pílulas, chips e pontos do
+  // stepper apareciam a meio caminho); animações infinitas não existem fora da sobreposição "busy" (oculta)
+  const quietCss = (page) => page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== 'running'), null, { timeout: 8000 }).catch(() => {});
+  const shot = async (page, name, opt = {}) => { const p = out(name); await quietCss(page); await page.screenshot(Object.assign({ path: p, timeout: 120000 }, opt)); report.shots.push(path.relative(root, p)); };
 
-  if (['desktop', 'chapters', 'card', 'dark', 'print', 'checks', 'widths', 'material'].some(want)) {
+  if (['desktop', 'chapters', 'card', 'dark', 'print', 'checks', 'widths', 'material', 'fit', 'fixation', 'needle'].some(want)) {
     const { ctx, page } = await newPage(browser, { viewport: { width: 1440, height: 900 }, deviceScaleFactor: +(args.dsf || 1), colorScheme: 'light' });
     const tl = Date.now(); await waitReady(page); report.checks.desktopLoadMs = Date.now() - tl;
     report.checks.meta = await page.evaluate(() => ({ chapters: APP.data.chapters.length, engine: !!APP.E, errors: APP.E ? APP.E.errors : null, modules: APP.E ? Object.keys(APP.E.results) : [], anchors: APP.E ? Object.keys(APP.E.anchors).length : 0 }));
@@ -195,7 +200,7 @@ async function labelChecks(page) {
     }
     if (want('widths')) {
       report.checks.widths = {};
-      for (const [w, h] of [[1024, 768], [1180, 800], [1280, 800]]) {
+      for (const [w, h] of [[981, 700], [1024, 768], [1180, 800], [1280, 800]]) {
         await page.setViewportSize({ width: w, height: h });
         await page.evaluate(() => { window.scrollTo(0, 0); APP.resume(); APP.go(7, { animate: false }); });
         await page.waitForTimeout(900);
@@ -213,12 +218,12 @@ async function labelChecks(page) {
     }
     if (want('fit')) {
       report.checks.fit = {};
-      for (const [w, h] of [[1440, 900], [1366, 768], [1280, 720], [1920, 1080], [1024, 768]]) {
+      for (const [w, h] of [[1440, 900], [1366, 768], [1280, 720], [1920, 1080], [1024, 768], [1100, 700], [981, 700]]) {
         await page.setViewportSize({ width: w, height: h });
         await page.evaluate(() => { APP.resume(); APP.go(1, { animate: false }); window.scrollTo(0, document.querySelector('.masthead').offsetHeight); });
         await page.waitForTimeout(700);
         report.checks.fit[w + 'x' + h] = await page.evaluate(() => { const v = document.getElementById('viewer').getBoundingClientRect(), c = document.getElementById('controls').getBoundingClientRect(), n = document.querySelector('.chapnav').getBoundingClientRect(); return { viewerTop: Math.round(v.top), navBottom: Math.round(n.bottom), viewerH: Math.round(v.height), controlsH: Math.round(c.height), controlsBottom: Math.round(c.bottom), fits: c.bottom <= innerHeight + 0.5 }; });
-        if (w === 1280) { await still(page); await shot(page, 'fit_1280x720.png', { clip: { x: 0, y: 0, width: w, height: h } }); }
+        if (w === 1280 || w === 981) { await still(page); await shot(page, `fit_${w}x${h}.png`, { clip: { x: 0, y: 0, width: w, height: h } }); }
       }
       await page.setViewportSize({ width: 1440, height: 900 });
       await page.evaluate(() => window.scrollTo(0, 0));
@@ -238,6 +243,22 @@ async function labelChecks(page) {
         if (clip) { await page.waitForTimeout(200); await shot(page, 'fix_inset.png', { clip }); }
         const ctl = await page.$('.ctl-needle'); if (ctl) { const pth = out('fix_controls.png'); await ctl.screenshot({ path: pth, timeout: 120000 }); report.shots.push(path.relative(root, pth)); }
         report.checks.fixation.labels = await labelChecks(page);
+        await page.evaluate(() => { APP.resume(); APP.go(0, { animate: false }); window.scrollTo(0, 0); });
+      }
+    }
+    if (want('needle')) {
+      const ci = await page.evaluate(() => APP.data.chapters.findIndex((c) => c.id === 'cateter'));
+      if (ci >= 0) {
+        report.checks.needle = {};
+        await page.evaluate((k) => { APP.resume(); APP.go(k, { animate: false }); window.scrollTo(0, document.querySelector('.masthead').offsetHeight); }, ci);
+        for (const st of [5, 6, 7]) {
+          await page.evaluate((i) => { document.querySelector(`#stepper [data-step="${i}"]`).click(); APP.still(); }, st);
+          // espera as transições CSS do stepper terminarem (sob carga, 300 ms capturavam pontos a meio caminho)
+          await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== 'running'), null, { timeout: 15000 }).catch(() => {});
+          await page.waitForTimeout(300);
+          await shot(page, `needle_step${st}.png`, { clip: { x: 0, y: 0, width: 1440, height: 900 } });
+          report.checks.needle[st] = await page.evaluate(() => ({ phase: APP.E.state.phase, dilator: !!APP.E.state.dilator, now: document.getElementById('stepperNow').textContent.trim(), hand: document.getElementById('handOut').textContent, handDisabled: document.getElementById('handRange').disabled }));
+        }
         await page.evaluate(() => { APP.resume(); APP.go(0, { animate: false }); window.scrollTo(0, 0); });
       }
     }

@@ -76,12 +76,12 @@
       <div class="legend" id="legend">
         <!-- itens gerados por app.js (buildLegend) a partir de LAYERS: só as camadas visíveis aparecem -->
         <ul class="legend-keys" id="legendKeys">
-          <li data-lg="vein"><i style="--c:#43699a"></i>Veia</li>
-          <li data-lg="artery"><i style="--c:#ba5046"></i>Artéria</li>
+          <li data-lg="vein"><i style="--c:#44699a"></i>Veia</li>
+          <li data-lg="artery"><i style="--c:#ba5045"></i>Artéria</li>
           <li data-lg="nerve"><i style="--c:#d5ba5c"></i>Nervo</li>
-          <li data-lg="muscle"><i style="--c:#b34c41"></i>Músculo</li>
+          <li data-lg="muscle"><i style="--c:#b24c41"></i>Músculo</li>
           <li data-lg="bones"><i style="--c:#cfc5a9"></i>Osso</li>
-          <li data-lg="lung"><i style="--c:#deb4ab"></i>Pulmão</li>
+          <li data-lg="lung"><i style="--c:#deb5ab"></i>Pulmão</li>
         </ul>
         <p class="legend-hint"><span class="hint-mouse">Arraste para girar · Shift/botão direito desloca · roda aproxima · clique identifica</span><span class="hint-touch">Arraste para girar · pinça para zoom · toque identifica</span></p>
       </div>
@@ -140,7 +140,7 @@
       <details class="ctl ctl-motion" data-ctl open>
         <summary><span>Mão e respiração</span></summary>
         <div class="ctl-body">
-          <div class="slider-row">
+          <div class="slider-row" id="handRow">
             <button type="button" class="btn icon play" id="handPlay" aria-pressed="false" aria-label="Animar a mão: preparar e apoiar"><svg viewBox="0 0 24 24" aria-hidden="true" class="i-play"><path d="M8 5.5v13l10.5-6.5z"/></svg><svg viewBox="0 0 24 24" aria-hidden="true" class="i-pause"><path d="M8 5.5v13M16 5.5v13"/></svg></button>
             <div class="slider">
               <div class="slider-top"><span class="slider-name">Mão</span><output id="handOut">Apoiar</output></div>
@@ -198,7 +198,7 @@
               <button type="button" role="radio" data-roll="ipsilateral" aria-checked="false">Ipsilateral</button>
             </div>
           </div>
-          <button type="button" class="btn small wide" id="btnSnap"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2.2l1.6-2.2h5.4L16.3 7h2.2A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5z"/><circle cx="12" cy="13" r="3.4"/></svg>Capturar imagem (PNG)</button>
+          <button type="button" class="btn small wide" id="btnSnap" aria-label="Capturar imagem (PNG)" title="Capturar imagem da cena (PNG)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2.2l1.6-2.2h5.4L16.3 7h2.2A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5z"/><circle cx="12" cy="13" r="3.4"/></svg><span class="snap-long">Capturar imagem (PNG)</span><span class="snap-short">PNG</span></button>
         </div>
       </details>
     </div>

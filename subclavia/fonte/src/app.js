@@ -64,19 +64,21 @@
   /* constantes                                                          */
   /* ------------------------------------------------------------------ */
   /* Cores das camadas (chips e legenda) = MEDIANA RENDERIZADA de cada tecido (ACES + IBL + paleta do núcleo), medida
-     por tools/w2fix_ui_colors.js nas vistas anterior e oblíqua — não a cor-base do material, que o render desloca.
-     Pleura (translúcida), mão, campo e auxílios: cor de referência. Refaça a medida se a paleta ou a luz mudarem. */
+     por tools/w2fix_ui_colors.js nas vistas anterior e oblíqua — não a cor-base do material, que o render desloca
+     (p.ex. osso #d6c29a → #cfc5a9, músculo #983a31 → #b24c41, artéria #c4342a → #ba5045, nervo #e2bd4f → #d5ba5c,
+     pulmão #e3a6a1 → #deb5ab; medição de 20/11 com a paleta atual do núcleo). Pleura (translúcida), mão, campo e
+     auxílios: cor de referência. Refaça a medida se a paleta ou a luz mudarem. */
   const LAYERS = [
     { id: 'skin', label: 'Pele', color: '#d8aa89' },
     { id: 'bones', label: 'Ossos', color: '#cfc5a9' },
-    { id: 'muscle', label: 'Músculos', color: '#b34c41' },
-    { id: 'vein', label: 'Veias', color: '#43699a' },
-    { id: 'artery', label: 'Artérias', color: '#ba5046' },
+    { id: 'muscle', label: 'Músculos', color: '#b24c41' },
+    { id: 'vein', label: 'Veias', color: '#44699a' },
+    { id: 'artery', label: 'Artérias', color: '#ba5045' },
     { id: 'nerve', label: 'Nervos', color: '#d5ba5c' },
     { id: 'lymph', label: 'Linfáticos', color: '#b4cf8c' },
-    { id: 'lung', label: 'Pulmões', color: '#deb4ab' },
+    { id: 'lung', label: 'Pulmões', color: '#deb5ab' },
     { id: 'pleura', label: 'Pleura', color: '#9fd3de' },
-    { id: 'mediastinum', label: 'Mediastino', color: '#bc847b' },
+    { id: 'mediastinum', label: 'Mediastino', color: '#bd867d' },
     { id: 'hand', label: 'Mão', color: '#c6bea4' },
     { id: 'instrument', label: 'Instrumentos', color: '#a9b4bc' },
     { id: 'drape', label: 'Campo estéril', color: '#4f86b8' },
@@ -84,13 +86,29 @@
   ];
   const DEFAULT_LAYERS = ['bones', 'muscle', 'vein', 'artery', 'nerve', 'lymph', 'lung', 'pleura', 'mediastinum'];
   const GROUPS = ['Ossos', 'Veias', 'Artérias', 'Músculos', 'Nervos', 'Linfáticos', 'Pulmões e pleura', 'Mediastino', 'Pele e superfície', 'Instrumentos'];
-  const GROUP_COLORS = { 'Ossos': '#cfc5a9', 'Veias': '#43699a', 'Artérias': '#ba5046', 'Músculos': '#b34c41', 'Nervos': '#d5ba5c', 'Linfáticos': '#9fc27a', 'Pulmões e pleura': '#d9a69c', 'Mediastino': '#bc847b', 'Pele e superfície': '#d8aa89', 'Instrumentos': '#8d99a3' };
-  // etapa 3: a ponta fica junto à borda inferior da clavícula, caudal e anterior a ela (não "sob" o osso)
-  const PHASES = ['Sem agulha', 'Aproximação', 'Ponta sob a pele', 'Ponta junto à borda inferior da clavícula', 'Ponta na luz venosa (aspiração)', 'Fio-guia avançado', 'Cateter posicionado'];
-  const PHASES_SHORT = ['Sem', 'Aprox.', 'Pele', 'Infraclav.', 'Veia', 'Fio', 'Cateter'];
+  // grupos do glossário/cartão: mesmas cores das camadas (um tecido, uma cor em toda a interface)
+  const layerColor = (id) => (LAYERS.find((l) => l.id === id) || {}).color;
+  const GROUP_COLORS = { 'Ossos': layerColor('bones'), 'Veias': layerColor('vein'), 'Artérias': layerColor('artery'), 'Músculos': layerColor('muscle'), 'Nervos': layerColor('nerve'), 'Linfáticos': layerColor('lymph'), 'Pulmões e pleura': layerColor('lung'), 'Mediastino': layerColor('mediastinum'), 'Pele e superfície': layerColor('skin'), 'Instrumentos': layerColor('instrument') };
+  /* Etapas da agulha (stepper). ph = E.state.phase; dil = E.state.dilator (dilatador sobre o fio: o módulo de
+     instrumentos o mostra com fase 5 + dilator, entre o fio-guia e o cateter). Na etapa 3 a ponta está de fato sob a
+     clavícula, dentro do m. subclávio (medido: clavícula 0,6 cm diretamente cranial à ponta — tools/w2fix_ui_phase3.js). */
+  const STEPS = [
+    { ph: 0, name: 'Sem agulha', short: 'Sem' },
+    { ph: 1, name: 'Aproximação', short: 'Aprox.' },
+    { ph: 2, name: 'Ponta sob a pele', short: 'Pele' },
+    { ph: 3, name: 'Ponta sob a clavícula', short: 'Clavíc.' },
+    { ph: 4, name: 'Ponta na luz venosa (aspiração)', short: 'Veia' },
+    { ph: 5, name: 'Fio-guia avançado', short: 'Fio' },
+    { ph: 5, dil: true, name: 'Dilatador até a parede da veia', full: 'Dilatador sobre o fio-guia, só até a parede da veia', short: 'Dilat.' },
+    { ph: 6, name: 'Cateter posicionado', short: 'Cateter' },
+  ];
+  const STEP_MAX = STEPS.length - 1, STEP_DIL = 6, STEP_CATH = 7;
+  /** Índice da etapa (0..7) a partir do estado do motor. */
+  const stepOf = (st) => { const ph = clamp(Math.round(+st.phase || 0), 0, 6); return ph === 6 ? STEP_CATH : ph === 5 && st.dilator ? STEP_DIL : ph; };
   const VIEWS = [['front', 'Anterior'], ['oblique', 'Oblíqua'], ['side', 'Perfil'], ['hand', 'Mão'], ['close', 'Profunda'], ['top', 'Superior'], ['back', 'Posterior']];
   const MODULE_NAMES = { skeleton: 'esqueleto', vessels: 'vasos', muscles: 'músculos e fáscias', nerves: 'nervos e linfáticos', viscera: 'pulmões, pleura e mediastino', skin: 'pele e superfície', instruments: 'mão e instrumentos', fixation: 'fixação do cateter' };
-  const DEFAULT_STATE = { phase: 0, handPose: 1, breath: 0, rollMode: 'none', wireMal: false, showPlanes: false, fixStep: 0 };
+  /* estado-base de toda cena: nada vaza entre capítulos (dilatador e fixação inclusive) */
+  const DEFAULT_STATE = { phase: 0, handPose: 1, breath: 0, rollMode: 'none', wireMal: false, showPlanes: false, dilator: false, markers: null, fixStep: 0 };
   const DEFAULT_CLIP = { normal: [-1, 0, 0], point: [7, 0, 0], label: 'Corte parassagital no trajeto da agulha' };
   const HAND_MS = 1600, BREATH_MS = 4000, WIRE_MS = 2600;
   /* Fixação em bailarina (notes/FIXACAO_CONTRACT.md): E.state.fixStep 0..9; a animação passa por valores k + t
@@ -107,6 +125,19 @@
     trachea: /^trachea$/, carina: /^(trachea|bronchus-[RL])$/, esophagus: /^esophagus$/, heart: /^heart$/, lungR: /^lung-R-/, lungL: /^lung-L-/,
   };
   const HAND_ANCHORS = new Set(['indexTip', 'thumbTip', 'palm', 'thumbVector']);
+  /* Âncoras de objetos que entram e saem de cena com a etapa (mão, agulha, fio, dilatador, cateter): o rótulo só
+     aparece enquanto alguma malha do dono está visível (ex.: cap. 10 → etapa "Cateter": o dilatador saiu, seus rótulos
+     também). Verificado com cache curto (as trocas de objeto são animadas, ~1 s). */
+  const STAGE_OWNER = {
+    indexTip: /^operator-hand$/, thumbTip: /^operator-hand$/, palm: /^operator-hand$/, thumbVector: /^(operator-hand|thumb-vector)$/,
+    needleTip: /^needle$/, needleHub: /^(needle|syringe)$/, wireTip: /^guidewire$/, wireIJV: /^guidewire-ijv$/,
+    dilatorTip: /^dilator$/, dilatorLimit: /^dilator(-limit)?$/, catheterTip: /^catheter$/, catheterHub: /^catheter$/, catheterSkinMark: /^catheter$/,
+  };
+  /* Oclusão por amostragem: raio central + anel de OCC_RING raios a OCC_R cm da âncora (perpendiculares à visada).
+     Um vaso fino (2–3 mm) que cruza a linha de visada bloqueia o centro e no máximo 2–3 pontos do anel: não torna a
+     estrutura "profunda". Exige o centro e ≥ OCC_MIN pontos do anel bloqueados. Quando só a mão do operador cobre a
+     âncora, o rótulo diz "sob a mão" (ela não está profunda, está atrás da mão). */
+  const OCC_R = 0.45, OCC_RING = 8, OCC_MIN = 5;
   /* Âncoras da fixação → primeira etapa em que a peça existe: o rótulo só aparece a partir dela (na animação, os
      rótulos surgem junto com o ponto, os cruzamentos, as asas e o curativo — nunca apontam para o vazio). */
   const FIX_ANCHOR_STEP = { fixAnchorStitch: 2, sutureNeedle: 1, needleHolder: 1, fixAnchorKnot: 3, fixTails: 3, fixCross1: 4, fixCross2: 5, fixCross3: 6, fixFinalKnot: 6, fixWingStitchA: 8, fixWingStitchB: 8, fixDressing: 9 };
@@ -528,7 +559,11 @@
   /** Executa as atualizações dos módulos algumas vezes (para capturas fora do laço). */
   function settleModules() {
     const E = S.E; if (!E) return;
-    for (let k = 0; k < 8; k++) for (const r of Object.values(E.results)) if (r && r.update) { try { r.update(E.state, 0.1); } catch (e) { /* módulo tolera */ } }
+    // ≥ 2 s simulados: a troca de objetos do instruments leva ~1 s e a fixação anima por etapa; módulos que expõem
+    // api.settle() saltam direto ao estado final (capturas e impressão nunca saem no meio da transição)
+    for (let k = 0; k < 20; k++) for (const r of Object.values(E.results)) if (r && r.update) { try { r.update(E.state, 0.1); } catch (e) { /* módulo tolera */ } }
+    for (const r of Object.values(E.results)) if (r && r.api && typeof r.api.settle === 'function') { try { r.api.settle(E.state); } catch (e) { /* módulo tolera */ } }
+    for (const r of Object.values(E.results)) if (r && r.update) { try { r.update(E.state, 0.1); } catch (e) { /* módulo tolera */ } }
   }
 
   /* ---------------- animações ---------------- */
@@ -536,8 +571,10 @@
     const E = S.E; if (!E) return;
     const now = performance.now();
     if (kind === 'hand') {
-      ensureLayers(handLayers());
       A.hand = null;
+      // a mão de apoio sai de cena a partir do fio-guia (módulo de instrumentos): animá-la não mostraria nada
+      if (handGone()) { showNotice('A mão de apoio sai de cena a partir do fio-guia (etapa 5). Volte a uma etapa anterior para vê-la.', 4000); syncPlayButtons(); return; }
+      ensureLayers(handLayers());
       if (reduced()) { E.state.handPose = 1; }
       else { const from = E.state.handPose >= 0.98 ? 0 : E.state.handPose; E.state.handPose = from; A.hand = { t0: now, from }; }
     } else if (kind === 'breath') {
@@ -546,13 +583,13 @@
       else { const th = Math.acos(clamp(1 - 2 * E.state.breath, -1, 1)); A.breath = { t0: now - (th / (2 * Math.PI)) * BREATH_MS }; }
     } else if (kind === 'needle') {
       ensureLayers(['instrument']);
-      A.wire = null; A.fix = null;
+      A.wire = null; A.fix = null; setDilator(false);
       if (reduced()) { E.state.phase = 4; A.seq = null; }
       else { E.state.phase = SEQ[0][0]; A.seq = { i: 0, tNext: now + SEQ[0][1] }; }
     } else if (kind === 'wire') {
       ensureLayers(['instrument']);
       A.seq = null; A.fix = null;
-      E.state.phase = 5;
+      E.state.phase = 5; setDilator(false); // com o dilatador o trajeto anômalo do fio não aparece
       if (reduced()) { E.state.wireMal = !E.state.wireMal; A.wire = null; }
       else A.wire = { t0: now, base: !!E.state.wireMal };
     } else if (kind === 'fix') {
@@ -562,7 +599,11 @@
       else {
         let k = Math.floor((+E.state.fixStep || 0) + 1e-6); if (k >= FIX_MAX) k = 0;
         E.state.fixStep = k;
-        A.fix = { k, move: false, t0: now - FIX_PAUSE_MS * 0.4 }; // começa com uma pausa curta no estado inicial
+        A.fix = { k, move: false, t0: now - FIX_PAUSE_MS * 0.4, free: false }; // começa com uma pausa curta no estado inicial
+        // a câmera acompanha as etapas (api.stepViews) até o usuário girar/aproximar o visor
+        const F0 = A.fix, mark = () => { if (A.fix === F0) F0.free = true; };
+        R.viewer.addEventListener('pointerdown', mark, { once: true, capture: true });
+        R.viewer.addEventListener('wheel', mark, { once: true, capture: true, passive: true });
       }
     }
     S.visKey++;
@@ -574,11 +615,31 @@
     const L = S.E.layers;
     return !L.skin.visible && !L.bones.visible ? ['hand', 'skin'] : ['hand'];
   }
+  /** A mão de apoio sai de cena a partir da fase 5 (fio-guia, dilatador, cateter): ver instruments.js, hL. */
+  const handGone = () => !!S.E && (+S.E.state.phase || 0) >= 4.5;
+  /** Liga/desliga o dilatador (E.state.dilator). O motor não inclui esse campo na chave das sombras sob demanda:
+      marca o mapa de sombras como sujo para que a troca fio ↔ dilatador também atualize as sombras. */
+  function setDilator(on) {
+    const E = S.E; if (!E) return;
+    on = !!on;
+    if (!!E.state.dilator === on) return;
+    E.state.dilator = on;
+    if (E.markShadowDirty) E.markShadowDirty();
+  }
+  /** Vai à etapa i (0..7) do stepper da agulha. */
+  function setStep(i) {
+    const E = S.E; if (!E) return;
+    const s = STEPS[clamp(i | 0, 0, STEP_MAX)];
+    E.state.phase = s.ph; setDilator(!!s.dil);
+    if (s.dil) E.state.wireMal = false;
+    if (s.ph >= 5 && A.hand) stopAnims('hand');
+  }
   /** Fixação: exige cateter posicionado (fase 6), instrumentos e pele; fora do capítulo da fixação aproxima a
       câmera do sítio de saída (senão a malha, de poucos milímetros, não se vê na vista de outro capítulo). */
   function fixPrepare() {
     const E = S.E; if (!E) return;
     if (E.state.phase !== 6) { E.state.phase = 6; E.state.wireMal = false; }
+    setDilator(false);
     ensureLayers(['instrument', 'skin']);
     const c = chapter();
     if (c.id !== 'fixacao' && E.orbit.radius > 24) { E.setView(fixView(), reduced() ? 0 : 900); S.viewName = null; syncViewBar(); }
@@ -615,13 +676,22 @@
     }
     if (A.fix) {
       const F = A.fix;
-      if (!F.move) { if (now - F.t0 >= FIX_PAUSE_MS) { F.move = true; F.t0 = now; } }
-      else {
-        const t = (now - F.t0) / FIX_MOVE_MS;
+      if (!F.move) {
+        if (now - F.t0 >= FIX_PAUSE_MS) {
+          F.move = true; F.t0 = now; F.dur = fixMoveMs(F.k + 1);
+          const a = fixApi(), v = a && a.stepViews && a.stepViews[F.k + 1];
+          if (v && !F.free && !reduced()) E.setView(v, 1100);
+        }
+      } else {
+        const t = (now - F.t0) / (F.dur || FIX_MOVE_MS);
         if (t >= 1) { F.k++; E.state.fixStep = F.k; F.move = false; F.t0 = now; if (F.k >= FIX_MAX) { A.fix = null; syncPlayButtons(); } }
-        else E.state.fixStep = F.k + Math.min(0.999, easeInOut(t)); // k + t: movimento da etapa k+1 em andamento
+        else E.state.fixStep = F.k + Math.min(0.999, fixApi() ? t : easeInOut(t)); // k + t: movimento da etapa k+1 em andamento
         ch = true;
       }
+    }
+    // curativo (movimento da etapa 9): o campo estéril é retirado antes — o filme se conforma à pele, não ao campo
+    if (E.state.phase === 6 && (+E.state.fixStep || 0) > 8 && E.layers.drape && E.layers.drape.visible) {
+      E.setLayer('drape', false); S.visKey++; syncControls(); showNotice('Campo estéril retirado para o curativo', 2500); ch = true;
     }
     if (ch) syncDynamic();
   }
@@ -634,7 +704,7 @@
     const ck = camOnlyKey();
     if (ck !== S.lastCk) { S.lastCk = ck; S.camMoveT = now; }
     const st = E.state;
-    const sk = st.phase + ',' + (+st.handPose || 0).toFixed(3) + ',' + (+st.breath || 0).toFixed(3) + ',' + st.wireMal + ',' + st.rollMode + ',' + st.showPlanes + ',' + (+st.fixStep || 0).toFixed(3) + '|' + S.visKey;
+    const sk = st.phase + ',' + (+st.handPose || 0).toFixed(3) + ',' + (+st.breath || 0).toFixed(3) + ',' + st.wireMal + ',' + st.rollMode + ',' + st.showPlanes + ',' + !!st.dilator + ',' + (+st.fixStep || 0).toFixed(3) + '|' + S.visKey;
     if (sk !== S.stKey) { S.stKey = sk; S.stT = now; }
     updateGizmo();
     updateLabels(now);
@@ -666,7 +736,7 @@
       const c = document.createElementNS(SVGNS, 'circle'); c.setAttribute('r', num === 'num' ? '2.6' : '3.2');
       g.append(ln, c); R.leaders.appendChild(g);
       el.style.visibility = 'hidden'; g.style.display = 'none'; // aparece só após a primeira disposição (visibility: mede a largura)
-      S.labels.push({ key, text, n, el, g, ln, c, x: 0, y: 0, w: 0, h: 0, px: 0, py: 0, init: false, occ: false, vis: false, clash: false });
+      S.labels.push({ key, text, n, el, g, ln, c, x: 0, y: 0, w: 0, h: 0, px: 0, py: 0, init: false, occ: '', vis: false, clash: false });
     }
     if (R.lblKey) {
       R.lblKey.innerHTML = keyHtml;
@@ -771,28 +841,63 @@
     while (p) { if (p.userData && p.userData.info && p.userData.info.id) { r = p.userData.info; break; } p = p.parent; }
     INFO_OF.set(o, r); return r;
   }
-  /** Equivalente a E.occluded(p), mais barato: para no primeiro obstáculo opaco visível.
-      Não conta como obstáculo a própria estrutura em que a âncora está (key → ANCHOR_OWNER; mão para as âncoras
-      dos dedos) nem qualquer malha que envolva a âncora — atingida também pelo raio que sai da âncora para longe
-      da câmera (3 cm): a âncora está dentro dela (parede de vaso, polpa do dedo). */
+  /** Um raio da câmera até o ponto w (mundo): null (livre), 'hand' (só a mão do operador o bloqueia) ou 'deep'
+      (alguma outra malha opaca visível o bloqueia). Não conta como obstáculo a própria estrutura em que a âncora
+      está (own ← ANCHOR_OWNER; a mão, para as âncoras dos dedos) nem qualquer malha que envolva o ponto — atingida
+      também pelo raio que sai do ponto para longe da câmera (3 cm): o ponto está dentro dela (parede de vaso, polpa
+      do dedo). */
   let RAY2 = null;
+  function rayBlock(cam, w, tol, meshes, own, handKey) {
+    const dir = w.clone().sub(cam), d = dir.length();
+    dir.normalize(); RAY.set(cam, dir); RAY.near = 0; RAY.far = Math.max(0, d - tol);
+    RAY2.set(w, dir); RAY2.near = 0; RAY2.far = 3;
+    let hand = false;
+    for (const o of meshes) {
+      const isHand = meshLayer(o) === 'hand';
+      if (isHand && (handKey || hand)) continue; // a mão já foi vista neste raio: falta saber se há algo além dela
+      const hits = RAY.intersectObject(o, false);
+      if (!hits.some((h) => !clipped(h.point))) continue;
+      const info = infoOf(o);
+      if (own && info && own.test(info.id)) continue;
+      if (RAY2.intersectObject(o, false).some((h) => !clipped(h.point))) continue; // o ponto está dentro desta malha
+      if (isHand) { hand = true; continue; }
+      return 'deep';
+    }
+    return hand ? 'hand' : null;
+  }
+  /** Oclusão do rótulo da âncora p: '' (à vista), 'deep' (encoberta por estrutura opaca) ou 'hand' (só pela mão
+      do operador → "sob a mão"). Raio central + anel de OCC_RING raios a OCC_R cm (ver OCC_R): estruturas finas
+      que apenas cruzam a linha de visada não contam. Para cedo quando o resultado já está decidido. */
+  let OCC_U = null, OCC_V = null, OCC_P = null;
   function occludedFast(p, tol = 0.8, meshes, key) {
     const E = S.E, T = E.THREE;
     RAY = RAY || new T.Raycaster(); RAY2 = RAY2 || new T.Raycaster();
-    const w = E.toWorld(p), cam = E.camera.position, dir = w.clone().sub(cam), d = dir.length();
-    dir.normalize(); RAY.set(cam, dir); RAY.near = 0; RAY.far = Math.max(0, d - tol);
-    RAY2.set(w, dir); RAY2.near = 0; RAY2.far = 3;
-    const own = key && ANCHOR_OWNER[key], handKey = key && HAND_ANCHORS.has(key);
-    for (const o of meshes || visibleMeshes(false)) {
-      const hits = RAY.intersectObject(o, false);
-      if (!hits.some((h) => !clipped(h.point))) continue;
-      if (handKey && meshLayer(o) === 'hand') continue;
-      const info = infoOf(o);
-      if (own && info && own.test(info.id)) continue;
-      if (RAY2.intersectObject(o, false).some((h) => !clipped(h.point))) continue; // a âncora está dentro desta malha
-      return true;
+    OCC_U = OCC_U || new T.Vector3(); OCC_V = OCC_V || new T.Vector3(); OCC_P = OCC_P || new T.Vector3();
+    const list = meshes || visibleMeshes(false);
+    const w = E.toWorld(p), cam = E.camera.position.clone();
+    const own = key && ANCHOR_OWNER[key], handKey = !!key && HAND_ANCHORS.has(key);
+    const c = rayBlock(cam, w, tol, list, own, handKey);
+    if (!c) return '';
+    if (c === 'hand') return 'hand'; // só a mão cobre o centro: "sob a mão" (o anel exigiria 5–8 raycasts na malha esfolada)
+    // base ortonormal perpendicular à linha de visada
+    const dir = w.clone().sub(cam).normalize();
+    OCC_U.set(0, 1, 0); if (Math.abs(dir.dot(OCC_U)) > 0.9) OCC_U.set(1, 0, 0);
+    OCC_U.cross(dir).normalize(); OCC_V.crossVectors(dir, OCC_U).normalize();
+    let deep = 0, any = 0;
+    for (let k = 0; k < OCC_RING; k++) {
+      const left = OCC_RING - k;
+      if (c === 'deep' && deep >= OCC_MIN) break; // já é "profundo"
+      const canDeep = c === 'deep' && deep + left >= OCC_MIN;
+      if (!canDeep && (any >= OCC_MIN || any + left < OCC_MIN)) break; // "sob a mão" ou "à vista" já decididos
+      const a = (k / OCC_RING) * Math.PI * 2;
+      OCC_P.copy(w).addScaledVector(OCC_U, Math.cos(a) * OCC_R).addScaledVector(OCC_V, Math.sin(a) * OCC_R);
+      const b = rayBlock(cam, OCC_P, tol, list, own, handKey);
+      if (b) any++;
+      if (b === 'deep') deep++;
     }
-    return false;
+    if (c === 'deep' && deep >= OCC_MIN) return 'deep';
+    if (any >= OCC_MIN) return 'hand'; // coberta, mas só fecha a cobertura com a mão do operador
+    return '';
   }
   /** Camada (nome do grupo 'layer:*') de uma malha, com cache. */
   const LAYER_OF = new WeakMap();
@@ -875,6 +980,22 @@
     return [c.x, c.y, c.z, t.x, t.y, t.z].map((v) => v.toFixed(2)).join(',');
   }
 
+  /** Assinatura das âncoras de STAGE_OWNER cujo dono está visível (recalculada no máximo a cada 200 ms). */
+  function stageOwnerSig(now) {
+    if (S.ownT && now - S.ownT < 200 && S.ownSig != null && S.ownLabels === S.labels) return S.ownSig;
+    S.ownT = now; S.ownLabels = S.labels;
+    const keys = S.labels.map((L) => L.key).filter((k) => STAGE_OWNER[k]);
+    if (!keys.length) { S.ownShown = null; S.ownSig = ''; return ''; }
+    const ids = new Set();
+    for (const g of Object.values(S.E.layers)) if (g.visible) g.traverseVisible((o) => {
+      if (!o.isMesh) return; const m = o.material; if (m && m.transparent && m.opacity < 0.05) return;
+      const inf = infoOf(o); if (inf) ids.add(inf.id);
+    });
+    const shown = new Set(keys.filter((k) => { for (const id of ids) if (STAGE_OWNER[k].test(id)) return true; return false; }));
+    S.ownShown = shown; S.ownSig = keys.map((k) => (shown.has(k) ? 1 : 0)).join('');
+    return S.ownSig;
+  }
+
   function updateLabels(now) {
     const E = S.E;
     if (!S.labelsOn) return;
@@ -884,7 +1005,7 @@
     const W = R.viewer.clientWidth, H = R.viewer.clientHeight;
     const ck = S.lastCk || camOnlyKey(); // atualizado em onFrame (ou em APP.still)
     const st = E.state;
-    const ok = ck + '|' + st.phase + ',' + q5(st.handPose) + ',' + q5(st.breath) + ',' + st.wireMal + ',' + st.rollMode + ',' + Math.round(+st.fixStep || 0) + '|' + S.visKey;
+    const ok = ck + '|' + st.phase + ',' + q5(st.handPose) + ',' + q5(st.breath) + ',' + st.wireMal + ',' + st.rollMode + ',' + !!st.dilator + ',' + Math.round(+st.fixStep || 0) + '|' + S.visKey;
     S.occWant = ok;
     // oclusão: só com a câmera parada (~160 ms), em lotes com orçamento de tempo por quadro
     if (ok !== S.occKey && now - (S.camMoveT || 0) > 160 && now - S.occT > 120) {
@@ -892,12 +1013,19 @@
       const t0 = performance.now();
       while (S.occQ.length && performance.now() - t0 < 12) {
         const L = S.occQ.shift();
-        let o = false; try { o = occludedFast(E.anchors[L.key], 0.8, S.occMeshes, L.key); } catch (e) { o = false; }
-        if (o !== L.occ) { L.occ = o; L.el.classList.toggle('occ', o); L.g.classList.toggle('occ', o); L.ln.classList.toggle('occ', o); L.c.classList.toggle('occ', o); if (L.li) L.li.classList.toggle('occ', o); L.w = 0; S.layoutKey = ''; }
+        let o = ''; try { o = occludedFast(E.anchors[L.key], 0.8, S.occMeshes, L.key); } catch (e) { o = ''; }
+        if (o !== L.occ) {
+          L.occ = o; const on = !!o, under = o === 'hand';
+          L.el.classList.toggle('occ', on); L.el.classList.toggle('under', under);
+          L.g.classList.toggle('occ', on); L.ln.classList.toggle('occ', on); L.c.classList.toggle('occ', on);
+          if (L.li) { L.li.classList.toggle('occ', on); const os = L.li.querySelector('.o'); if (os) os.textContent = under ? ' · sob a mão' : ' · profundo'; }
+          L.w = 0; S.layoutKey = '';
+        }
       }
       if (!S.occQ.length) { S.occKey = ok; S.occT = now; S.occQ = null; S.occMeshes = null; }
     }
-    const key = ck + '|' + (st.phase === 6 ? fixShown() : 0);
+    const ownSig = stageOwnerSig(now);
+    const key = ck + '|' + (st.phase === 6 ? fixShown() : 0) + '|' + ownSig;
     const lk = key + '|' + W + 'x' + H;
     if (lk === S.layoutKey && S.labels.every((L) => !L.vis || L.settled)) return;
     S.layoutKey = lk;
@@ -906,8 +1034,9 @@
       if (!L.w) { L.w = L.el.offsetWidth; L.h = L.el.offsetHeight; }
       const p = E.project(E.anchors[L.key]);
       L.px = p.x; L.py = p.y;
-      const fs = FIX_ANCHOR_STEP[L.key], fixOk = fs == null || (st.phase === 6 && fixShown() >= fs);
-      const v = fixOk && p.inFront && p.x > -4 && p.x < W + 4 && p.y > -4 && p.y < H + 4;
+      const fr = fixAnchorRange(L.key), fsh = fixShown(), fixOk = !fr || (st.phase === 6 && fsh >= fr[0] && fsh <= fr[1]);
+      const ownOk = !STAGE_OWNER[L.key] || !S.ownShown || S.ownShown.has(L.key);
+      const v = fixOk && ownOk && p.inFront && p.x > -4 && p.x < W + 4 && p.y > -4 && p.y < H + 4;
       if (v !== L.vis) { L.vis = v; L.el.style.visibility = v ? '' : 'hidden'; L.g.style.display = v && !L.clash ? '' : 'none'; if (!v) L.init = false; }
       if (L.li) L.li.classList.toggle('off', !v);
       if (v) vis.push(L);
@@ -1112,10 +1241,11 @@
       const b = e.target.closest('[data-view]'); if (!b || !S.E) return;
       S.E.setView(b.dataset.view, 900); S.viewName = b.dataset.view; syncViewBar();
     });
-    R.stepper.innerHTML = PHASES.map((p, i) => `<li><button type="button" data-phase="${i}" aria-pressed="false" aria-label="Etapa ${i}: ${p}" title="${p}"><span class="dot">${i}</span><span class="nm">${PHASES_SHORT[i]}</span></button></li>`).join('');
+    // 8 etapas: data-step = índice no stepper; data-phase = fase do motor (o dilatador é a fase 5 + dilator)
+    R.stepper.innerHTML = STEPS.map((s, i) => `<li><button type="button" data-step="${i}" data-phase="${s.ph}"${s.dil ? ' data-dil="1"' : ''} aria-pressed="false" aria-label="Etapa ${i}: ${s.full || s.name}" title="${i} · ${s.full || s.name}"><span class="dot">${i}</span><span class="nm">${s.short}</span></button></li>`).join('');
     R.stepper.addEventListener('click', (e) => {
-      const b = e.target.closest('[data-phase]'); const E = S.E; if (!b || !E) return;
-      stopAnims('seq', 'wire', 'fix'); E.state.phase = +b.dataset.phase;
+      const b = e.target.closest('[data-step]'); const E = S.E; if (!b || !E) return;
+      stopAnims('seq', 'wire', 'fix'); setStep(+b.dataset.step);
       if (E.state.phase > 0) ensureLayers(['instrument']);
       S.visKey++; syncControls();
     });
@@ -1127,7 +1257,7 @@
     });
     R.fixPlay.addEventListener('click', () => { if (A.fix) stopAnims('fix'); else startAnim('fix'); syncPlayButtons(); });
     R.fixStepper.addEventListener('keydown', (e) => rovingKeys(e, '[data-fix]'));
-    R.stepper.addEventListener('keydown', (e) => rovingKeys(e, '[data-phase]'));
+    R.stepper.addEventListener('keydown', (e) => rovingKeys(e, '[data-step]'));
     R.ghostToggle.addEventListener('change', () => {
       const E = S.E; if (!E) return;
       E.highlight(null);
@@ -1141,14 +1271,14 @@
       S.layoutKey = ''; S.labels.forEach((L) => (L.init = false));
     });
     // valor lido ANTES de ensureLayers (que sincroniza os controles com o estado ainda antigo)
-    R.handRange.addEventListener('input', () => { const E = S.E; if (!E) return; const v = R.handRange.value / 100; stopAnims('hand'); E.state.handPose = v; ensureLayers(handLayers()); S.visKey++; syncDynamic(); });
+    R.handRange.addEventListener('input', () => { const E = S.E; if (!E || handGone()) return; const v = R.handRange.value / 100; stopAnims('hand'); E.state.handPose = v; ensureLayers(handLayers()); S.visKey++; syncDynamic(); });
     R.breathRange.addEventListener('input', () => { const E = S.E; if (!E) return; const v = R.breathRange.value / 100; stopAnims('breath'); E.state.breath = v; ensureLayers(['lung', 'pleura']); S.visKey++; syncDynamic(); });
     R.handPlay.addEventListener('click', () => { if (A.hand) stopAnims('hand'); else startAnim('hand'); syncPlayButtons(); });
     R.breathPlay.addEventListener('click', () => { if (A.breath) stopAnims('breath'); else startAnim('breath'); syncPlayButtons(); });
     R.seqPlay.addEventListener('click', () => { if (A.seq || A.wire) stopAnims('seq', 'wire'); else startAnim('needle'); syncPlayButtons(); });
     R.wireToggle.addEventListener('change', () => {
       const E = S.E; if (!E) return; stopAnims('wire'); E.state.wireMal = R.wireToggle.checked;
-      if (E.state.wireMal) { if (E.state.phase !== 5) E.state.phase = 5; ensureLayers(['instrument']); }
+      if (E.state.wireMal) { if (E.state.phase !== 5) E.state.phase = 5; setDilator(false); ensureLayers(['instrument']); }
       S.visKey++; syncControls();
     });
     R.planesToggle.addEventListener('change', () => { const E = S.E; if (!E) return; E.state.showPlanes = R.planesToggle.checked; if (E.state.showPlanes) ensureLayers(['aids']); S.visKey++; });
@@ -1210,22 +1340,39 @@
     if (st && st.short) return stripTags(st.short);
     return FIX_SHORT[k] || 'Etapa ' + k;
   }
+  /** API do módulo 3D da fixação (ou null). */
+  const fixApi = () => { const r = S.E && S.E.results && S.E.results.fixation; return r && r.api && r.api.available !== false ? r.api : null; };
+  /** Duração do movimento que leva à etapa k (ms): a coreografia do módulo foi desenhada para api.stepMs[k]. */
+  const fixMoveMs = (k) => { const a = fixApi(), v = a && a.stepMs && +a.stepMs[k]; return v > 0 ? v : FIX_MOVE_MS; };
+  /** Faixa [primeira, última] de etapas em que a âncora da fixação faz sentido como rótulo (null = não é da fixação). */
+  function fixAnchorRange(key) {
+    const a = fixApi(), r = a && a.anchorSteps && a.anchorSteps[key];
+    if (r && r.length === 2) return r;
+    const fs = FIX_ANCHOR_STEP[key]; return fs == null ? null : [fs, FIX_MAX];
+  }
   /** Etapa exibida: com fixStep = k + t (t > 0) o movimento da etapa k+1 está em andamento. */
   const fixShown = () => clamp(Math.ceil((+(S.E && S.E.state.fixStep) || 0) - 0.001), 0, FIX_MAX);
   /** Controles que mudam durante animações. */
   function syncDynamic() {
     const E = S.E; if (!E) return;
     const hp = clamp(+E.state.handPose || 0, 0, 1), br = clamp(+E.state.breath || 0, 0, 1);
-    R.handOut.textContent = hp < 0.02 ? 'Preparar' : hp > 0.98 ? 'Apoiar' : Math.round(hp * 100) + '%';
-    setRange(R.handRange, Math.round(hp * 100), 'Mão: ' + (hp < 0.02 ? 'preparar' : hp > 0.98 ? 'apoiar' : Math.round(hp * 100) + '% do apoio'));
+    // a partir do fio-guia a mão de apoio sai de cena: slider e animação ficam indisponíveis (com o motivo à vista)
+    const gone = handGone();
+    if (R.handRange.disabled !== gone) {
+      R.handRange.disabled = gone; R.handPlay.disabled = gone;
+      R.handRow.classList.toggle('off', gone);
+      R.handRow.title = gone ? 'A mão de apoio sai de cena a partir do fio-guia (etapa 5): volte a uma etapa anterior para movê-la.' : '';
+    }
+    R.handOut.textContent = gone ? 'Fora de cena' : hp < 0.02 ? 'Preparar' : hp > 0.98 ? 'Apoiar' : Math.round(hp * 100) + '%';
+    setRange(R.handRange, Math.round(hp * 100), gone ? 'Mão fora de cena: sai a partir do fio-guia' : 'Mão: ' + (hp < 0.02 ? 'preparar' : hp > 0.98 ? 'apoiar' : Math.round(hp * 100) + '% do apoio'));
     R.breathOut.textContent = br < 0.03 ? 'Expiração' : br > 0.97 ? 'Inspiração' : 'Intermediária';
     setRange(R.breathRange, Math.round(br * 100), 'Respiração: ' + R.breathOut.textContent.toLowerCase() + (br >= 0.03 && br <= 0.97 ? ' (' + Math.round(br * 100) + '%)' : ''));
-    const ph = clamp(Math.round(+E.state.phase || 0), 0, 6);
-    if (S.lastPhase !== ph) {
-      S.lastPhase = ph;
-      $$('[data-phase]', R.stepper).forEach((b) => { const k = +b.dataset.phase; b.setAttribute('aria-pressed', String(k === ph)); b.classList.toggle('past', k < ph); b.tabIndex = k === ph ? 0 : -1; });
-      R.stepper.style.setProperty('--p', String(ph / 6));
-      R.phaseNum.textContent = ph; R.phaseName.textContent = PHASES[ph];
+    const ph = clamp(Math.round(+E.state.phase || 0), 0, 6), si = stepOf(E.state);
+    if (S.lastStep !== si) {
+      S.lastStep = si;
+      $$('[data-step]', R.stepper).forEach((b) => { const k = +b.dataset.step; b.setAttribute('aria-pressed', String(k === si)); b.classList.toggle('past', k < si); b.tabIndex = k === si ? 0 : -1; });
+      R.stepper.style.setProperty('--p', String(si / STEP_MAX));
+      R.phaseNum.textContent = si; R.phaseName.textContent = STEPS[si].name;
       // cateter posicionado: a linha de opções da agulha dá lugar à fixação (mesma altura, sem salto de layout)
       R.needleOpts.hidden = ph === 6; R.fixRow.hidden = ph !== 6;
       S.lastFix = null;
@@ -1236,8 +1383,8 @@
       S.lastFix = fk;
       $$('[data-fix]', R.fixStepper).forEach((b) => { const k = +b.dataset.fix; b.setAttribute('aria-pressed', String(k === fk)); b.classList.toggle('past', k < fk); b.tabIndex = k === fk ? 0 : -1; });
       R.fixStepper.style.setProperty('--p', String(fk / FIX_MAX));
-      R.phaseName.textContent = ph === 6 && fk > 0 ? `Fixação ${fk}/${FIX_MAX}: ${fixShort(fk)}` : PHASES[ph];
-      R.stepperNow.title = ph === 6 ? `${PHASES[6]} · fixação ${fk}/${FIX_MAX}: ${fixShort(fk)}` : PHASES[ph];
+      R.phaseName.textContent = ph === 6 && fk > 0 ? `Fixação ${fk}/${FIX_MAX}: ${fixShort(fk)}` : STEPS[si].name;
+      R.stepperNow.title = ph === 6 ? `${STEPS[STEP_CATH].name} · fixação ${fk}/${FIX_MAX}: ${fixShort(fk)}` : STEPS[si].full || STEPS[si].name;
       syncFixInset();
     }
   }
@@ -1299,7 +1446,7 @@
         if (!(v.z < 1 && v.z > -1)) continue;
         const px = (v.x * 0.5 + 0.5) * w, py = (-v.y * 0.5 + 0.5) * h;
         if (px < 0 || px > w || py < 0 || py > h) continue;
-        let occ = false; try { occ = occludedFast(a, 0.8, occMeshes, L.key); } catch (e) { occ = false; }
+        let occ = ''; try { occ = occludedFast(a, 0.8, occMeshes, L.key); } catch (e) { occ = ''; }
         items.push({ px, py, w: ctx.measureText(stripTags(L.text || L.key)).width + padX * 2 + 3, h: lh, text: stripTags(L.text || L.key), occ });
       }
       cam.aspect = a0; cam.updateProjectionMatrix();
@@ -1580,7 +1727,8 @@
     const thUnder = (d, cur) => (cur ? halo(d, 8) : '') + `<path d="${d}" style="fill:none;stroke:${TH};stroke-width:1.7;stroke-dasharray:3 2.4;opacity:.75"/>`;
     const knot = (x, y, cur, big) => (cur ? `<circle cx="${x}" cy="${y}" r="${big ? 10 : 8}" style="fill:#e2b65a;opacity:.55"/>` : '') +
       `<ellipse cx="${x}" cy="${y}" rx="${big ? 5.2 : 3.8}" ry="${big ? 4 : 3}" style="fill:${TH}"/>` + (big ? `<ellipse cx="${x - 3}" cy="${y - 2}" rx="2.6" ry="2" style="fill:#3b5fae"/><ellipse cx="${x + 2.6}" cy="${y + 2}" rx="2.4" ry="1.8" style="fill:#3b5fae"/>` : `<ellipse cx="${x - 1.2}" cy="${y - 1}" rx="1.6" ry="1.1" style="fill:#4d70bd"/>`);
-    const lbl = (x, y, t, anchor, cur) => `<text x="${x}" y="${y}" text-anchor="${anchor || 'start'}" class="fx-l${cur ? ' cur' : ''}">${t}</text>`;
+    // rótulo; t pode ser uma lista de linhas (um só <text> com <tspan>, entrelinha de 12 unidades)
+    const lbl = (x, y, t, anchor, cur) => `<text x="${x}" y="${y}" text-anchor="${anchor || 'start'}" class="fx-l${cur ? ' cur' : ''}">${Array.isArray(t) ? t.map((ln, i) => `<tspan x="${x}"${i ? ' dy="12"' : ''}>${ln}</tspan>`).join('') : t}</text>`;
     const lead = (x1, y1, x2, y2) => `<path d="M${x1} ${y1} L${x2} ${y2}" class="fx-lead"/>`;
     const [ex, ey] = FX.exit, [kx, ky] = FX.knot0, T = FX.top, B = FX.bot, H = FX.half;
     const cath = 'M262 112 L 168 112 C 142 112 130 104 108 104';
@@ -1601,7 +1749,7 @@
         over += halo(`M${ax} ${ay} L${bx} ${by}`, 8);
         over += `<path d="M${bx} ${by} C 232 128 228 136 229 146" style="fill:none;stroke:#7d8a92;stroke-width:2.6;stroke-linecap:round"/>`;
         over += th(`M${ax} ${ay} C 262 140 258 162 252 186`, true) + th(`M${bx} ${by} C 226 140 216 160 206 182`, true);
-        notes += lbl(196, 150, 'ponto de ancoragem:', 'end', true) + lbl(196, 162, 'pegada dérmica', 'end', true) + lbl(196, 174, 'paralela ao cateter', 'end', true) + lead(199, 150, 236, 128);
+        notes += lbl(206, 152, ['ponto de ancoragem:', 'pegada dérmica', 'paralela ao cateter'], 'end', true) + lead(209, 149, 236, 128);
       }
     }
     // nó de ancoragem e pontas longas (etapa 3)
@@ -1610,7 +1758,7 @@
       over += knot(kx, ky, k === 3);
       if (k === 3) {
         over += th(`M${kx} ${ky} C 236 140 220 158 208 180`, true) + th(`M${kx} ${ky} C 246 148 240 170 234 192`, true);
-        notes += lbl(270, 152, 'nó de ancoragem', 'start', true) + lead(268, 148, 252, 129) + lbl(104, 196, 'pontas longas, iguais, do mesmo lado', 'start', true);
+        notes += lbl(266, 160, 'nó de ancoragem', 'start', true) + lead(264, 153, 251, 129) + lbl(118, 200, 'pontas longas, iguais, do mesmo lado', 'start', true);
       }
     }
     // cruzamentos: por baixo (coberto pelo cateter) → por cima (X) → nó
@@ -1629,7 +1777,7 @@
       if (cur) {
         const t = ['1º cruzamento', '2º cruzamento', '3º cruzamento + nó final'][i];
         notes += lbl(x + 4, 76, t, 'middle', true) + lead(x, 80, x, 101);
-        notes += lbl(x + 4, 160, 'por baixo → por cima → nó', 'middle', true);
+        notes += lbl(156, 166, 'por baixo → por cima → nó', 'start', true); // à direita das pontas livres da etapa 6
       }
     }
     // pontas livres (etapa 6) ou cortadas (7+)
@@ -1639,7 +1787,7 @@
       if (k === 7) {
         // tesoura (pontas de 0,5–1 cm) e conferência
         notes += `<g transform="translate(128 150) rotate(-35)" style="fill:none;stroke:#4a565c;stroke-width:1.8;stroke-linecap:round"><circle cx="-12" cy="-5" r="4.5"/><circle cx="-12" cy="5" r="4.5"/><path d="M-8 -3 L 14 4 M-8 3 L 14 -4"/></g>`;
-        notes += lbl(150, 168, 'pontas de 0,5–1 cm', 'start', true) + lbl(150, 180, 'marca em cm · refluxo · lavagem', 'start', true);
+        notes += lbl(150, 168, ['pontas de 0,5–1 cm', 'marca em cm · refluxo · lavagem'], 'start', true);
       }
     }
     // asas do canhão (etapa 8)
@@ -1652,13 +1800,13 @@
     // marca em cm junto à saída (referência de migração; destacada no preparo e na conferência)
     const mcur = k === 1 || k === 7;
     marks += (mcur ? `<rect x="234" y="104" width="26" height="16" rx="3" style="fill:#e2b65a;opacity:.5"/>` : '') +
-      [238, 246, 254].map((x, i) => `<path d="M${x} ${i === 1 ? 106 : 108} L${x} 116" style="stroke:#3d4a50;stroke-width:${i === 1 ? 1.3 : 0.9}"/>`).join('') +
+      `<g data-mk="marca em cm">${[238, 246, 254].map((x, i) => `<path d="M${x} ${i === 1 ? 106 : 108} L${x} 116" style="stroke:#3d4a50;stroke-width:${i === 1 ? 1.3 : 0.9}"/>`).join('')}</g>` +
       `<text x="246" y="101" text-anchor="middle" class="fx-cm">15</text>`;
     if (k === 1) {
       // porta-agulha com a agulha curva presa no terço posterior; fio inteiro
       notes += halo('M286 52 L 330 30', 10) + `<g style="fill:none;stroke:#59656c;stroke-width:2.6;stroke-linecap:round"><path d="M290 50 L 334 28 M290 56 L 336 36"/><circle cx="340" cy="26" r="5"/><circle cx="342" cy="38" r="5"/></g>`;
       notes += `<path d="M282 60 A 12 12 0 0 1 292 44" style="fill:none;stroke:#7d8a92;stroke-width:2.4"/>` + th('M282 60 C 270 80 300 84 318 74', true, 1.8);
-      notes += lbl(280, 30, 'porta-agulha', 'end', true) + lbl(280, 42, 'e fio inteiro', 'end', true) + lbl(198, 140, 'marca em cm', 'start', true) + lead(212, 132, 240, 118);
+      notes += lbl(280, 30, ['porta-agulha', 'e fio inteiro'], 'end', true) + lbl(198, 140, 'marca em cm', 'start', true) + lead(212, 132, 240, 118);
     }
 
     // cateter (semitransparente: o fio que passa por baixo aparece apagado), canhão, asas, extensões
@@ -1671,15 +1819,19 @@
     </g>`;
     const cathSvg = `<path d="${cath}" style="fill:none;stroke:#8c9aa3;stroke-width:11.5;stroke-linecap:round;opacity:.95"/><path d="${cath}" style="fill:none;stroke:#f3f6f8;stroke-width:9;stroke-linecap:round;opacity:.82"/>`;
     s += under + hub + cathSvg + marks + over + notes;
-    s += `<circle cx="${ex}" cy="${ey}" r="6.5" style="fill:none;stroke:#8a4a3a;stroke-width:1.6"/>`;
-    s += lbl(266, 91, 'saída', 'middle') + lbl(356, 104, 'trajeto subcutâneo →', 'end') + lbl(30, 194, 'canhão e asas', 'start') + lead(50, 186, 70, 150);
-    // curativo (etapa 9): esponja/gel de clorexidina no sítio (se padronizado) e filme transparente
+    s += `<circle cx="${ex}" cy="${ey}" r="6.5" data-mk="saída" style="fill:none;stroke:#8a4a3a;stroke-width:1.6"/>`;
+    // curativo (etapa 9): esponja/gel de clorexidina no sítio (se padronizado) sob o filme transparente; os rótulos
+    // vêm depois, por cima do filme (legíveis); o filme termina acima do rótulo "canhão e asas"
     if (k >= 9) {
       s += `<circle cx="${ex}" cy="${ey}" r="15" style="fill:rgba(150,120,205,.28);stroke:#8e6cc0;stroke-width:1.2"/>`;
-      s += halo('M30 38 H 306 V 188 H 30 Z', 8) + `<rect x="30" y="38" width="276" height="150" rx="14" style="fill:rgba(205,228,244,.42);stroke:#7fa7c2;stroke-width:1.6"/>`;
+      s += halo('M30 38 H 306 V 180 H 30 Z', 6) + `<rect x="30" y="38" width="276" height="142" rx="14" style="fill:rgba(205,228,244,.3);stroke:#7fa7c2;stroke-width:1.6"/>`;
       s += `<rect x="236" y="42" width="66" height="17" rx="3" style="fill:#fffef6;stroke:#7fa7c2"/>` + lbl(269, 54, 'data · inic.', 'middle');
-      s += lbl(112, 206, 'curativo transparente sobre saída, bailarina e asas', 'start', true) + lbl(316, 92, 'CHG*', 'start');
+      // legenda dentro do filme (duas linhas: cabe no quadro em qualquer largura) e CHG junto ao anel
+      s += lbl(176, 156, ['curativo transparente sobre', 'saída, bailarina e asas'], 'middle', true) + lbl(272, 148, 'CHG*', 'start');
     }
+    /* rótulos fixos: "saída" abaixo e à direita do orifício; "trajeto subcutâneo →" em duas linhas sobre o túnel,
+       à direita da marca em cm ("15"); "canhão e asas" embaixo, à esquerda (nada sobrepõe a marca nem o orifício) */
+    s += lbl(272, 132, 'saída') + lbl(354, k === 9 ? 74 : 90, ['trajeto', 'subcutâneo →'], 'end') + lbl(30, 194, 'canhão e asas', 'start') + lead(50, 186, 70, 150);
     const title = o.title === false ? '' : `<text x="12" y="20" class="fx-t">${k}. ${esc(fixShort(k))}</text>`;
     return `<svg viewBox="0 0 360 210" role="img" aria-labelledby="${id}-t" class="fx-svg"><title id="${id}-t">Esquema da fixação em bailarina, vista de cima, etapa ${k}: ${esc(fixShort(k))}</title>${s}${title}</svg>`;
   }
@@ -2015,6 +2167,7 @@
     junction: { x: 819, y: 647, bx: 846, by: 560 },
   };
   function pranchaSlot(a, i) {
+    if (a.slot && PRANCHA_POS[a.slot] && a.slot !== 'junction') return a.slot; // posição explícita nos dados
     const s = norm(a.text);
     if (/indicador|index/.test(s)) return 'index';
     if (/polegar|thumb/.test(s)) return 'thumb';
@@ -2200,7 +2353,7 @@
       'clipBadge', 'clipBadgeText', 'clipBadgeOff', 'controls', 'layerChips', 'ghostToggle', 'labelsToggle', 'handPlay', 'handRange', 'handOut', 'breathPlay', 'breathRange', 'breathOut',
       'seqPlay', 'phaseNum', 'phaseName', 'stepper', 'wireToggle', 'planesToggle', 'clipToggle', 'clipRange', 'clipOut', 'rollSeg', 'btnSnap', 'painel',
       'pranchaBody', 'planesBody', 'layersBody', 'measBody', 'asymBody', 'compBody', 'usgBody', 'checkBody', 'glossSearch', 'glossFilters', 'glossCount', 'glossBody', 'sourcesBody', 'busy', 'busyText', 'printRoot',
-      'orientNote', 'touchShield', 'touchDone', 'tsPill', 'lblKey', 'legendKeys', 'needleOpts', 'fixRow', 'fixPlay', 'fixStepper', 'fixLbl', 'stepperNow', 'glossMinor', 'fixBody'];
+      'orientNote', 'touchShield', 'touchDone', 'tsPill', 'lblKey', 'legendKeys', 'needleOpts', 'fixRow', 'fixPlay', 'fixStepper', 'fixLbl', 'stepperNow', 'glossMinor', 'fixBody', 'handRow'];
     const o = {}; ids.forEach((k) => (o[k] = document.getElementById(k)));
     o.panel = o.painel;
     return o;
@@ -2216,7 +2369,14 @@
     R.fullExit = b;
   }
 
-  function syncCtlOpen() { $$('[data-ctl]').forEach((d, i) => { d.open = !mqNarrow.matches || i === 0; }); }
+  function syncCtlOpen() {
+    $$('[data-ctl]').forEach((d, i) => {
+      d.open = !mqNarrow.matches || i === 0;
+      const sm = d.querySelector(':scope > summary'); if (sm) sm.tabIndex = mqNarrow.matches ? 0 : -1;
+      // no desktop os grupos não recolhem (o título pode estar visível só para leitores de tela): reabre se fechado
+      if (!d.dataset.ctlToggle) { d.dataset.ctlToggle = '1'; d.addEventListener('toggle', () => { if (!mqNarrow.matches && !d.open) d.open = true; }); }
+    });
+  }
 
   function init() {
     R = refs();

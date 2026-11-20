@@ -13,11 +13,13 @@
       A face anterior = envelope dos ossos de LM (dilatação parabólica) + partes moles;
       com o módulo muscles, segue a superfície real de peitoral/deltoide/ECM (filtrada: os
       sulcos entre feixes não passam para a pele), e vasos e nervos superficiais entram
-      como "piso" com a folga exigida. O dorso do pescoço acompanha a face posterior real
-      dos músculos da nuca; o dorso escapular, a face posterior real de músculos e ossos
-      (mapa 2D → deslocamento suave em −z); o ECM forma a crista anterolateral do pescoço e
-      um cilindro largo arredonda a borda posterior do ECM sobre a VJE; a inserção do
-      trapézio atrás do terço lateral da clavícula torna a superfície contínua até o acrômio.
+      como "piso" com a folga exigida. A nuca e a transição cervicotorácica acompanham a face
+      posterior real de músculos e ossos nos dois sentidos (mapa 2D → deslocamento suave em ±z:
+      AP do pescoço ~13 cm com o trapézio cervical do muscles); o dorso escapular, a mesma face
+      real (mapa 2D → deslocamento suave em −z); o ECM forma a crista anterolateral do pescoço e
+      um cilindro (fino no pescoço médio, sobre a VJE assentada no ECM) arredonda a borda
+      posterior do ECM; a inserção do trapézio atrás do terço lateral da clavícula torna a
+      superfície contínua até o acrômio, com a face superior do terço lateral subcutânea.
    2) Um pino fraco (|amp| ≤ 0,1 cm) aproxima a pele da entrada da agulha de LM — a entrada
       efetiva é o cruzamento da reta da agulha com a pele real (âncora entrySkin, igual ao
       instruments); um "empurrão" local garante folga mínima residual sobre as malhas já
@@ -31,8 +33,12 @@
       anterior a gordura nunca invade o músculo (limite pele−músculo−derme). Grade fina
       (0,4 cm) em torno do plano da agulha; poros com normal map triplanar.
       Os recortes (pescoço oblíquo, braços, abdome) ficam ABERTOS: a borda mostra a
-      secção em anéis, como numa peça dissecada, e não uma "tampa" de manequim.
-   5) Desempenho: cascas internas completas (só visíveis com plano de corte), campo estéril +
+      secção em anéis, como numa peça dissecada, e não uma "tampa" de manequim. A casca da
+      fáscia profunda nunca entra nos ossos subcutâneos (limite ósseo espalhado na grade fina):
+      no corte, a secção da clavícula/esterno fica limpa.
+   5) Campo estéril: fenestra única (api.drapeWindow) ampla o bastante para canhão, asas, bailarina e
+      curativo transparente sobre a pele; antissepsia sempre mais ampla que a fenestra.
+   6) Desempenho: cascas internas completas (só visíveis com plano de corte), campo estéril +
       antissepsia e coxins são construídos sob demanda em update(); os "aros" internos junto aos
       recortes e a pele externa são construídos na carga.
    Coordenadas anatômicas: x = direita do paciente (+), y cranial, z anterior (cm).
@@ -380,43 +386,18 @@ ATLAS.define('skin', function (ctx) {
   const trunkTop = (ax, z) => lerp(0.3 + 0.92 * sstep(1.4, 3.4, ax), 3.6, sstep(-0.8, -4.5, z));
 
   // ---- 2c. Pescoço ----
-  // dorso do pescoço: segue a face posterior REAL dos músculos da nuca (módulo muscles) + ~0,45 cm de pele/tela
-  // subcutânea; sem o módulo, a pele dorsal mediana de LM (LM.skinBackZ). Assim a pele envolve o trapézio por desenho
-  // (sem depender do "empurrão" de folga, que deixava faixas na nuca) e, se o trapézio cervical for trazido para a frente
-  // (pescoço AP ~13 cm), a pele acompanha. dNeck(y) = deslocamento em relação a LM (+ anterior).
-  const musBackT = new Float64Array(29).fill(-BIG); // y = 2 … 16 a cada 0,5 cm: z mínimo dos músculos com |x| < 2,5
-  if (layers.muscle) {
-    const v = new V3();
-    layers.muscle.traverse((o) => {
-      if (!o.isMesh || !o.geometry || !o.geometry.attributes.position || (o.material && o.material.transparent)) return;
-      const pa = o.geometry.attributes.position, M = invWorld.clone().multiply(o.matrixWorld), ident = M.equals(I4);
-      for (let i = 0; i < pa.count; i += 2) {
-        v.fromBufferAttribute(pa, i); if (!ident) v.applyMatrix4(M);
-        if (v.y < 1.75 || v.y > 16.25 || Math.abs(v.x) > 2.5) continue;
-        const k = Math.round((v.y - 2) / 0.5); if (musBackT[k] === -BIG || v.z < musBackT[k]) musBackT[k] = v.z;
-      }
-    });
-  }
-  { // suaviza o perfil (σ ≈ 1 cm): o trapézio de LM é linear por partes entre as vértebras (vincos a cada ~1,8 cm)
-    const t = new Float64Array(musBackT.length);
-    for (let pass = 0; pass < 8; pass++) {
-      t.set(musBackT);
-      for (let k = 0; k < t.length; k++) { const a = t[Math.max(0, k - 1)], c = t[Math.min(t.length - 1, k + 1)]; if (t[k] === -BIG || a === -BIG || c === -BIG) continue; musBackT[k] = (a + 2 * t[k] + c) / 4; }
-    }
-  }
-  const dNeck = (y) => {
-    const f = clamp((y - 2) / 0.5, 0, 27.999), i = f | 0, a = musBackT[i], b = musBackT[i + 1];
-    if (a === -BIG || b === -BIG) return 0;
-    return clamp(a + (b - a) * (f - i) - 0.45 - (LM.skinBackZ(y) + 0.2), -0.6, 5) * sstep(3.5, 5.5, y);
-  };
-  const nb = (y) => LM.skinBackZ(y) + 0.2 + dNeck(y);
-  // face anterior mediana: ~0,4–0,5 cm à frente da traqueia/infra-hióideos (homem magro), sem "canal" vertical;
-  // secção frontal arredondada (expoente 3, não a "caixa" de expoente 4) e meia-largura ~6,2 cm no pescoço médio (a parede
-  // lateral continua o contorno arredondado do ECM/VJE para trás, sem vinco); o relevo anterolateral fica por conta do ECM
-  // e do cilindro da borda posterior do ECM (varreduras próprias, abaixo), como no vivo
+  // dorso do pescoço no DESENHO: pele dorsal mediana de LM (LM.skinBackZ). A profundidade real do pescoço (AP ~13 cm,
+  // trapézio cervical do módulo muscles) vem depois, do mapa da nuca (seção "nuca", abaixo): a pele acompanha a face
+  // posterior real de músculos e ossos nos dois sentidos, sem entortar as varreduras do desenho.
+  const nb = (y) => LM.skinBackZ(y) + 0.2;
+  // face anterior mediana: ~0,5 cm à frente da traqueia na base do pescoço e ~0,7 cm no pescoço médio (y 7–9: infra-hióideos,
+  // fáscia pré-traqueal e istmo da tireoide — a frente fica convexa, sem o "degrau" côncavo entre os ECM), sem "canal"
+  // vertical; secção frontal arredondada (expoente 3, não a "caixa" de expoente 4) e meia-largura ~6,2 cm no pescoço médio
+  // (a parede lateral continua o contorno arredondado do ECM/VJE para trás, sem vinco); o relevo anterolateral fica por
+  // conta do ECM e do cilindro da borda posterior do ECM (varreduras próprias, abaixo), como no vivo
   const neckLoft = makeLoft([
     [-1.0, 7.5, 0.4, nb(-1)], [1.5, 6.95, 0.3, nb(1.5)], [3.5, 6.3, 0.42, nb(3.5)], [5.5, 6.3, 0.3, nb(5.5)],
-    [8.0, 6.2, 0.3, nb(8)], [10.5, 5.95, 0.72, nb(10.5)], [13.0, 5.7, 1.25, nb(13)], [15.5, 5.6, 1.6, nb(15.5)],
+    [8.0, 6.2, 0.52, nb(8)], [10.5, 5.95, 0.8, nb(10.5)], [13.0, 5.7, 1.25, nb(13)], [15.5, 5.6, 1.6, nb(15.5)],
   ], 3, 2, 0.2);
 
   // ---- 2d. Trapézio / "canga" pescoço-ombro (crista do contorno do ombro) ----
@@ -425,21 +406,22 @@ ATLAS.define('skin', function (ctx) {
   // a face anterior da canga desce até a clavícula (assoalho da região supraclavicular); a fossa é esculpida à parte
   const yokeRidge = [[-0.6, 14.6, -9.7, 3.0, 2.9], [2.2, 13.2, -9.45, 3.2, 3.4], [4.5, 10.7, -9.0, 4.2, 5.4], [6.6, 8.55, -8.4, 5.0, 7.3], [8.7, 7.35, -7.75, 5.2, 8.1],
     [11.1, 6.45, -6.95, 5.1, 8.0], [13.6, 5.4, -5.95, 4.5, 6.9], [15.6, 3.45, -4.85, 3.0, 5.0], [17.25, 2.15, -4.0, 2.0, 3.4]]; // acrômio subcutâneo: canga baixa
-  // (a parte medial da canga — nuca e face posterolateral do pescoço — acompanha a mesma anteriorização dNeck)
-  const yoke = boxed(makeSweep(yokeRidge.map((r) => [r[0] - yokeUp.x * r[3], r[1] - yokeUp.y * r[3], r[2] - yokeUp.z * r[3] + dNeck(r[1]) * (1 - sstep(5, 11, r[0]))]), {
+  // (a parte medial da canga — nuca e face posterolateral do pescoço — acompanha a face real pelo mapa da nuca)
+  const yoke = boxed(makeSweep(yokeRidge.map((r) => [r[0] - yokeUp.x * r[3], r[1] - yokeUp.y * r[3], r[2] - yokeUp.z * r[3]]), {
     a: yokeRidge.map((r) => r[3]), b: yokeRidge.map((r) => r[4]), up: [0, 1, 0.12], segs: 34,
   }), 4);
   // inserção do trapézio na borda posterior do terço lateral da clavícula e no acrômio: a superfície sobe contínua
   // da clavícula para a "canga" (sem a trincheira atrás do terço lateral); a fossa supraclavicular maior fica restrita
   // ao terço médio, entre o ECM e a borda anterior do trapézio. A varredura fica ~1 cm ATRÁS da borda posterior do osso
-  // (concordância 1,0): a face superior do terço lateral continua subcutânea (~0,5–0,9 cm de partes moles, palpável)
+  // (concordância 0,8): a face superior do terço lateral continua subcutânea (~0,5–0,85 cm de partes moles, palpável)
   const trapIns = boxed(makeSweep([[11.0, 2.2, -2.6], [12.8, 2.4, -3.6], [14.5, 2.6, -4.3], [16.0, 2.4, -4.6]], {
     a: [0.7, 1.1, 1.2, 1.0], b: [1.0, 1.4, 1.4, 1.1], up: [0, 0.6, 0.8], segs: 6,
   }), 3);
 
   // ---- 2e. Clavícula (pele ~0,5 cm sobre a face anterossuperior) e extremidade esternal ----
+  // (terço lateral, t > 0,6: margem menor — a face superior é subcutânea e o "S" lateral precisa aparecer na pele)
   const clavSk = boxed(makeSweep(LM.clavicle.pts, {
-    a: LM.clavicle.ry.map(([t, v]) => [t, v + 0.48]), b: LM.clavicle.rh.map(([t, v]) => [t, v + 0.46]), up: [0, 1, 0], segs: 16,
+    a: LM.clavicle.ry.map(([t, v]) => [t, v + lerp(0.48, 0.38, sstep(0.6, 0.8, t))]), b: LM.clavicle.rh.map(([t, v]) => [t, v + lerp(0.46, 0.4, sstep(0.6, 0.8, t))]), up: [0, 1, 0], segs: 16,
   }), 3);
   const scEnd = boxed(makeEllipsoid([2.72, 0.62, -0.42], [0.62 + 0.42, 1.0 + 0.42, 0.92 + 0.45]), 3);
   // tecido entre as cabeças do ECM (VJI, gordura): a fossa supraclavicular menor é rasa, não um orifício
@@ -453,9 +435,10 @@ ATLAS.define('skin', function (ctx) {
   // o ECM forma a crista anterolateral visível (≥0,4 cm acima da linha média), em vez de ficar enterrado no loft
   const scmUp = (t) => [lerp(0.45, 0.28, sstep(0.2, 0.5, t)), 0.05, lerp(0.89, 0.96, sstep(0.2, 0.5, t))];
   // origem esternal = a do tendão real (módulo muscles: centro x = max(LM.muscles.scm.sternalOrigin[0], 1,45), lateral à
-  // incisura): a pele acompanha o tendão, sem "empurrões" de folga que enchem a fossa supraesternal
+  // incisura; 2º ponto do tendão real em x 1,62): os dois primeiros pontos da varredura ficam sobre o eixo do tendão real
+  // (x ≈ 1,5 e 1,6) — a pele acompanha o tendão, sem "empurrões" de folga que enchem a fossa supraesternal
   const scmX0 = Math.max(LM.muscles.scm.sternalOrigin[0], 1.45);
-  const scmStern = boxed(makeSweep([[scmX0 + 0.1, -0.7, 0.45], [scmX0 + 0.22, 0.6, 0.85], [scmX0 + 0.5, 2.1, 0.8], [scmX0 + 1.05, 3.8, 0.45], [3.25, 5.7, -0.05], [4.0, 8.0, -0.5], [4.65, 10.5, -0.95], [5.25, 13.0, -1.4], [5.7, 16.0, -1.85]], {
+  const scmStern = boxed(makeSweep([[scmX0 + 0.07, -0.7, 0.45], [Math.max(1.62, scmX0 + 0.17), 0.6, 0.85], [scmX0 + 0.5, 2.1, 0.8], [scmX0 + 1.05, 3.8, 0.45], [3.25, 5.7, -0.05], [4.0, 8.0, -0.5], [4.65, 10.5, -0.95], [5.25, 13.0, -1.4], [5.7, 16.0, -1.85]], {
     a: [[0, 0.5], [0.12, 0.55], [0.25, 0.64], [0.4, 0.95], [0.55, 1.2], [0.75, 1.25], [1, 1.1]],
     b: [[0, 0.48], [0.12, 0.55], [0.25, 0.7], [0.4, 1.15], [0.55, 1.5], [0.75, 1.55], [1, 1.5]], up: (t) => scmUp(t), segs: 18,
   }), 3);
@@ -463,15 +446,15 @@ ATLAS.define('skin', function (ctx) {
     a: [0.45, 0.55, 0.65, 0.7], b: [1.35, 1.3, 1.15, 1.0], up: [0.45, 0.3, 0.84], segs: 4,
   }), 3);
 
-  // contorno anterolateral do pescoço (borda posterior do ECM + veia jugular externa): a VJE de LM corre ~1 cm à frente
-  // da face lateral do ECM (y 6–10) e precisa de ≥0,3 cm de pele por cima; uma varredura justa sobre ela criava uma
-  // "quina" (crista da VJE mais saliente que o ECM, parede lateral quase vertical logo atrás). Aqui, um cilindro largo
-  // (R ≈ 1,65 cm) cujo lado anterolateral passa ~0,33 cm sobre a VJE: secção arredondada (giro ≤ ~40°/cm), a VJE fica
+  // contorno anterolateral do pescoço (borda posterior do ECM + veia jugular externa): a VJE (LM v2.1) corre sobre a face
+  // superficial do ECM e precisa de ≥0,3 cm de pele por cima. Um cilindro cujo lado anterolateral passa ~0,33 cm sobre a
+  // VJE arredonda a transição frente → parede lateral; com a veia já assentada no músculo, ele é FINO no pescoço médio
+  // (R ≈ 1,0–1,1 em y 7,5–11, antes 1,55–1,65) e só continua largo embaixo (y ≤ 4,5), na junção pescoço–ombro. A VJE fica
   // sob a pele sem cordão próprio e o ponto mais anterior lateral à linha média continua sendo a crista do ECM
   const ejvR = LM.vessels.ejvR, ejvN = new V3(0.57, 0, 0.82).normalize();
-  const ejvRad = [1.55, 1.65, 1.4, 0.75, 0.5, 0.45]; // por ponto de LM (y 11 → 0,75): afila onde a veia mergulha na fossa
+  const ejvRad = [1.0, 1.1, 1.4, 0.75, 0.5, 0.45]; // por ponto de LM (y 11 → 0,75): afila onde a veia mergulha na fossa
   const ejvSk = boxed(makeSweep(ejvR.pts.map((p, i) => { const o = ejvR.r[i] + 0.33 - ejvRad[i]; return [p[0] + ejvN.x * o, p[1], p[2] + ejvN.z * o]; }), {
-    a: [[0, 1.55], [0.34, 1.65], [0.63, 1.4], [0.82, 0.75], [0.94, 0.5], [1, 0.45]], up: [1, 0, 0], segs: 12,
+    a: [[0, 1.0], [0.34, 1.1], [0.63, 1.4], [0.82, 0.75], [0.94, 0.5], [1, 0.45]], up: [1, 0, 0], segs: 12,
   }), 3);
   // ---- 2g. Ombro (deltoide sobre a cabeça do úmero), braço e pregas axilares ----
   // cúpula do ombro (cabeça do úmero + deltoide) — o contorno lateral fica a cargo do deltoide abaixo
@@ -528,13 +511,15 @@ ATLAS.define('skin', function (ctx) {
     let d = tr;
     if (ax > 9.4 && ax < 19 && y < 2.8 && y > -15 && z > -6) { const sl = shSlab(ax, y, z); if (sl < d) d = sl; }
     d = smin(d, neckLoft(ax, y, z), 1.3);
-    d = smin(d, yoke(ax, y, z), 2.6);
-    if (ax > 8.5) d = smin(d, trapIns(ax, y, z), 1.0);
-    d = smin(d, clavSk(ax, y, z), 1.2);
+    // junto ao terço lateral da clavícula a concordância com a canga é menor (2,6 → 1,1): a canga não "soterra" o osso
+    const cS = clavSk(ax, y, z), wC = ax > 10.5 ? (1 - sstep(0.3, 1.8, cS)) * sstep(10.5, 12.5, ax) : 0;
+    d = smin(d, yoke(ax, y, z), 2.6 - 1.5 * wC);
+    if (ax > 8.5) d = smin(d, trapIns(ax, y, z), 0.8);
+    d = smin(d, cS, 1.2);
     d = smin(d, scEnd(ax, y, z), 0.7);
 
     d = smin(d, lsfFill(ax, y, z), 1.0);
-    d = smin(d, ejvSk(ax, y, z), lerp(1.0, 2.0, sstep(3.5, 5.5, y))); // concordância larga no pescoço médio: sem vinco atrás do cilindro
+    d = smin(d, ejvSk(ax, y, z), lerp(1.0, 2.0, sstep(3.5, 5.5, y)) - 0.5 * sstep(6, 8, y)); // concordância larga (sem vinco atrás do cilindro), menor no pescoço médio
     // as duas cabeças esternais (D e E) unidas por smin simétrico: sem o vinco de |x| no fundo da fossa supraesternal
     d = smin(d, ax < 3.4 ? smin(scmStern(ax, y, z), scmStern(-ax, y, z), 0.7) : scmStern(ax, y, z), 0.8);
     d = smin(d, scmClav(ax, y, z), 1.1);
@@ -587,6 +572,17 @@ ATLAS.define('skin', function (ctx) {
       kCurve(gp, 0.5, ga);
       kCurve(cp, 0.42, ca); // crista discreta sobre a face anterior do osso (o envelope rígido infraclavicular a apagava)
     }
+    // terço lateral da clavícula: crista discreta sobre a face superior e sulco raso logo abaixo da borda anterior (origem
+    // do deltoide) — o "S" lateral fica legível na pele sem afinar as partes moles além do real
+    {
+      const cr = [], cra = [], gv = [], gva = [];
+      for (let i = 0; i <= 6; i++) {
+        const t = 0.62 + i * 0.055, p = clavCurve.getPointAt(t), e = Math.sin((Math.PI * i) / 6);
+        cr.push(onTop(p.x, p.z)); cra.push(-0.07 * e);
+        gv.push(onSkin(p.x, p.y - clavRy(t) - 0.25, p.z + clavRh(t) + 1)); gva.push(0.12 * e);
+      }
+      kCurve(cr, 0.4, cra); kCurve(gv, 0.45, gva);
+    }
     // tela pré-esternal fina sobre o corpo do esterno (homem magro): o corpo fica num sulco raso entre os peitorais
     kPoint(onSkin(0, -9.4, 3.8), [2.4, 2.3, 1.4], 0.24);
     kCurve([onSkin(0, -1.5, 2), onSkin(0, -8, 3), onSkin(0, -14.5, 4.5)], 0.9, 0.08);                 // sulco mediano esternal
@@ -596,11 +592,8 @@ ATLAS.define('skin', function (ctx) {
     // acrômio subcutâneo: tecido mole fino sobre o osso (o ombro não fica "acolchoado"); borda lateral palpável
     { const ac = onTop(16.9, -4.3); kPoint([ac[0], ac[1] - 0.1, ac[2]], [1.7, 0.7, 2.0], 0.32); }
     { const at = LM.scapula.acromion.tip, ap = onTop(at[0] + 0.3, at[2] - 0.2); kPoint([ap[0], ap[1] - 0.15, ap[2]], [0.7, 0.5, 0.9], -0.12); }
-    // dorso: núcleos ancorados na superfície real (marcha a partir de −z), 0,25 cm para dentro
-    const c7 = onBack(0, 4.0), t1 = onBack(0, 1.7);
-    kPoint([0, 4.0, c7[2] + 0.25], [1.0, 0.85, 0.7], -0.6);                // vértebra proeminente (C7)
-    kCurve([onBack(0, 10.5), onBack(0, 6.2)], 0.65, [0.16, 0.12]);        // sulco nucal mediano (termina acima de C7)
-    kPoint([0, 1.7, t1[2] + 0.25], [0.8, 0.75, 0.7], -0.22);               // processo espinhoso de T1
+    // dorso torácico: núcleos ancorados na superfície do desenho (marcha a partir de −z); os da nuca (C7, T1, sulco nucal)
+    // são ancorados depois do mapa da nuca, na pele final
     kCurve([0.6, -2, -10, -20, -27].map((y) => onBack(0, y)), [0.5, 0.65, 0.7, 0.7, 0.7], [0.0, 0.3, 0.32, 0.3, 0.28]); // sulco mediano do dorso
     kCurve([[5.4, 0.2, -16.9], [5.1, -4.5, -17.4], [6.0, -9.0, -17.4]], 0.8, 0.12); // depressão medial à borda medial da escápula
   }
@@ -624,6 +617,10 @@ ATLAS.define('skin', function (ctx) {
   const bkW = (x, y) => (1 - sstep(11.5, 14.5, x)) * sstep(-20.5, -13.5, y) * (1 - sstep(1.5, 4.0, y));
   BK.nx = Math.round((BK.x1 - BK.x0) / BK.d) + 1; BK.ny = Math.round((BK.y1 - BK.y0) / BK.d) + 1;
   const backD = new Float64Array(BK.nx * BK.ny); let hasBackD = false;
+  // grade do mapa da nuca (seção seguinte): a face posterior real é medida na MESMA passagem pelos vértices
+  const NP = { x0: 0, x1: 12.5, y0: 0, y1: 14, d: 0.25, yTop: 10.5, T: 0.5 };
+  NP.nx = Math.round((NP.x1 - NP.x0) / NP.d) + 1; NP.ny = Math.round((NP.y1 - NP.y0) / NP.d) + 1;
+  const npZmin = new Float64Array(NP.nx * NP.ny).fill(-BIG);
   {
     const zmin = new Float64Array(BK.nx * BK.ny).fill(-BIG), v = new V3(); // guarda −z (máximo = mais posterior)
     for (const ln of ['muscle', 'bones']) {
@@ -633,8 +630,13 @@ ATLAS.define('skin', function (ctx) {
         const pa = o.geometry.attributes.position, M = invWorld.clone().multiply(o.matrixWorld), ident = M.equals(I4);
         for (let i = 0; i < pa.count; i++) {
           v.fromBufferAttribute(pa, i); if (!ident) v.applyMatrix4(M);
-          if (v.z > -9 || v.y < BK.y0 || v.y > BK.y1) continue;
-          const ax = Math.abs(v.x); if (ax > BK.x1) continue;
+          if (v.z > -8) continue;
+          const ax = Math.abs(v.x);
+          if (v.y >= NP.y0 && v.y <= NP.yTop + 0.6 && ax <= NP.x1) { // nuca
+            const k = Math.round((v.y - NP.y0) / NP.d) * NP.nx + Math.round((ax - NP.x0) / NP.d);
+            if (-v.z > npZmin[k]) npZmin[k] = -v.z;
+          }
+          if (v.z > -9 || v.y < BK.y0 || v.y > BK.y1 || ax > BK.x1) continue;
           const k = Math.round((v.y - BK.y0) / BK.d) * BK.nx + Math.round((ax - BK.x0) / BK.d);
           if (-v.z > zmin[k]) zmin[k] = -v.z;
         }
@@ -671,6 +673,55 @@ ATLAS.define('skin', function (ctx) {
     return dd * sstep(-11, -14, z);
   };
 
+  /* ---------- nuca e transição cervicotorácica: a pele acompanha a face posterior REAL, nos dois sentidos ----------
+     O trapézio cervical do módulo muscles define a profundidade do pescoço (AP ~13 cm). Um mapa 2D (x, y) da face
+     posterior de músculos e ossos (envoltório parabólico inferior, Rc 2 cm: cobre a ponta de C7 e fecha lacunas) dá a
+     pele dorsal necessária (+0,5 cm de pele e tela subcutânea); a diferença para a pele do desenho (já com o mapa
+     escapular) vira um deslocamento suave em ±z (+ = anterior), só na parte posterior (z < −8). Acima do corte do
+     trapézio (y ≈ 11) vale o último valor medido, até o corte oblíquo do pescoço. (Antes, só a linha média era medida e
+     a canga era entortada por esse valor — vinco no contorno e furos na malha quando o trapézio avançou ~2 cm.) */
+  const npW = (x, y) => sstep(0.5, 3.0, y) * (1 - sstep(6.5, 12.5, x)); // lateralmente cede à canga do ombro (sem quina posterolateral)
+  const napeD = new Float64Array(NP.nx * NP.ny); let hasNape = false;
+  {
+    const env = dilate2D(npZmin, NP.nx, NP.ny, NP.d, 2.0, 2.0); // face posterior real medida junto com o mapa escapular
+    const jTop = Math.round((NP.yTop - NP.y0) / NP.d); // acima disso (borda do músculo cortado) repete-se a linha jTop
+    for (let i = 0; i < NP.nx; i++) for (let j = jTop + 1; j < NP.ny; j++) env[j * NP.nx + i] = env[jTop * NP.nx + i];
+    const D = new Float64Array(NP.nx * NP.ny).fill(-BIG); // −BIG = sem medida (o filtro ignora; o peso entra só no fim)
+    for (let j = 0; j < NP.ny; j += 2) for (let i = 0; i < NP.nx; i += 2) { // passo 0,5 cm (o filtro mascarado preenche o resto)
+      const k = j * NP.nx + i, x = NP.x0 + i * NP.d, y = NP.y0 + j * NP.d, w = npW(x, y);
+      if (w <= 0 || env[k] < -BIG / 2) continue;
+      const need = -env[k] - NP.T, fD = (z) => relief(x, y, z) - backDisp(x, y, z);
+      // pele do desenho: marcha de trás para a frente a partir de 6 cm atrás da pele necessária (recua se já estiver dentro)
+      let z = need - 6, f = fD(z);
+      for (let it = 0; it < 30 && f < 0; it++) { z -= 2; f = fD(z); }
+      for (let it = 0; it < 120 && f > 0.002; it++) { z += Math.max(0.02, f * 0.9); f = fD(z); }
+      if (z > -8) continue;
+      D[k] = clamp(need - z, -1.5, 3.5); // > 0: a pele avança (anterior); < 0: recua (limitado: sem dobras no campo)
+    }
+    const Ds = blur2D(D, NP.nx, NP.ny, 4);
+    for (let j = 0; j < NP.ny; j++) for (let i = 0; i < NP.nx; i++) {
+      const k = j * NP.nx + i, d = Ds[k] > -BIG / 2 ? Ds[k] * npW(NP.x0 + i * NP.d, NP.y0 + j * NP.d) : 0; napeD[k] = Math.abs(d) > 0.01 ? d : 0; if (napeD[k]) hasNape = true;
+    }
+  }
+  mark('napemap');
+  function napeDisp(ax, y, z) {
+    if (!hasNape || z > -8 || ax > NP.x1 || y < NP.y0 || y > NP.y1) return 0;
+    const fx = clamp((ax - NP.x0) / NP.d, 0, NP.nx - 1.001), fy = clamp((y - NP.y0) / NP.d, 0, NP.ny - 1.001);
+    const i = fx | 0, j = fy | 0, u = fx - i, w = fy - j, k = j * NP.nx + i;
+    const dd = (napeD[k] * (1 - u) + napeD[k + 1] * u) * (1 - w) + (napeD[k + NP.nx] * (1 - u) + napeD[k + NP.nx + 1] * u) * w;
+    return dd * sstep(-8, -12, z);
+  }
+  // nuca: núcleos ancorados na pele FINAL (desenho + mapas), 0,25 cm para dentro; a ponta de C7 já aparece no envoltório
+  // real (osso + aponeurose fina do trapézio), aqui só se acentua
+  {
+    const fN = (x, y, z) => relief(x, y, z) - backDisp(x < 0 ? -x : x, y, z) + napeDisp(x < 0 ? -x : x, y, z);
+    const onBackN = (x, y) => [x, y, backZ0(fN, x, y, LM.skinBackZ(y) + 1)];
+    const c7 = onBackN(0, 4.0), t1 = onBackN(0, 1.7);
+    kPoint([0, 4.0, c7[2] + 0.25], [1.0, 0.85, 0.7], -0.35);               // vértebra proeminente (C7)
+    kCurve([onBackN(0, 10.5), onBackN(0, 6.2)], 0.65, [0.16, 0.12]);       // sulco nucal mediano (termina acima de C7)
+    kPoint([0, 1.7, t1[2] + 0.25], [0.8, 0.75, 0.7], -0.15);               // processo espinhoso de T1
+  }
+
   /* ---------- pinos: a pele passa pelos marcos de LM ---------- */
   // Só o ponto de entrada da agulha é pino — e fraco (σ 0,6 cm, |amplitude| ≤ 0,1 cm): um pino forte criava um
   // montículo exatamente no ponto de punção. Se a pele natural diferir mais do que isso do z de LM, a entrada efetiva
@@ -688,7 +739,7 @@ ATLAS.define('skin', function (ctx) {
     }
     pins.forEach((q, i) => { q.amp = clamp(rhs[i] / Mx[i][i], -q.maxAmp, q.maxAmp); q.resid = -relief(...q.p); kPoint(q.p, q.s, q.amp); });
   }
-  const field0 = (x, y, z) => { const ax = x < 0 ? -x : x; return baseField(x, y, z) + kernelSum(ax, y, z) - backDisp(ax, y, z); };
+  const field0 = (x, y, z) => { const ax = x < 0 ? -x : x; return baseField(x, y, z) + kernelSum(ax, y, z) - backDisp(ax, y, z) + napeDisp(ax, y, z); };
   let pushAtRef = null; // definido após a verificação de folga
   const field = (x, y, z) => field0(x, y, z) - (pushAtRef ? pushAtRef(x, y, z) : 0);
   mark('design');
@@ -825,6 +876,52 @@ ATLAS.define('skin', function (ctx) {
   if (pushOn) pushAtRef = pushAt;
   mark('push');
 
+  /* ---------- limite ósseo da tela subcutânea ----------
+     A casca da fáscia profunda (pele − derme − gordura) não pode entrar nos ossos subcutâneos (clavícula, acrômio, espinha
+     da escápula, processos espinhosos, esterno): no corte, a face interna dessa casca pintava manchas cor de "plano
+     profundo" dentro da secção óssea (p.ex. a clavícula no plano parassagital da agulha, x = 7,1). Os vértices ósseos a
+     menos de 1,3 cm da pele (voxels de 0,25 cm, o mais superficial) são espalhados na grade fina como limite de
+     profundidade da casca: L = s − folga + lat²/(2·Rc) (s = profundidade do osso; lat = distância lateral; Rc 0,8 cm):
+     a gordura afina sobre o osso (a fáscia profunda encosta no periósteo) e retoma a espessura normal ~1 cm ao lado. */
+  const BL = new Float32Array(fn[0] * NYZ).fill(9); let hasBL = false;
+  {
+    const BLM = 0.07, Rs = 0.85, Rc = 0.8, SMAX = 1.3, vox = new Map(), v = new V3();
+    if (layers.bones) layers.bones.traverse((o) => {
+      if (!o.isMesh || !o.geometry || !o.geometry.attributes.position || (o.material && o.material.transparent)) return;
+      const pa = o.geometry.attributes.position, M = invWorld.clone().multiply(o.matrixWorld), ident = M.equals(I4);
+      if (!o.geometry.boundingSphere) o.geometry.computeBoundingSphere();
+      const bs = o.geometry.boundingSphere, bc = bs.center.clone().applyMatrix4(M); // osso inteiro profundo → nada a fazer
+      if (triF(bc.x, bc.y, bc.z) < -(bs.radius * M.getMaxScaleOnAxis() + SMAX + 0.4)) return;
+      const step = pa.count > 3000 ? 2 : 1; // vértices densos (≤ 0,2 cm) → voxels de 0,25 cm continuam cheios
+      for (let i = 0; i < pa.count; i += step) {
+        v.fromBufferAttribute(pa, i); if (!ident) v.applyMatrix4(M);
+        const ax = Math.abs(v.x); if (ax > G1[0] || v.y < G0[1] || v.y > G1[1] || v.z < G0[2] || v.z > G1[2]) continue;
+        const s = -triF(ax, v.y, v.z); if (s < 0 || s > SMAX) continue;
+        const key = (Math.round(ax * 4) * 256 + Math.round((v.y - G0[1]) * 4)) * 256 + Math.round((v.z - G0[2]) * 4);
+        const b = vox.get(key); if (!b || s < b[3]) vox.set(key, [ax, v.y, v.z, s]);
+      }
+    });
+    const Ri = Math.ceil(Rs / h), is2c = 1 / (2 * Rc);
+    for (const [px, py, pz, s] of vox.values()) {
+      const ci = Math.round(px / h), cj = Math.round((py - G0[1]) / h), ck = Math.round((pz - G0[2]) / h);
+      for (let i = Math.max(0, ci - Ri); i <= Math.min(fn[0] - 1, ci + Ri); i++) for (let j = Math.max(0, cj - Ri); j <= Math.min(fn[1] - 1, cj + Ri); j++) for (let k = Math.max(0, ck - Ri); k <= Math.min(fn[2] - 1, ck + Ri); k++) {
+        const qx = i * h - px, qy = G0[1] + j * h - py, qz = G0[2] + k * h - pz, d2 = qx * qx + qy * qy + qz * qz; if (d2 > Rs * Rs) continue;
+        const id = at(i, j, k), dd = -fine[id] - s, val = s - BLM + Math.max(0, d2 - dd * dd) * is2c; // lat² = d² − Δprofundidade²
+        if (val < BL[id]) { BL[id] = val; hasBL = true; }
+      }
+    }
+  }
+  const boneLim = (ax, y, z) => { // trilinear na grade fina (9 = nenhum osso subcutâneo por perto)
+    if (!hasBL) return 9;
+    const fx = clamp(ax / h, 0, fn[0] - 1.0001), fy = clamp((y - G0[1]) / h, 0, fn[1] - 1.0001), fz = clamp((z - G0[2]) / h, 0, fn[2] - 1.0001);
+    const i = fx | 0, j = fy | 0, k = fz | 0, u = fx - i, v = fy - j, w = fz - k;
+    const a = i * NYZ + j * fn[2] + k, b = a + NYZ, c2 = a + fn[2];
+    const c00 = BL[a] * (1 - w) + BL[a + 1] * w, c01 = BL[c2] * (1 - w) + BL[c2 + 1] * w;
+    const c10 = BL[b] * (1 - w) + BL[b + 1] * w, c11 = BL[b + fn[2]] * (1 - w) + BL[b + fn[2] + 1] * w;
+    return (c00 * (1 - v) + c01 * v) * (1 - u) + (c10 * (1 - v) + c11 * v) * u;
+  };
+  mark('bonelim');
+
   // espessura da tela subcutânea (homem magro): fina no esterno/clavícula/pescoço, maior no abdome e dorso
   const fatT = (ax, y, z) => {
     let t = 0.5;
@@ -857,12 +954,13 @@ ATLAS.define('skin', function (ctx) {
     }
   };
   const fatTL = (ax, y, z) => {
-    const t = fatT(ax, y, z);
+    let t = fatT(ax, y, z);
+    const tb = boneLim(ax, y, z) - DERM; if (tb < t) t = Math.max(0.06, tb); // ossos subcutâneos (casca fora do osso)
     if (!fatLim || y <= FH.y0 || y >= FH.y1 || ax >= FH.x1) return t;
     const fx = clamp((ax - FH.x0) / FH.d, 0, FH.nx - 1.001), fy = clamp((y - FH.y0) / FH.d, 0, FH.ny - 1.001);
     const zs = bil(skinFZ, fx, fy); if (z < zs - 2.6) return t;   // só junto à face anterior
     const L = bil(fatLim, fx, fy);
-    return L < t ? Math.max(0.1, L) : t;
+    return L < t ? Math.max(Math.min(0.1, t), L) : t;
   };
 
   /* ======================================================================
@@ -1162,14 +1260,16 @@ ATLAS.define('skin', function (ctx) {
      7. CAMPO ESTÉRIL FENESTRADO + ANTISSEPSIA (camada drape)
      ====================================================================== */
   // construído sob demanda quando a camada 'drape' fica visível pela primeira vez (grupos já registrados)
-  const infoDrape = G({ id: 'drape', name: 'Campo estéril fenestrado', desc: 'Barreira estéril máxima com janela sobre a incisura jugular, o terço medial da clavícula direita e a região infraclavicular direita, ampla o bastante para a fixação do canhão do cateter na pele.' });
+  const infoDrape = G({ id: 'drape', name: 'Campo estéril fenestrado', desc: 'Barreira estéril máxima com janela sobre a incisura jugular, o terço medial da clavícula direita e a região infraclavicular direita, ampla o bastante para a fixação do canhão e o curativo transparente sobre a pele.' });
   const infoPrep = G({ id: 'skin-prep', name: 'Área de antissepsia (clorexidina)', desc: 'Antissepsia ampla da pele antes da colocação do campo: do pescoço ao tórax anterior e ombro direito.' });
   const drapeGrp = new THREE.Group(), prepGrp = new THREE.Group(); drapeGrp.name = 'Campo estéril'; prepGrp.name = 'Antissepsia';
   layers.drape.add(drapeGrp, prepGrp); C.reg(drapeGrp, infoDrape); C.reg(prepGrp, infoPrep);
   let drapeBuilt = false;
   // fenestra (retângulo de cantos arredondados, cm; centro, meias-dimensões, raio): fonte única — exportada em
-  // api.drapeWindow para o módulo instruments (canhão, asas e fixação sobre a pele dentro da janela)
-  const drapeWin = Object.freeze({ cx: 6.2, cy: -0.45, hx: 8.3, hy: 4.45, r: 2.2 });
+  // api.drapeWindow para os módulos instruments/fixation (canhão, asas, bailarina e curativo sobre a pele dentro da janela).
+  // x −2,1 → 16,9; y −6,7 → 4,0; canto de raio 4,0: o curativo transparente da fixação (~9 × 9 cm, girado, até x ≈ 16,2 e
+  // y ≈ −6,0) fica inteiro sobre a pele, com ~0,6 cm de margem até a borda adesiva
+  const drapeWin = Object.freeze({ cx: 7.4, cy: -1.35, hx: 9.5, hy: 5.35, r: 4.0 });
   function buildDrape() {
     drapeBuilt = true;
     // altura da pele vista de frente (z máximo) numa grade 2D, a partir dos vértices da pele
@@ -1186,9 +1286,9 @@ ATLAS.define('skin', function (ctx) {
         const k = cj * DG.nx + ci; if (z > skinZ[k]) skinZ[k] = z;
       }
     }
-    // janela ~16,6 × 9,2 cm: incisura (com margem), ⅓ medial da clavícula D e região infraclavicular D até o sulco
-    // deltopeitoral medial — o canhão do cateter, as asas de sutura e a fixação em bailarina ficam sobre a PELE
-    // (canhão ~3,3 cm ínfero-lateral à entrada: até x≈13,2, y≈−3,9 com as asas)
+    // janela ~19 × 10,7 cm: incisura (com margem), ⅓ medial da clavícula D e região infraclavicular D até o sulco
+    // deltopeitoral — o canhão do cateter, as asas de sutura, a fixação em bailarina e o curativo transparente ficam
+    // sobre a PELE (canhão ~3,3 cm ínfero-lateral à entrada: até x≈13,8, y≈−4,1 com as asas)
     const win = drapeWin;
     const winD = (x, y) => { const qx = Math.abs(x - win.cx) - (win.hx - win.r), qy = Math.abs(y - win.cy) - (win.hy - win.r); return Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - win.r; };
     // os braços estão seccionados em y≈−15,5: para o pano, prolonga-se cada coluna do braço para baixo
@@ -1249,9 +1349,9 @@ ATLAS.define('skin', function (ctx) {
     }
     // antissepsia (clorexidina alcoólica tingida): decalque translúcido levemente acima da pele
     {
-      const reg = { x0: -5.5, x1: 18.0, y0: -12.5, y1: 10.0 }; // antissepsia sempre mais ampla que a fenestra do campo
+      const reg = { x0: -7.0, x1: 21.5, y0: -13.5, y1: 10.0 }; // antissepsia sempre mais ampla que a fenestra do campo
       const blob = (x, y) => { // distância (negativa dentro) de uma área ampla com borda irregular
-        const cx = 6.2, cy = -1.1, rx = 11.0, ry = 10.0;
+        const cx = 7.3, cy = -1.6, rx = 13.8, ry = 10.8;
         const q = Math.hypot((x - cx) / rx, (y - cy) / ry) - 1;
         return q * 9 + 2.2 * (C.noise3(x * 0.35, y * 0.35, 0.5, 77) - 0.5) + 0.9 * (C.noise3(x * 0.9, y * 0.9, 1.5, 78) - 0.5);
       };

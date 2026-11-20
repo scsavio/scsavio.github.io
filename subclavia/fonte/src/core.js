@@ -80,7 +80,7 @@
 
     /* ---------- curvas ---------- */
     C.curve = (pts, closed = false, tension = 0.5) =>
-      pts && pts.isCurve ? pts : new THREE.CatmullRomCurve3(pts.map(V), closed, 'centripetal', tension);
+      pts && (pts.isCurve || typeof pts.getPointAt === 'function') ? pts : new THREE.CatmullRomCurve3(pts.map(V), closed, 'centripetal', tension);
 
     /** Amostra uma curva (arco-comprimento) → array de [x,y,z]. */
     C.sample = (pts, n = 32) => { const c = C.curve(pts); const out = []; for (let i = 0; i <= n; i++) out.push(c.getPointAt(i / n).toArray()); return out; };
@@ -91,10 +91,11 @@
          opts.r | opts.rx/opts.ry : número | array | [[t,v]] | fn(t)  (rx no eixo N, ry no eixo B)
          opts.up : [x,y,z] | Vector3 | fn(t,p,T)→Vector3 — orienta o eixo N (ex.: borda superior de costela)
                    (sem up: quadros de rotação mínima)
-         opts.segments, opts.radial, opts.caps ('round'|'flat'|'none'), opts.capStart, opts.capEnd
+         opts.segments, opts.radial, opts.caps ('round'|'flat'|'none'), opts.capStart, opts.capEnd, opts.capRings (6)
          opts.exp : expoente de superelipse (2 = elipse; >2 = mais "quadrado")
          opts.radial_fn(t,a)→ multiplicador radial (sulcos, achatamentos)
          opts.noise {amp, freq, seed} : rugosidade orgânica radial
+         opts.disp(t,a)→[dN, dB] : deslocamento ADITIVO (cm) no quadro N/B (sulcos/cristas sem estreitar a secção)
          opts.vScale : comprimento (cm) por repetição de textura no eixo v
     */
     C.sweepGeometry = function (path, o = {}) {
@@ -106,6 +107,7 @@
       const rx = C.profile(o.rx ?? o.r ?? 0.5), ry = C.profile(o.ry ?? o.rx ?? o.r ?? 0.5);
       const exp = o.exp || 2;
       const radialFn = o.radial_fn || null;
+      const dispFn = o.disp || null;
       const noise = o.noise || null;
       const capStart = (o.capStart ?? true) && (o.caps ?? 'round') !== 'none';
       const capEnd = (o.capEnd ?? true) && (o.caps ?? 'round') !== 'none';
@@ -143,23 +145,24 @@
       // anéis (cap início → corpo → cap fim)
       const rings = []; // {c, n, b, sx, sy, v, t}
       const arcAt = (t) => t * len;
-      const K = capType === 'round' ? 6 : 1;
+      const ctS = o.capStartType || capType, ctE = o.capEndType || capType; // tipo de tampa por extremidade
+      const KS = ctS === 'round' ? Math.max(2, o.capRings || 6) : 1, KE = ctE === 'round' ? Math.max(2, o.capRings || 6) : 1;
       if (capStart) {
-        const a0 = rx(0), b0 = ry(0), m = Math.min(a0, b0);
+        const a0 = rx(0), b0 = ry(0), m = Math.min(a0, b0), K = KS;
         for (let k = K; k >= 1; k--) {
-          const phi = capType === 'round' ? (k / K) * Math.PI / 2 : Math.PI / 2;
-          const sc = capType === 'round' ? Math.max(0.02, Math.cos(phi)) : 0.001;
-          const off = capType === 'round' ? m * Math.sin(phi) * 0.9 : 0;
+          const phi = ctS === 'round' ? (k / K) * Math.PI / 2 : Math.PI / 2;
+          const sc = ctS === 'round' ? Math.max(0.02, Math.cos(phi)) : 0.001;
+          const off = ctS === 'round' ? m * Math.sin(phi) * 0.9 : 0;
           rings.push({ c: P[0].clone().addScaledVector(T[0], -off), n: Nn[0], b: Bn[0], sx: a0 * sc, sy: b0 * sc, v: -off / vScale, t: 0, cap: true });
         }
       }
       for (let j = 0; j <= N; j++) rings.push({ c: P[j], n: Nn[j], b: Bn[j], sx: rx(U[j]), sy: ry(U[j]), v: arcAt(U[j]) / vScale, t: U[j] });
       if (capEnd) {
-        const a1 = rx(1), b1 = ry(1), m = Math.min(a1, b1);
+        const a1 = rx(1), b1 = ry(1), m = Math.min(a1, b1), K = KE;
         for (let k = 1; k <= K; k++) {
-          const phi = capType === 'round' ? (k / K) * Math.PI / 2 : Math.PI / 2;
-          const sc = capType === 'round' ? Math.max(0.02, Math.cos(phi)) : 0.001;
-          const off = capType === 'round' ? m * Math.sin(phi) * 0.9 : 0;
+          const phi = ctE === 'round' ? (k / K) * Math.PI / 2 : Math.PI / 2;
+          const sc = ctE === 'round' ? Math.max(0.02, Math.cos(phi)) : 0.001;
+          const off = ctE === 'round' ? m * Math.sin(phi) * 0.9 : 0;
           rings.push({ c: P[N].clone().addScaledVector(T[N], off), n: Nn[N], b: Bn[N], sx: a1 * sc, sy: b1 * sc, v: (len + off) / vScale, t: 1, cap: true });
         }
       }
@@ -175,6 +178,7 @@
           if (radialFn) m *= radialFn(rg.t, a);
           if (noise) m *= 1 + noise.amp * (C.fbm3(rg.c.x * noise.freq + ca, rg.c.y * noise.freq + sa, rg.c.z * noise.freq, 3, noise.seed || 0) - 0.5) * 2;
           const p = rg.c.clone().addScaledVector(rg.n, rg.sx * ca * m).addScaledVector(rg.b, rg.sy * sa * m);
+          if (dispFn && !rg.cap) { const d = dispFn(rg.t, a); if (d) p.addScaledVector(rg.n, d[0] || 0).addScaledVector(rg.b, d[1] || 0); }
           pos.push(p.x, p.y, p.z); uv.push(k / R, rg.v);
           if (i < rings.length - 1 && k < R) { const q = i * (R + 1) + k; idx.push(q, q + 1, q + R + 1, q + 1, q + R + 2, q + R + 1); }
         }
@@ -306,6 +310,27 @@
       return g;
     };
 
+    /** Funde geometrias (mesmo material) numa só: menos chamadas de desenho/sombra. Mantém só os atributos
+        comuns a todas (position/normal/uv); geometrias sem índice recebem índice sequencial. */
+    C.mergeGeometries = function (geos) {
+      geos = geos.filter(Boolean);
+      const names = ['position', 'normal', 'uv'].filter((k) => geos.every((g) => g.attributes[k]));
+      const out = new THREE.BufferGeometry(), idx = [];
+      let off = 0;
+      const arrs = Object.fromEntries(names.map((k) => [k, []]));
+      for (const g of geos) {
+        for (const k of names) { const a = g.attributes[k]; for (let i = 0; i < a.count; i++) for (let c = 0; c < a.itemSize; c++) arrs[k].push(a.array[i * a.itemSize + c]); }
+        const n = g.attributes.position.count;
+        if (g.index) { const ix = g.index.array; for (let i = 0; i < ix.length; i++) idx.push(ix[i] + off); }
+        else for (let i = 0; i < n; i++) idx.push(i + off);
+        off += n;
+      }
+      for (const k of names) out.setAttribute(k, new THREE.Float32BufferAttribute(arrs[k], k === 'uv' ? 2 : 3));
+      out.setIndex(idx);
+      if (!out.attributes.normal) out.computeVertexNormals();
+      return out;
+    };
+
     /* ---------- texturas procedurais (canvas) ---------- */
     const canvas = (w, h = w) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
     const toTex = (cv, o = {}) => {
@@ -336,6 +361,10 @@
       ctx.putImageData(img, 0, 0); return cv;
     };
     const texCache = {};
+    /** Filtro anisotrópico das texturas procedurais (chamado pelo motor quando conhece o renderer). */
+    C.setAnisotropy = function (n) {
+      for (const v of Object.values(texCache)) (v && v.isTexture ? [v] : Object.values(v || {})).forEach((t) => { if (t && t.isTexture) t.anisotropy = n; });
+    };
     C.tex = {
       /** Normal map de ruído orgânico. */
       noiseNormal(key = 'n', o = {}) {
@@ -344,17 +373,60 @@
         for (let y = 0; y < s; y++) for (let x = 0; x < s; x++) H[y * s + x] = tileNoise(x, y, s, o.freq || 0.06, o.seed || 3, o.oct || 4);
         return (texCache[key] = toTex(heightToNormal(H, s, o.strength || 3), o));
       },
-      /** Normal map de fibras musculares ao longo de v (direção do comprimento). */
+      /** Normal map de fibras ao longo de v (direção do comprimento): FEIXES de largura irregular (não uma
+          senoide pura, que dava listras equidistantes tipo veludo cotelê e moiré), com deriva lenta ao longo
+          de v, subfibras e grão. o.cycles = número de feixes por repetição (nervo: fascículos). */
       fibers(key = 'fib', o = {}) {
         if (texCache[key]) return texCache[key];
-        const s = o.size || 256, H = new Float32Array(s * s), cycles = o.cycles || 22;
-        for (let y = 0; y < s; y++) for (let x = 0; x < s; x++) {
-          const wob = tileNoise(x, y, s, 0.03, 11, 2) * 1.6;
-          const base = 0.5 + 0.5 * Math.sin(((x / s) * cycles + wob) * Math.PI * 2);
-          const grain = tileNoise(x, y, s, 0.12, 5, 2);
-          H[y * s + x] = base * 0.75 + grain * 0.25;
+        const s = o.size || 512, H = new Float32Array(s * s), nb = Math.max(3, Math.round(o.cycles || 34));
+        const r = C.rng(o.seed || 23);
+        // fronteiras periódicas dos feixes, larguras 0,45–1,7× a média
+        const w = []; for (let i = 0; i < nb; i++) w.push(0.45 + 1.25 * r());
+        const tot = w.reduce((a, b) => a + b, 0), B = [0];
+        for (let i = 0; i < nb; i++) B.push(B[i] + w[i] / tot);
+        B[nb] = 1; // fechamento exato (u < 1 sempre)
+        const shade = w.map((_, i) => 0.8 + 0.4 * ((i * 0.618) % 1));
+        // ruídos em baixa resolução (amostrados com wrap): deriva/ondulação e grão fino
+        const ns = Math.max(32, s >> 2), N1 = new Float32Array(ns * ns), N2 = new Float32Array(ns * ns);
+        for (let y = 0; y < ns; y++) for (let x = 0; x < ns; x++) { N1[y * ns + x] = tileNoise(x, y, ns, 0.09, 11, 2); N2[y * ns + x] = tileNoise(x, y, ns, 0.45, 5, 2); }
+        const samp = (F, x, y) => { // bilinear periódico em coordenadas do mapa grande
+          const fx = (x / s) * ns, fy = (y / s) * ns, x0 = Math.floor(fx), y0 = Math.floor(fy), tx = fx - x0, ty = fy - y0;
+          const i0 = ((x0 % ns) + ns) % ns, i1 = (i0 + 1) % ns, j0 = ((y0 % ns) + ns) % ns, j1 = (j0 + 1) % ns;
+          return (F[j0 * ns + i0] * (1 - tx) + F[j0 * ns + i1] * tx) * (1 - ty) + (F[j1 * ns + i0] * (1 - tx) + F[j1 * ns + i1] * tx) * ty;
+        };
+        let bi = 0;
+        for (let y = 0; y < s; y++) {
+          const drift = 0.018 * Math.sin((2 * Math.PI * 2 * y) / s) + 0.03 * (samp(N1, 0, y) - 0.5);
+          for (let x = 0; x < s; x++) {
+            const n1 = samp(N1, x, y), grain = samp(N2, x * 4, y); // grão alongado ao longo de v (fatores inteiros: tileável)
+            let u = x / s + drift + 0.02 * (n1 - 0.5); u -= Math.floor(u);
+            while (u < B[bi]) bi = (bi + nb - 1) % nb;
+            while (u >= B[bi + 1]) bi = (bi + 1) % nb;
+            const t = (u - B[bi]) / (B[bi + 1] - B[bi]);
+            const crest = Math.pow(Math.max(0, Math.sin(Math.PI * t)), 0.5);
+            const sub = 0.5 + 0.5 * Math.sin(2 * Math.PI * (u * nb * 5 + 0.6 * n1));
+            H[y * s + x] = 0.62 * crest * shade[bi] + 0.18 * sub + 0.2 * grain;
+          }
         }
-        return (texCache[key] = toTex(heightToNormal(H, s, o.strength || 4), o));
+        return (texCache[key] = toTex(heightToNormal(H, s, o.strength || 2.2), o));
+      },
+      /** Normal map de osso cortical: microporosidade (ruído fino) + poros esparsos (depressões puntiformes). */
+      pores(key = 'pores', o = {}) {
+        if (texCache[key]) return texCache[key];
+        const s = o.size || 512, H = new Float32Array(s * s), r = C.rng(o.seed || 17);
+        const ns = s >> 1, N = new Float32Array(ns * ns);
+        for (let y = 0; y < ns; y++) for (let x = 0; x < ns; x++) N[y * ns + x] = tileNoise(x, y, ns, o.freq || 0.16, o.seed || 17, 3);
+        for (let y = 0; y < s; y++) for (let x = 0; x < s; x++) H[y * s + x] = N[(y >> 1) * ns + (x >> 1)];
+        const pits = Math.round(s * s * (o.density || 0.004));
+        for (let k = 0; k < pits; k++) {
+          const cx = r() * s, cy = r() * s, rad = 0.8 + r() * 1.6, d = 0.35 + 0.35 * r();
+          for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) {
+            const q = Math.hypot(dx, dy * 0.8) / rad; if (q >= 1) continue;
+            const x = ((Math.round(cx) + dx) % s + s) % s, y = ((Math.round(cy) + dy) % s + s) % s;
+            H[y * s + x] -= d * (1 - q * q);
+          }
+        }
+        return (texCache[key] = toTex(heightToNormal(H, s, o.strength || 1.3), o));
       },
       /** Padrão lobular poligonal (Voronoi) para superfície pulmonar: {map, normal}. */
       lobules(key = 'lob', o = {}) {
@@ -407,11 +479,15 @@
       m.onBeforeCompile = (sh, r) => {
         if (prev) prev(sh, r);
         sh.uniforms.cutColor = { value: m.userData.cutColor };
+        // Na tela (TONE_MAPPING definido) a cor de secção é escrita já em sRGB, depois do tone mapping.
+        // Num alvo de renderização (pós-processamento) a saída é linear e o OutputPass aplica ACES+sRGB:
+        // converte-se para linear para a secção não "desbotar" (o ACES ainda altera um pouco os meios-tons).
         sh.fragmentShader = sh.fragmentShader
           .replace('#include <common>', '#include <common>\nuniform vec3 cutColor;')
-          .replace('#include <dithering_fragment>', '#include <dithering_fragment>\n if(!gl_FrontFacing){ gl_FragColor = vec4(cutColor, 1.0); }');
+          .replace('#include <dithering_fragment>', '#include <dithering_fragment>\n if(!gl_FrontFacing){\n#ifdef TONE_MAPPING\n  gl_FragColor = vec4(cutColor, 1.0);\n#else\n  gl_FragColor = vec4(pow(cutColor, vec3(2.2)), 1.0);\n#endif\n }');
       };
-      m.customProgramCacheKey = () => 'cut' + cutHex;
+      // a cor é um uniforme: UMA variante de programa para todas as cores de secção (antes 'cut'+cor → dezenas de programas)
+      m.customProgramCacheKey = () => 'cut';
       return m;
     };
     C.mat = function (o = {}) {
@@ -419,29 +495,46 @@
       const cut = p.cut; delete p.cut;
       const m = new THREE.MeshPhysicalMaterial(p);
       m.clippingPlanes = C.clipPlanes;
+      m.clipShadows = true; // a parte cortada não projeta sombra
       if (cut !== undefined && cut !== false) C.withCut(m, cut);
       return m;
     };
-    const fib = () => C.tex.fibers('fib', { cycles: 26 });
-    const nz = () => C.tex.noiseNormal('nz', { freq: 0.05, strength: 2.5 });
+    /** Contorno de Fresnel (alfa maior na silhueta): véus translúcidos que desenham o contorno sem lavar o que está atrás. */
+    C.fresnelAlpha = function (m, lo = 0.1, pw = 3, key = 'fr') {
+      const prev = m.onBeforeCompile, prevKey = m.customProgramCacheKey ? m.customProgramCacheKey() : '';
+      m.onBeforeCompile = (sh, r) => {
+        if (prev) prev(sh, r);
+        sh.fragmentShader = sh.fragmentShader.replace('#include <opaque_fragment>',
+          '{ float frA = pow(1.0 - saturate(abs(dot(nonPerturbedNormal, geometryViewDir))), ' + pw.toFixed(2) + '); diffuseColor.a *= mix(' + lo.toFixed(3) + ', 1.0, frA); }\n#include <opaque_fragment>');
+      };
+      m.customProgramCacheKey = () => prevKey + '|' + key;
+      return m;
+    };
+    const fib = () => C.tex.fibers('fib', { cycles: 34 });
+    const pores = () => C.tex.pores('pores', { size: 512, freq: 0.16, strength: 1.3, seed: 17 });
     const fine = () => C.tex.noiseNormal('fine', { freq: 0.16, strength: 1.6, seed: 8 });
     C.mats = {};
     C.initMaterials = function () {
       const M = C.mats;
-      M.bone = C.mat({ color: '#e2d3b1', roughness: 0.6, sheen: 0.25, sheenColor: '#fff6df', normalMap: nz(), normalScale: new THREE.Vector2(0.35, 0.35), cut: 0xd9b98a });
-      M.boneDark = C.mat({ color: '#ddcfae', roughness: 0.66, normalMap: nz(), normalScale: new THREE.Vector2(0.4, 0.4), cut: 0xd2ae7e });
-      M.cartilage = C.mat({ color: '#cdd7d6', roughness: 0.32, clearcoat: 0.35, clearcoatRoughness: 0.35, sheen: 0.3, sheenColor: '#eaf6ff', cut: 0xb8c9cc });
-      M.disc = C.mat({ color: '#d5dccf', roughness: 0.45, clearcoat: 0.2, cut: 0xc4cbb8 });
-      M.vein = C.mat({ color: '#2d5e9c', roughness: 0.28, clearcoat: 0.7, clearcoatRoughness: 0.25, normalMap: fine(), normalScale: new THREE.Vector2(0.15, 0.15), cut: 0x4a1f2a });
-      M.artery = C.mat({ color: '#c0392f', roughness: 0.3, clearcoat: 0.7, clearcoatRoughness: 0.25, normalMap: fine(), normalScale: new THREE.Vector2(0.15, 0.15), cut: 0x7a1d1a });
-      M.muscle = C.mat({ color: '#a8463d', roughness: 0.55, sheen: 0.6, sheenRoughness: 0.5, sheenColor: '#f2a493', normalMap: fib(), normalScale: new THREE.Vector2(0.55, 0.55), cut: 0x8e3a33 });
-      M.muscleDeep = C.mat({ color: '#92413a', roughness: 0.58, sheen: 0.5, sheenColor: '#e79a8a', normalMap: fib(), normalScale: new THREE.Vector2(0.5, 0.5), cut: 0x7d342e });
-      M.tendon = C.mat({ color: '#e7dcc8', roughness: 0.3, clearcoat: 0.4, sheen: 0.5, sheenColor: '#ffffff', normalMap: fib(), normalScale: new THREE.Vector2(0.3, 0.3), cut: 0xd8cbb2 });
-      M.ligament = C.mat({ color: '#d8cdb5', roughness: 0.35, clearcoat: 0.3, normalMap: fib(), normalScale: new THREE.Vector2(0.35, 0.35), cut: 0xc9bc9f });
-      M.nerve = C.mat({ color: '#f0cf5f', roughness: 0.45, sheen: 0.5, sheenColor: '#fff3b8', normalMap: fib(), normalScale: new THREE.Vector2(0.25, 0.25), cut: 0xd9b84c });
+      // Paleta calibrada para ACES + IBL por material (envMapIntensity ≈ 0,5): cores de base mais saturadas,
+      // osso sem sheen (o sheen claro deixava o osso neutro, colado ao fundo), cartilagem sem aspecto de gelo.
+      const boneMot = C.tex.mottle('boneMot', '#ffffff', { amp: 0.05, freq: 0.08 });
+      M.bone = C.mat({ color: '#d6c29a', map: boneMot, roughness: 0.62, sheen: 0, clearcoat: 0.05, clearcoatRoughness: 0.6, normalMap: pores(), normalScale: new THREE.Vector2(0.22, 0.22), cut: 0xd2b483 });
+      M.boneDark = C.mat({ color: '#cbb48a', map: boneMot, roughness: 0.66, normalMap: pores(), normalScale: new THREE.Vector2(0.25, 0.25), cut: 0xc4a473 });
+      M.cartilage = C.mat({ color: '#b9c7c4', roughness: 0.38, clearcoat: 0.2, clearcoatRoughness: 0.4, sheen: 0, cut: 0xa9bcbc });
+      M.disc = C.mat({ color: '#cfd5c3', roughness: 0.45, clearcoat: 0.15, cut: 0xbcc3ad });
+      // secção da veia AZUL-escura (antes vinho, igual à artéria no capítulo de corte)
+      M.vein = C.mat({ color: '#2d5e9c', roughness: 0.28, clearcoat: 0.7, clearcoatRoughness: 0.25, normalMap: fine(), normalScale: new THREE.Vector2(0.15, 0.15), cut: 0x1f3d6e });
+      M.artery = C.mat({ color: '#c4342a', roughness: 0.3, clearcoat: 0.7, clearcoatRoughness: 0.25, normalMap: fine(), normalScale: new THREE.Vector2(0.15, 0.15), cut: 0x7a1d1a });
+      M.muscle = C.mat({ color: '#983a31', roughness: 0.5, sheen: 0.25, sheenRoughness: 0.6, sheenColor: '#d47a68', clearcoat: 0.2, clearcoatRoughness: 0.4, normalMap: fib(), normalScale: new THREE.Vector2(0.22, 0.22), cut: 0x8e3a33 });
+      M.muscleDeep = C.mat({ color: '#863730', roughness: 0.55, sheen: 0.2, sheenRoughness: 0.6, sheenColor: '#cf7a6a', clearcoat: 0.15, clearcoatRoughness: 0.45, normalMap: fib(), normalScale: new THREE.Vector2(0.22, 0.22), cut: 0x7d342e });
+      M.tendon = C.mat({ color: '#e3dccb', roughness: 0.32, clearcoat: 0.45, clearcoatRoughness: 0.35, sheen: 0.2, sheenColor: '#ffffff', normalMap: fib(), normalScale: new THREE.Vector2(0.25, 0.25), cut: 0xd8cbb2 });
+      M.ligament = C.mat({ color: '#d8cdb5', roughness: 0.35, clearcoat: 0.3, normalMap: fib(), normalScale: new THREE.Vector2(0.3, 0.3), cut: 0xc9bc9f });
+      M.nerve = C.mat({ color: '#e2bd4f', roughness: 0.45, sheen: 0.3, sheenColor: '#fff3b8', normalMap: fib(), normalScale: new THREE.Vector2(0.22, 0.22), cut: 0xd9b84c });
       M.lymph = C.mat({ color: '#8fbf63', roughness: 0.35, clearcoat: 0.5, cut: 0x6f9a48 });
-      M.lung = C.mat({ color: '#e0a3a3', roughness: 0.62, sheen: 0.6, sheenColor: '#ffd6d6', cut: 0xc98a8f });
-      M.pleura = C.mat({ color: '#bfe3ea', roughness: 0.15, clearcoat: 1, clearcoatRoughness: 0.1, transparent: true, opacity: 0.16, depthWrite: false, side: THREE.DoubleSide });
+      M.lung = C.mat({ color: '#e3a6a1', roughness: 0.62, sheen: 0.4, sheenColor: '#ffd6d6', cut: 0xc98a8f });
+      // pleura: véu quase invisível de frente (≈0,05) e contorno nítido na silhueta (≈0,5) — desenha a cúpula sem lavar o pulmão
+      M.pleura = C.fresnelAlpha(C.mat({ color: '#9fcbd6', roughness: 0.15, clearcoat: 1, clearcoatRoughness: 0.1, transparent: true, opacity: 0.5, depthWrite: false, side: THREE.DoubleSide }), 0.1, 3, 'pleuraFr');
       M.heart = C.mat({ color: '#a94b42', roughness: 0.5, sheen: 0.5, sheenColor: '#f0a090', normalMap: fib(), normalScale: new THREE.Vector2(0.3, 0.3), cut: 0x7e2f2a });
       M.pericardium = C.mat({ color: '#efe2cf', roughness: 0.3, clearcoat: 0.6, transparent: true, opacity: 0.35, depthWrite: false, side: THREE.DoubleSide });
       M.fat = C.mat({ color: '#efd38a', roughness: 0.55, sheen: 0.3, cut: 0xe7c46d });
@@ -499,7 +592,7 @@
       const cols = [];
       const pa = room.attributes.position;
       for (let i = 0; i < pa.count; i++) {
-        const y = pa.getY(i) / 50; const top = new THREE.Color('#f6f1e6'), mid = new THREE.Color('#c9d3cf'), bot = new THREE.Color('#5f6c68');
+        const y = pa.getY(i) / 50; const top = new THREE.Color('#f6f1e6'), mid = new THREE.Color('#c9d3cf'), bot = new THREE.Color('#2e3634');
         const c = y > 0 ? mid.clone().lerp(top, y) : mid.clone().lerp(bot, -y);
         cols.push(c.r, c.g, c.b);
       }
@@ -509,10 +602,13 @@
         const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide }));
         m.material.color.multiplyScalar(intensity); m.position.set(...pos); m.lookAt(...look); sc.add(m);
       };
-      panel(30, 18, [18, 36, 26], [0, 0, 0], 6);
+      panel(30, 18, [18, 36, 26], [0, 0, 0], 4.5);
       panel(22, 14, [-34, 14, 18], [0, 0, 0], 2.4, '#e8f0ff');
       panel(26, 10, [0, 10, -40], [0, 0, 0], 3.2, '#fff1dc');
       panel(40, 6, [0, -30, 10], [0, 0, 0], 0.8);
+      // "bandeiras" escuras: linhas de reflexão escuras no aço e realces úmidos definidos (antes a sala era só clara)
+      panel(40, 30, [-45, 5, -20], [0, 0, 0], 0.05, '#1c2426');
+      panel(30, 20, [40, -12, -30], [0, 0, 0], 0.05, '#1c2426');
       const pm = new THREE.PMREMGenerator(renderer);
       const rt = pm.fromScene(sc, 0.03);
       pm.dispose();

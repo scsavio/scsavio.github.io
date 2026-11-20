@@ -53,13 +53,15 @@ ATLAS.define('nerves', function (ctx) {
   // variação sutil de cor (mosqueado) multiplicada pela cor do material — tira o aspecto "plástico" uniforme
   const mot = C.tex.mottle('nerveMot', '#ffffff', { size: 128, amp: 0.09, freq: 0.07, seed: 6 });
   const MAT = {
-    // nervos somáticos: amarelo convencional, brilho acetinado do epineuro
-    nerve: C.mat({ map: mot, color: '#efcf62', roughness: 0.42, sheen: 0.55, sheenRoughness: 0.45, sheenColor: '#fff3c2', clearcoat: 0.14, clearcoatRoughness: 0.5, normalMap: fasc, normalScale: new THREE.Vector2(0.5, 0.5), cut: 0xe2c062 }),
+    // nervos somáticos: amarelo-ouro saturado (mesmo tom da legenda #e9c64f); sheen contido — sheen/clearcoat altos
+    // deixavam o epineuro leitoso, com aspecto translúcido/gelatinoso
+    // (medido na captura: com #e2bd4f/sheen 0,3 o tronco saía #e1cf86 — ainda claro; sheen 0,2 e base #ddb444 aproximam da legenda)
+    nerve: C.mat({ map: mot, color: '#ddb444', roughness: 0.52, sheen: 0.2, sheenRoughness: 0.5, sheenColor: '#f2d27a', clearcoat: 0.04, clearcoatRoughness: 0.6, normalMap: fasc, normalScale: new THREE.Vector2(0.5, 0.5), cut: 0xd6ad3e }),
     // vago/recorrente: mesmo código de cor, tom levemente mais claro
-    vagus: C.mat({ map: mot, color: '#f1d877', roughness: 0.42, sheen: 0.55, sheenRoughness: 0.45, sheenColor: '#fff6d2', clearcoat: 0.14, clearcoatRoughness: 0.5, normalMap: fasc, normalScale: new THREE.Vector2(0.45, 0.45), cut: 0xe4c86f }),
+    vagus: C.mat({ map: mot, color: '#e3bf52', roughness: 0.52, sheen: 0.2, sheenRoughness: 0.5, sheenColor: '#f5da8e', clearcoat: 0.04, clearcoatRoughness: 0.6, normalMap: fasc, normalScale: new THREE.Vector2(0.45, 0.45), cut: 0xd9b54b }),
     // autonômico (tronco simpático): ocre um pouco mais escuro, para diferenciar do somático
-    auto: C.mat({ map: mot, color: '#ddb24e', roughness: 0.46, sheen: 0.45, sheenColor: '#ffe9b0', normalMap: fasc, normalScale: new THREE.Vector2(0.35, 0.35), cut: 0xc89c3e }),
-    ganglion: C.mat({ map: mot, color: '#d9a955', roughness: 0.5, sheen: 0.5, sheenRoughness: 0.5, sheenColor: '#ffe2a8', normalMap: gangN, normalScale: new THREE.Vector2(0.55, 0.55), cut: 0xc4943f }),
+    auto: C.mat({ map: mot, color: '#d4a647', roughness: 0.52, sheen: 0.28, sheenRoughness: 0.5, sheenColor: '#efd08a', normalMap: fasc, normalScale: new THREE.Vector2(0.35, 0.35), cut: 0xbf9136 }),
+    ganglion: C.mat({ map: mot, color: '#cd9b48', roughness: 0.55, sheen: 0.3, sheenRoughness: 0.5, sheenColor: '#ecc985', normalMap: gangN, normalScale: new THREE.Vector2(0.55, 0.55), cut: 0xb98a38 }),
     // linfáticos: verde convencional; ducto com superfície úmida
     duct: C.mat({ color: '#86bd5c', roughness: 0.3, clearcoat: 0.65, clearcoatRoughness: 0.3, sheen: 0.3, sheenColor: '#e6ffd0', normalMap: ductN, normalScale: new THREE.Vector2(0.25, 0.25), cut: 0x6a9a45 }),
     node: C.mat({ color: '#9cc46e', roughness: 0.5, sheen: 0.45, sheenColor: '#efffd8', clearcoat: 0.25, clearcoatRoughness: 0.5, normalMap: gangN, normalScale: new THREE.Vector2(0.3, 0.3), cut: 0x7aa54f }),
@@ -123,7 +125,10 @@ ATLAS.define('nerves', function (ctx) {
     return 'branch';
   }
   const extObs = (side) => EXT.filter((q) => { const xs = q.pts.map((p) => p[0]); return side > 0 ? Math.max(...xs) > -0.5 : Math.min(...xs) < 0.5; })
-    .map((q) => { const n = q.pts.length - 1; return flat({ key: cat(q.id), id: q.id, P: q.pts.map(v3), R: q.pts.map((_, i) => Math.max(0.02, +q.r(n ? i / n : 0) || 0)), get rmax() { return Math.max(...this.R); }, box: boxOf(q.pts.map(v3)) }); });
+    .map((q) => {
+      const n = q.pts.length - 1, P = q.pts.map(v3), R = q.pts.map((_, i) => Math.max(0.02, +q.r(n ? i / n : 0) || 0));
+      return flat({ key: cat(q.id), id: q.id, P, R, rmax: Math.max(...R), box: boxOf(P) }); // rmax fixo (antes: getter que realocava a cada acesso)
+    });
   const hasVessels = EXT.some((q) => /^(sca|scv|ijv)-/.test(q.id)), hasMuscles = EXT.some((q) => /^mus-scalene/.test(q.id));
   // Brônquios principais e lobares: mesmas cadeias do módulo de vísceras (construído depois), +0,1 cm de folga para os
   // anéis cartilagíneos. Garantem que os vagos passem POSTERIORES às raízes pulmonares. Se o integrador expuser
@@ -138,11 +143,15 @@ ATLAS.define('nerves', function (ctx) {
       [[[-4.0, -7.35, -5.15], [-4.9, -7.0, -5.6], [-5.8, -6.5, -5.9]], [0.46, 0.42, 0.38]]],
   };
   const bronchObs = (side) => BRONCHI[side].map(([pts, r]) => { const rf = C.profile(r); return obsTube('bronchus', pts, (t) => rf(t) + 0.1); });
+  // corpos vertebrais C7–T12 (face anterior em zf, mesma fórmula do esqueleto): o ducto torácico cruza para a esquerda
+  // em T5–T4 espremido entre o esôfago e a coluna — sem este obstáculo ele era empurrado para dentro do corpo de T5
+  const VB = ['C7', 'T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8', 'T9', 'T10', 'T11', 'T12'].map((n) => LM.vert(n));
+  const vbodyObs = () => obsTube('vbody', VB.map((v) => [0, v.y, v.zf - v.d / 2]), VB.map((v) => v.d / 2));
   function obstaclesRight() {
     const O = [
       obsTube('rib1', LM.ribs[0].pts, 0.3), obsTube('clav', LM.clavicle.pts, clavR), ...bronchObs('R'),
       obsSphere('cupula', LM.pleura.cupulaCenter, LM.pleura.cupulaR),
-      obsTube('trachea', LM.trachea.pts, LM.trachea.r), obsTube('esoph', LM.esophagus.pts, LM.esophagus.r),
+      obsTube('trachea', LM.trachea.pts, LM.trachea.r), obsTube('esoph', LM.esophagus.pts, LM.esophagus.r), vbodyObs(),
     ];
     if (!hasVessels) O.push(
       obsTube('artery', [...VS.scaR.pts, ...VS.axillaryA.pts.slice(1)], [...VS.scaR.r, ...VS.axillaryA.r.slice(1)]),
@@ -157,7 +166,7 @@ ATLAS.define('nerves', function (ctx) {
   }
   function obstaclesLeft() {
     const O = [
-      obsTube('trachea', LM.trachea.pts, LM.trachea.r), obsTube('esoph', LM.esophagus.pts, LM.esophagus.r), ...bronchObs('L'),
+      obsTube('trachea', LM.trachea.pts, LM.trachea.r), obsTube('esoph', LM.esophagus.pts, LM.esophagus.r), vbodyObs(), ...bronchObs('L'),
       obsSphere('cupula', mx(LM.pleura.cupulaCenter), LM.pleura.cupulaR),
       obsTube('rib1', mxs(LM.ribs[0].pts), 0.3), obsTube('clav', mxs(LM.clavicle.pts), clavR),
     ];
@@ -208,7 +217,7 @@ ATLAS.define('nerves', function (ctx) {
   const meshOf = (k) => {
     if (!(k in MOBS)) {
       const spec = { scMidR: [/^scalene-mid-R$/, 'muscle'], scAntR: [/^scalene-ant-R$/, 'muscle'], serrR: [/^serratus-anterior-R$/, 'muscle'], pecMajR: [/^pec-major-R$/, 'muscle'],
-        pecMinR: [/^pec-minor-R$/, 'muscle'], scapR: [/^scapula-R$/, 'bones'], rib1R: [/^rib-1-R$/, 'bones'], scAntL: [/^scalene-ant-L$/, 'muscle'], scMidL: [/^scalene-mid-L$/, 'muscle'] }[k];
+        pecMinR: [/^pec-minor-R$/, 'muscle'], scapR: [/^scapula-R$/, 'bones'], omoR: [/^omohyoid-R$/, 'muscle'], rib1R: [/^rib-1-R$/, 'bones'], scAntL: [/^scalene-ant-L$/, 'muscle'], scMidL: [/^scalene-mid-L$/, 'muscle'] }[k];
       MOBS[k] = spec ? meshObs(spec[0], spec[1]) : null;
     }
     return MOBS[k];
@@ -341,9 +350,11 @@ ATLAS.define('nerves', function (ctx) {
         const m = A.rmax + B.rmax + gap;
         if (!boxNear(A.box, B.box, m)) continue;
         let na = 0, nb = 0;
-        for (let i = 0; i <= A.n; i++) if (inBox(A.P[i], B.box, m)) IA[na++] = i;
+        { const b = B.box, x0 = b.min.x - m, y0 = b.min.y - m, z0 = b.min.z - m, x1 = b.max.x + m, y1 = b.max.y + m, z1 = b.max.z + m;
+          for (let i = 0; i <= A.n; i++) { const q = A.P[i]; if (q.x > x0 && q.x < x1 && q.y > y0 && q.y < y1 && q.z > z0 && q.z < z1) IA[na++] = i; } }
         if (!na) continue;
-        for (let k = 0; k <= B.n; k++) if (inBox(B.P[k], A.box, m)) IB[nb++] = k;
+        { const b = A.box, x0 = b.min.x - m, y0 = b.min.y - m, z0 = b.min.z - m, x1 = b.max.x + m, y1 = b.max.y + m, z1 = b.max.z + m;
+          for (let k = 0; k <= B.n; k++) { const q = B.P[k]; if (q.x > x0 && q.x < x1 && q.y > y0 && q.y < y1 && q.z > z0 && q.z < z1) IB[nb++] = k; } }
         const exP = ex.length ? ex.map((j) => j.get()) : NOEX;
         for (let u = 0; u < na; u++) {
           const i = IA[u], pa = A.P[i];
@@ -392,23 +403,37 @@ ATLAS.define('nerves', function (ctx) {
         else if (w > 0) p.P[i].set(p.P[i].x + x, p.P[i].y + y, p.P[i].z + z);
       }
     };
+    // Pré-cálculo (uma vez por solve): caixa numérica de cada obstáculo já expandida por rmax + gapO, e lista de
+    // obstáculos de cada trajeto já sem os ignorados (com a folga extra obsGap de cada um) — o laço interno fica só
+    // com comparações de números, sem alocações nem chamadas de método.
+    this.obs.forEach((O) => { const b = O.box, e = O.rmax + gapO; O.B = new Float64Array([b.min.x - e, b.min.y - e, b.min.z - e, b.max.x + e, b.max.y + e, b.max.z + e]); });
+    paths.forEach((p) => {
+      p.obsAll = this.obs.filter((O) => !(p.o.ignore && p.o.ignore.includes(O.key)) && !(p.o.ignoreId && p.o.ignoreId.test(O.id || '')));
+      p.obsG = p.obsAll.map((O) => (p.o.obsGap && p.o.obsGap[O.key]) || 0);
+    });
+    const OBS = [], OG = [];
     const obstaclePass = (kernel) => {
       // obstáculos: os empurrões de todos os obstáculos são somados e aplicados juntos — num "aperto" (ex.: vago entre
       // VJI, carótida comum e subclávia) o nervo vai para a posição de equilíbrio, em vez de o último processado vencer.
       for (const p of paths) {
         if (p.fixed) continue;
-        const obs = this.obs.filter((O) => !(p.o.ignore && p.o.ignore.includes(O.key)) && !(p.o.ignoreId && p.o.ignoreId.test(O.id || '')) && boxNear(p.box, O.box, p.rmax + O.rmax + gap));
-        if (!obs.length) continue;
+        let no = 0;
+        for (let j = 0; j < p.obsAll.length; j++) { const O = p.obsAll[j]; if (boxNear(p.box, O.box, p.rmax + O.rmax + gap + Math.max(0, p.obsG[j]))) { OBS[no] = O; OG[no++] = p.obsG[j]; } }
+        if (!no) continue;
         if (kernel) DX.fill(0, 0, (p.n + 1) * 3);
+        const o = p.o;
         for (let i = 0; i <= p.n; i++) {
           if (!movable(p, i)) continue;
-          const x = p.P[i]; acc.set(0, 0, 0); let hits = 0;
-          for (const O of obs) {
-            if (p.o.freeEnd && p.len - p.S[i] < p.o.freeEnd && (!p.o.endIgnore || p.o.endIgnore.includes(O.key))) continue;
-            if (p.o.freeStart && p.S[i] < p.o.freeStart && (!p.o.startIgnore || p.o.startIgnore.includes(O.key))) continue;
-            if (p.o.ignoreAbove && x.y > p.o.ignoreAbove.y && p.o.ignoreAbove.keys.includes(O.key)) continue;
-            if (!inBox(x, O.box, O.rmax + p.R[i] + gapO)) continue;
-            const nr = nearest(O, x.x, x.y, x.z), bd = nr[0], need = nr[1] + p.R[i] + gapO + ((p.o.obsGap && p.o.obsGap[O.key]) || 0);
+          const x = p.P[i], r = p.R[i]; acc.set(0, 0, 0); let hits = 0;
+          const fe = o.freeEnd && p.len - p.S[i] < o.freeEnd, fs = o.freeStart && p.S[i] < o.freeStart, ia = o.ignoreAbove && x.y > o.ignoreAbove.y;
+          for (let j = 0; j < no; j++) {
+            const O = OBS[j];
+            if (fe && (!o.endIgnore || o.endIgnore.includes(O.key))) continue;
+            if (fs && (!o.startIgnore || o.startIgnore.includes(O.key))) continue;
+            if (ia && o.ignoreAbove.keys.includes(O.key)) continue;
+            const B = O.B, m = r + (OG[j] > 0 ? OG[j] : 0);
+            if (x.x < B[0] - m || x.x > B[3] + m || x.y < B[1] - m || x.y > B[4] + m || x.z < B[2] - m || x.z > B[5] + m) continue;
+            const nr = nearest(O, x.x, x.y, x.z), bd = nr[0], need = nr[1] + r + gapO + OG[j];
             if (bd < need) {
               tmp.set(x.x - nr[2], x.y - nr[3], x.z - nr[4]); if (tmp.lengthSq() < 1e-8) tmp.set(0, 0, 1);
               TO.set(nr[5], nr[6], nr[7]); GS.set(p.P0[i].x - nr[2], p.P0[i].y - nr[3], p.P0[i].z - nr[4]);
@@ -462,29 +487,49 @@ ATLAS.define('nerves', function (ctx) {
         }
       }
     };
+    // As malhas reais (lâminas musculares) entram já nas últimas iterações principais: o equilíbrio entre nervos vizinhos
+    // (ex.: troncos superior/médio/inferior apertados entre o escaleno médio e a 3ª parte da subclávia) é buscado com
+    // TODAS as restrições ativas, em vez de a malha empurrar no acabamento e colapsar troncos já separados.
     for (let it = 0; it < iters; it++) {
       smoothPass(null, true);
       paths.forEach((p) => p.box.setFromPoints(p.P));
       pairPass();
       obstaclePass();
+      if (it >= iters - 6) meshPass();
       enforce();
     }
-    // acabamento: suavização leve (remove o "serrilhado" dos empurrões contra eixos poligonais), afastamento entre
-    // nervos, obstáculos e malhas reais
+    // acabamento: suavização leve (remove o "serrilhado" dos empurrões contra eixos poligonais), obstáculos e malhas
+    // reais, e por último o afastamento entre nervos (que não pode ser desfeito pelos empurrões seguintes)
     for (let k = 0; k < 3; k++) {
       smoothPass(0.4, false);
       enforce();
       paths.forEach((p) => p.box.setFromPoints(p.P));
-      pairPass();
       obstaclePass(true);
       meshPass();
+      paths.forEach((p) => p.box.setFromPoints(p.P));
+      pairPass();
       enforce();
     }
-    // alisamento final (remove quinas deixadas pelos empurrões) e última passada de obstáculos/malhas
+    // alisamento final (remove quinas deixadas pelos empurrões) e última passada de obstáculos/malhas/afastamento
     for (let k = 0; k < 2; k++) { smoothPass(0.45, false); enforce(); }
     paths.forEach((p) => p.box.setFromPoints(p.P));
-    obstaclePass(true); meshPass(); enforce();
+    obstaclePass(true); meshPass();
+    paths.forEach((p) => p.box.setFromPoints(p.P));
+    pairPass(); enforce();
     return this;
+  };
+  /** Corta o fim de um trajeto linfático onde o eixo entra `depth` cm na luz das veias do ângulo venoso: a ampola termina
+      NA parede (a tampa arredondada mal ultrapassa a parede), sem coto solto dentro da luz — visível nos cortes. */
+  System.prototype.trimIntoVein = function (key, depth = 0.02) {
+    const p = this.by[key], V = this.obs.filter((O) => O.key === 'ijv' || O.key === 'vein' || O.key === 'bcv');
+    if (!V.length) return;
+    const sd = (q) => { let m = Infinity; for (const O of V) { const nr = nearest(O, q.x, q.y, q.z); m = Math.min(m, nr[0] - nr[1]); } return m; };
+    let i = Math.max(1, p.n - 14); while (i <= p.n && sd(p.P[i]) > -depth) i++;
+    if (i > p.n) return; // não alcança a veia
+    const a = sd(p.P[i - 1]) + depth, b = sd(p.P[i]) + depth, u = a > 0 ? a / (a - b) : 0;
+    const q = p.P[i - 1].clone().lerp(p.P[i], u), rq = C.lerp(p.R[i - 1], p.R[i], u);
+    p.P = p.P.slice(0, i).concat([q]); p.R = p.R.slice(0, i).concat([rq]);
+    p.S = p.S.slice(0, i).concat([p.S[i - 1] + p.P[i - 1].distanceTo(q)]); p.n = i; p.len = p.S[i];
   };
   /** Decimação adaptativa: descarta pontos ímpares que só carregam "serrilhado" (< 0,06 cm da corda dos vizinhos),
       mas mantém os que contornam obstáculos (desvio real) — a Catmull-Rom da varredura fica lisa e fiel. */
@@ -559,7 +604,13 @@ ATLAS.define('nerves', function (ctx) {
   // (r 0,2–0,3) não se fundam, afastam-se suavemente nessa zona preservando a ordem anatômica: superior em cima/anterior,
   // médio no meio, inferior embaixo/posterior (atrás da artéria). Fora da zona, os eixos de LM são mantidos.
   const spread = (pts, off) => { const c = crv(pts), o = []; for (let i = 0; i <= 48; i++) { const q = c.getPointAt(i / 48), w = C.smooth(5.6, 7.0, q.x) * (1 - C.smooth(9.6, 11.0, q.x)); o.push([q.x + off[0] * w, q.y + off[1] * w, q.z + off[2] * w]); } return o; };
-  const TS = crv(spread(LM.nerves.plexusTrunks[0].pts, [0, 0.3, 0.15])), TM = crv(spread(LM.nerves.plexusTrunks[1].pts, [0, 0.05, -0.12])), TI = crv(spread(LM.nerves.plexusTrunks[2].pts, [0, -0.4, -0.2]));
+  // Tronco inferior (LM v2: arco da subclávia mais alto): entre x≈4,9 e 6,6 o eixo de LM passa por dentro da lâmina real do
+  // escaleno médio, que ali encosta na face posterior da 2ª parte da artéria. O guia segue a MESMA canaleta que o módulo de
+  // músculos escava para ele (muscles.js, "tronco inferior: sobre a 1ª costela fica ATRÁS da 3ª parte da artéria"): por
+  // baixo/atrás do arco, sobre a cúpula, e atrás da 3ª parte. Fora desse trecho, LM.
+  const TIp = LM.nerves.plexusTrunks[2].pts;
+  const TIg = [TIp[0], TIp[1], [4.94, 2.34, -3.67], [5.4, 1.88, -3.53], [5.7, 1.72, -3.36], [5.86, 2.02, -3.2], [6.15, 2.13, -3.25], [6.54, 2.0, -3.18], [7.06, 1.6, -3.1], ...TIp.slice(4)];
+  const TS = crv(spread(LM.nerves.plexusTrunks[0].pts, [0, 0.3, 0.15])), TM = crv(spread(LM.nerves.plexusTrunks[1].pts, [0, 0.05, -0.12])), TI = crv(spread(TIg, [0, -0.4, -0.2]));
   // artéria subclávia → axilar (+ ponto extrapolado no braço, só para orientar os ramos terminais)
   const ART = crv([...VS.scaR.pts, ...VS.axillaryA.pts.slice(1), [15.5, -9.6, -4.35]]);
   function frameArt(x) {
@@ -620,9 +671,9 @@ ATLAS.define('nerves', function (ctx) {
   // linhagem lateral: fascículo lateral → raiz lateral → nervo mediano (o "M" se fecha com a raiz medial, que entra de lado)
   SR.path('latRoot', [LCe, around(13.65, -48, 0.74), around(13.95, 282, 0.66)], [[0, 0.17], [0.4, 0.155], [1, 0.165]], { mesh: mPec });
   SR.path('median', [around(13.95, 282, 0.66), around(14.4, 300, 0.7), around(14.85, 318, 0.72), around(15.3, 328, 0.75)], [[0, 0.165], [0.18, 0.2], [1, 0.2]], { fixEnd: true, mesh: mPec });
-  SR.path('medRoot', [MCe, around(13.55, 212, 0.76), around(13.8, 248, 0.72), around(13.95, 282, 0.66)], side(0.12, 0.13), { mesh: mPec, obsGap: { artery: 0.07, vein: 0.05 } });
+  SR.path('medRoot', [MCe, around(13.55, 212, 0.76), around(13.8, 248, 0.72), around(13.95, 282, 0.66)], side(0.12, 0.13), { mesh: mPec, obsGap: { artery: 0.12, vein: 0.1 } });
   // musculocutâneo: sai de lado do fim do fascículo lateral; termina recuado (atrás do peitoral maior, rumo ao coracobraquial)
-  SR.path('musculocut', [LCe, around(13.85, -38, 1.15), [15.2, -5.3, -1.95], [15.85, -7.3, -2.05], [16.15, -8.7, -2.0]], [[0, 0.125], [0.12, 0.14], [1, 0.14]], { fixEnd: true, mesh: mPec });
+  SR.path('musculocut', [LCe, around(13.85, -38, 1.15), [15.2, -5.3, -2.0], [15.85, -7.3, -2.2], [16.15, -8.7, -2.18]], [[0, 0.125], [0.12, 0.14], [1, 0.14]], { fixEnd: true, mesh: mPec });
   SR.path('ulnar', [MCe, around(13.9, 185, 0.8), around(14.5, 190, 0.86), around(15.0, 196, 0.92), around(15.35, 200, 0.96)], [[0, 0.16], [0.3, 0.17], [1, 0.17]], { fixEnd: true, mesh: mPec });
   SR.path('radial', [PCe, around(13.9, 103, 0.9), around(14.5, 110, 1.0), around(15.0, 116, 1.15), around(15.35, 120, 1.25)], 0.21, { fixEnd: true, mesh: mPec });
   SR.path('axillary', [cAt(PC, 0.9), around(13.7, 68, 1.3), [15.3, -4.75, -5.2], [16.5, -5.35, -5.6], [17.5, -5.3, -5.45]], (t) => Math.min(taper(0.17, 0.14)(t), C.lerp(0.15, 0.17, C.smooth(0, 0.08, t))), { mesh: mPec });
@@ -631,7 +682,7 @@ ATLAS.define('nerves', function (ctx) {
   // e entra na fossa supraespinal; a escápula real é obstáculo (não cruza a borda superior medial à incisura)
   const NOTCH = LM.scapulaGeom ? LM.scapulaGeom().suprascapularNotch : LM.scapula.suprascapularNotch;
   SR.path('suprascap', [ptAt(TS, tAtX(TS, 5.45)), [6.7, 3.85, -4.2], [8.6, 2.6, -6.05], [10.3, 1.55, -7.75], [11.25, 1.05, -8.65], [NOTCH[0], NOTCH[1] + 0.22, NOTCH[2] - 0.05], [11.92, 0.05, -9.38], [12.25, -0.38, -9.05], [12.6, -0.85, -8.78]],
-    taper(0.13, 0.11), { ignore: ['scMid'], mesh: [{ k: 'scapR', gap: 0.04 }] });
+    taper(0.13, 0.11), { ignore: ['scMid'], mesh: [{ k: 'scapR', gap: 0.04 }, { k: 'omoR', gap: 0.03 }] });
   SR.path('subclN', [ptAt(TS, tAtX(TS, 6.3)), [6.85, 2.1, -1.85], [7.4, 1.3, -0.85], [7.85, 0.95, -0.35]], taper(0.055, 0.05), { ignore: ['subclavius'] });
   // peitoral lateral: anterior à artéria/veia axilares, medial ao tronco toracoacromial; perfura a fáscia clavipeitoral
   // e acompanha o ramo peitoral da artéria toracoacromial até a face profunda do peitoral maior
@@ -666,8 +717,13 @@ ATLAS.define('nerves', function (ctx) {
   const PHR_R = [[-1.6, 3.41, -2.68], [-2.0, 3.34, -2.8], [-2.5, 3.375, -2.8], [-3.0, 3.415, -2.8], [-3.5, 3.45, -2.82], [-4.0, 3.45, -2.9], [-5.0, 3.62, -3.1], [-6.0, 3.915, -2.85], [-7.0, 3.88, -2.9], [-8.0, 3.96, -2.97],
     [-9.0, 4.15, -3.02], [-10.0, 4.46, -3.07], [-11.0, 4.59, -3.12], [-11.5, 4.6, -3.15], [-12.0, 4.66, -3.2], [-12.5, 4.67, -3.25], [-13.0, 4.61, -3.2], [-13.5, 4.58, -3.21], [-14.13, 4.56, -3.25]];
   const rPhr = (y) => (y > 0 ? 0.11 : C.lerp(0.11, 0.088, C.smooth(0, -4.5, y)));
-  SR.path('phrenic', [[3.45, 11.0, -3.95], ...LM.nerves.phrenicR.slice(0, 5), [3.47, -1.0, -2.64], ...PHR_R.map(([y, x, z]) => [x, y, z])], 0.1, { maxDev: 0.6, spring: 0.12, pin: { y: -1.2, blend: 1.0 }, mesh: [{ k: 'scAntR', y0: 0, gap: 0.03 }] });
-  SR.path('phrC5', [[3.35, 8.48, -5.0], [3.9, 8.45, -4.2], [4.1, 8.3, -3.4], [4.0, 7.95, -2.85]], 0.055, { ignore: ['scAnt'] });
+  // Abertura superior do tórax (LM v2): a origem da torácica interna (ITA) fica logo atrás do ângulo venoso (VJI/VBC), sem
+  // espaço para o nervo passar À FRENTE dela; o frênico passa LATERAL e depois POSTERIOR à ITA (variante descrita) e só
+  // então se aplica à face lateral da VBC/VCS. PHR_CROSS substitui o ponto de LM [3,5; 0,35; −2,8], que coincidia com o
+  // eixo da ITA nova.
+  const PHR_CROSS = [[3.9, 0.5, -2.66], [3.66, -0.3, -2.8], [3.5, -1.0, -2.74]];
+  SR.path('phrenic', [[3.45, 11.0, -3.95], ...LM.nerves.phrenicR.slice(0, 4), ...PHR_CROSS, ...PHR_R.map(([y, x, z]) => [x, y, z])], 0.1, { maxDev: 0.6, spring: 0.12, pin: { y: -1.2, blend: 1.0 }, mesh: [{ k: 'scAntR', y0: 0, gap: 0.03 }] });
+  SR.path('phrC5', [[3.35, 8.48, -5.0], [3.95, 8.45, -4.2], [4.2, 8.3, -3.4], [4.05, 7.95, -2.85]], 0.055, { ignore: ['scAnt'], mesh: [{ k: 'scAntR', gap: 0.03 }] });
   SR.attach('phrC5', 'start', 'C5'); SR.attach('phrC5', 'end', 'phrenic');
   /* ---- vago D: bainha carotídea (posterior, entre VJI e ACC) → cruza a 1ª parte da subclávia → face D da traqueia
      (medial ao arco da ázigo) → posterior ao brônquio principal D → face POSTERIOR do esôfago (plexo esofágico,
@@ -689,7 +745,7 @@ ATLAS.define('nerves', function (ctx) {
   SR.path('rln', [...LM.nerves.recurrentR, [0.8, 8.5, -2.1], [0.75, 10.6, -1.75]], 0.075, { maxDev: 0.6, spring: 0.12 });
   SR.attach('rln', 'start', 'vagus');
   /* ---- tronco simpático D: cervical (sobre o longo do pescoço) → gânglio cervical médio (C6) → estrelado (colo da 1ª costela) → torácico (cabeças das costelas) ---- */
-  const SYM = [[1.42, 11.0, -4.3], [1.45, 10.2, -4.45], [1.5, 8.5, -4.75], [1.55, 6.9, -5.1], [1.6, 5.6, -5.65], [1.95, 4.75, -6.05], [2.2, 4.0, -6.45], [2.35, 3.3, -6.95], [2.5, 2.6, -7.25],
+  const SYM = [[1.42, 11.0, -4.3], [1.45, 10.2, -4.45], [1.5, 8.5, -4.75], [1.55, 6.9, -5.1], [1.6, 5.6, -5.6], [1.92, 4.75, -5.95], [2.2, 4.0, -6.4], [2.35, 3.3, -6.95], [2.5, 2.6, -7.25],
     // no tórax, sobre as cabeças das costelas, ~0,3 cm medial ao sulco paravertebral ocupado pela borda posterior do pulmão
     [2.1, 1.6, -7.4], [2.1, -0.55, -7.85], [2.05, -2.75, -8.2], [2.0, -5.0, -8.48], [2.0, -7.35, -8.62], [2.02, -9.75, -8.72], [2.05, -12.2, -8.72], [2.05, -14.75, -8.62], [2.0, -17.35, -8.4], [1.9, -20.0, -8.0], [1.75, -22.2, -7.6]];
   const symG = crv(SYM), gau = (y, c, w) => Math.exp(-(((y - c) / w) ** 2));
@@ -707,7 +763,7 @@ ATLAS.define('nerves', function (ctx) {
   // o frênico D usa raio em função de y (fino no tórax): substitui o perfil provisório
   { const p = SR.by.phrenic, c = crv(p.G.map(ar)); p.rf = (t) => { const y = c.getPointAt(t).y; return rPhr(y) * (t > 0.985 ? C.lerp(1, 0.55, (t - 0.985) / 0.015) : 1); }; p.R = p.R.map((_, i) => p.rf(i / p.n)); p.rmax = Math.max(...p.R); }
 
-  mark('setupR'); SR.solve(18); mark('solveR');
+  mark('setupR'); SR.solve(18); SR.trimIntoVein('rld'); mark('solveR');
 
   /* ======================================================================
      MALHAS — lado direito (e esquerdo espelhado para as estruturas simétricas)
@@ -817,7 +873,7 @@ ATLAS.define('nerves', function (ctx) {
   build(SR, 'phrenic', { grp: gPhr, mirror: false, name: () => 'Nervo frênico direito', o: { ...med, radial: 12, r: prof('phrenic'), caps: 'flat', capEnd: true }, solid: [0, 0] });
   build(SR, 'phrC5', { grp: gPhr, mirror: false, name: () => 'Nervo frênico direito — contribuição de C5', o: { ...thin, r: prof('phrC5'), capStart: false, capEnd: false }, solid: [2, 1.3] });
   /** Ramúsculos frênicos terminais: partem do fim do nervo e correm sobre a face superior do diafragma (alturas medidas
-      na cúpula), afilando-se e mergulhando na lâmina muscular. */
+      na cúpula de vísceras em 20/11: topo + raio; a última amostra mergulha ~0,08 cm na lâmina muscular), afilando-se. */
   function twigs(endP, list, grpS, name) {
     list.forEach((pts, i) => {
       const g = C.sweepGeometry([endP, ...pts], { r: (t) => C.lerp(0.04, 0.016, t), radial: 7, density: 6, caps: 'round', capStart: false, vScale: 2.6 });
@@ -825,7 +881,7 @@ ATLAS.define('nerves', function (ctx) {
     });
   }
   { const e = SR.by.phrenic.P[SR.by.phrenic.n], E0 = [e.x, e.y + 0.02, e.z];
-    twigs(E0, [[[4.45, -14.23, -2.4], [4.3, -14.58, -1.65]], [[5.35, -14.02, -3.3], [6.15, -14.0, -3.55]], [[4.7, -14.1, -4.05], [4.85, -14.34, -4.6]]], gPhr.R, 'Nervo frênico direito'); }
+    twigs(E0, [[[4.45, -14.135, -2.4], [4.3, -14.42, -1.65]], [[5.35, -13.985, -3.3], [6.15, -14.08, -3.55]], [[4.7, -14.175, -4.05], [4.85, -14.43, -4.6]]], gPhr.R, 'Nervo frênico direito'); }
   // vago D, recorrente D
   build(SR, 'vagus', { grp: gVag, mirror: false, name: () => 'Nervo vago direito (NC X)', o: { ...med, radial: 14, r: prof('vagus'), caps: 'flat' }, solid: [0, 0] });
   build(SR, 'rln', { grp: gRln, mirror: false, name: () => 'Nervo laríngeo recorrente direito', o: { ...thin, radial: 10, r: prof('rln'), caps: 'flat', capStart: false }, solid: [1.3, 0] });
@@ -878,9 +934,11 @@ ATLAS.define('nerves', function (ctx) {
     [-5.0, -3.64, -3.28], [-5.5, -3.955, -3.27], [-6.0, -4.015, -3.24], [-6.5, -3.985, -3.2], [-7.0, -3.9, -3.1], [-7.5, -3.67, -3.11], [-8.0, -3.64, -3.06], [-8.5, -3.78, -2.97],
     [-9.0, -3.97, -2.86], [-9.5, -4.8, -2.62], [-10.0, -5.77, -2.41], [-10.5, -6.455, -2.16], [-11.0, -6.99, -1.92], [-11.5, -7.4, -1.77], [-12.0, -7.72, -1.61], [-12.5, -7.98, -1.48],
     [-13.0, -8.175, -1.35], [-13.5, -8.34, -1.23], [-14.0, -8.4, -1.2], [-14.5, -8.38, -1.02], [-15.0, -8.39, -0.92], [-15.68, -8.39, -0.82]];
-  const phrTopL = mxs([[3.45, 11.0, -3.95], ...LM.nerves.phrenicR.slice(0, 5)]);
+  // topo espelhado do D; na abertura superior passa lateral e depois posterior à ITA E (mesma razão do lado D)
+  // (a ITA E nasce mais alta que a D — y 1,7 —, por isso o desvio lateral começa antes)
+  const phrTopL = mxs([[3.45, 11.0, -3.95], ...LM.nerves.phrenicR.slice(0, 4), [3.95, 0.5, -2.6], [3.82, 0.12, -2.82], [3.38, -0.25, -3.0]]);
   SL.path('phrenicL', [...phrTopL, ...PHR_L.map(([y, x, z]) => [x, y, z])], 0.1,
-    { ignore: ['ita'], maxDev: 0.6, spring: 0.15, smooth: 0.45, pin: { y: -0.4, blend: 0.9 }, mesh: [{ k: 'scAntL', y0: 0, gap: 0.03 }], obsGap: { branch: -0.07 } });
+    { maxDev: 0.6, spring: 0.15, smooth: 0.45, pin: { y: -0.4, blend: 0.9 }, mesh: [{ k: 'scAntL', y0: 0, gap: 0.03 }], obsGap: { branch: -0.07 } });
   { const p = SL.by.phrenicL, c = crv(p.G.map(ar)); p.rf = (t) => { const y = c.getPointAt(t).y; return C.lerp(0.11, 0.092, C.smooth(0, -4.5, y)) * (t > 0.985 ? C.lerp(1, 0.55, (t - 0.985) / 0.015) : 1); }; p.R = p.R.map((_, i) => p.rf(i / p.n)); p.rmax = Math.max(...p.R); }
   SL.path('phrC5L', SR.pts('phrC5', true), 0.055, { fixed: true });
   /* vago E: bainha carotídea → entre carótida comum E e subclávia E → face esquerda do arco aórtico (posterior ao
@@ -906,18 +964,18 @@ ATLAS.define('nerves', function (ctx) {
   /* ducto torácico (ESQUERDO): LM até o ápice do arco (C7, atrás da bainha carotídea, à frente da vertebral e do tronco
      tireocervical); desce então ATRÁS da VJI E — medial ao frênico E e ao escaleno anterior, à frente da subclávia E —
      e abre-se na face posterior do ângulo venoso E. Se trajetos se aproximarem, o ducto passa À FRENTE do frênico. */
-  const TD = LM.lymph.thoracicDuct;
-  SL.path('duct', [...TD.slice(0, 9), [-3.68, 3.35, -3.12], [-3.7, 2.6, -2.98], [-3.52, 1.8, -2.94], [-3.32, 1.15, -2.72], [-3.12, 0.7, -2.42]], 0.15,
-    { freeEnd: 1.3, endIgnore: ['ijv', 'vein', 'bcv'], ignore: ['trachea'], maxDev: 0.6, spring: 0.15, anteriorTo: ['phrenicL'], mesh: [{ k: 'scAntL', y0: 0 }] });
+  const TD = LM.lymph.thoracicDuct, iApex = TD.reduce((b, q, i) => (q[1] > TD[b][1] ? i : b), 0); // LM v2: ápice = índice 9 (antes 8)
+  SL.path('duct', [...TD.slice(0, iApex + 1), [-3.68, 3.35, -3.12], [-3.7, 2.6, -2.98], [-3.52, 1.8, -2.94], [-3.32, 1.15, -2.72], [-3.12, 0.7, -2.42]], 0.15,
+    { freeEnd: 0.6, endIgnore: ['ijv', 'vein', 'bcv'], ignore: ['trachea'], maxDev: 0.6, spring: 0.15, anteriorTo: ['phrenicL'], mesh: [{ k: 'scAntL', y0: 0 }], obsGap: { esoph: -0.12, vbody: 0.03 } });
   SL.path('ductJug', [[-3.7, 3.0, -3.0], [-3.8, 3.9, -2.75], [-3.65, 4.8, -2.6]], taper(0.07, 0.06), { mesh: [{ k: 'scAntL' }] });
   SL.attach('ductJug', 'start', 'duct', [-3.7, 3.0, -3.0]);
-  mark('meshR'); SL.solve(16); mark('solveL');
+  mark('meshR'); SL.solve(16); SL.trimIntoVein('duct'); mark('solveL');
 
   // malhas do lado esquerdo próprio
   const only = (g) => ({ L: g });
   build(SL, 'phrenicL', { grp: only(gPhr.L), mirror: false, side: 'L', name: () => 'Nervo frênico esquerdo', o: { ...med, radial: 12, r: SL.by.phrenicL.rf, caps: 'flat' }, solid: [0, 0] });
   { const e = SL.by.phrenicL.P[SL.by.phrenicL.n], E0 = [e.x, e.y + 0.02, e.z];
-    twigs(E0, [[[-8.55, -15.83, -0.1], [-8.65, -15.96, 0.55]], [[-9.0, -15.83, -0.95], [-9.55, -15.9, -1.15]], [[-8.35, -15.69, -1.6], [-8.4, -15.68, -2.15]]], gPhr.L, 'Nervo frênico esquerdo'); }
+    twigs(E0, [[[-8.55, -15.835, -0.1], [-8.65, -16.06, 0.55]], [[-9.0, -15.835, -0.95], [-9.55, -16.08, -1.15]], [[-8.35, -15.655, -1.6], [-8.4, -15.76, -2.15]]], gPhr.L, 'Nervo frênico esquerdo'); }
   build(SL, 'vagusL', { grp: only(gVag.L), mirror: false, side: 'L', name: () => 'Nervo vago esquerdo (NC X)', o: { ...med, radial: 14, r: SL.by.vagusL.rf, caps: 'flat' }, solid: [0, 0] });
   build(SL, 'rlnL', { grp: only(gRln.L), mirror: false, side: 'L', name: () => 'Nervo laríngeo recorrente esquerdo', o: { ...thin, radial: 10, r: 0.075, caps: 'flat', capStart: false }, solid: [1.3, 0] });
   build(SL, 'phrC5L', { grp: only(gPhr.L), mirror: false, side: 'L', name: () => 'Nervo frênico esquerdo — contribuição de C5', o: { ...thin, r: 0.055, capStart: false, capEnd: false }, solid: [2, 1.3] });

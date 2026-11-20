@@ -1,5 +1,5 @@
 // uishot.js — capturas e verificações automáticas da interface (Playwright + SwiftShader).
-// uso: node tools/uishot.js [--dist] [--sample] [--only=desktop,chapters,card,dark,print,mobile,checks,widths,material]
+// uso: node tools/uishot.js [--dist] [--sample] [--only=desktop,chapters,card,dark,print,mobile,checks,widths,material,fit,fixation,mobilechapters]
 //                           [--chapters=all|1,5,9] [--prefix=ui] [--pdf] [--fastprint] [--dsf=1]
 //   --fastprint folhas de impressão com ilustração neutra (testa só a diagramação)
 //   --dist     abre dist/atlas.html (gere antes com python3 tools/build.py)
@@ -9,7 +9,10 @@
 //   checks    (desktop) renderização sob demanda (renders com a cena parada), seleção através de camadas
 //             fantasma (cap. 02), foco do cartão aberto por teclado (glossário → cartão → Esc devolve o foco)
 //   widths    nota de orientação × barra de vistas e controles em 1024/1180/1280 px
-//   material  capturas de elemento: prancha, planos, tecidos+ultrassom (desktop e celular)
+//   material  capturas de elemento: prancha, planos, tecidos+ultrassom, fixação (desktop e celular)
+//   fit       visor + controles cabem abaixo da barra fixa (1440×900, 1366×768, 1280×720, 1920×1080, 1024×768)
+//   fixation  capítulo da fixação: visor nas etapas 0/4/9, inset do painel, stepper e folha A4 extra
+//   mobilechapters  390×844: visor com rótulos numerados + lista #lblKey por capítulo (usa --chapters)
 // Saídas: shots/<prefix>_*.png (+ .pdf com --pdf) e um resumo JSON no stdout
 // (erros de console, recursos ausentes, âncoras ausentes, sobreposição de rótulos, scroll horizontal).
 const { chromium } = require('playwright');
@@ -208,9 +211,39 @@ async function labelChecks(page) {
       }
       await page.setViewportSize({ width: 1440, height: 900 });
     }
+    if (want('fit')) {
+      report.checks.fit = {};
+      for (const [w, h] of [[1440, 900], [1366, 768], [1280, 720], [1920, 1080], [1024, 768]]) {
+        await page.setViewportSize({ width: w, height: h });
+        await page.evaluate(() => { APP.resume(); APP.go(1, { animate: false }); window.scrollTo(0, document.querySelector('.masthead').offsetHeight); });
+        await page.waitForTimeout(700);
+        report.checks.fit[w + 'x' + h] = await page.evaluate(() => { const v = document.getElementById('viewer').getBoundingClientRect(), c = document.getElementById('controls').getBoundingClientRect(), n = document.querySelector('.chapnav').getBoundingClientRect(); return { viewerTop: Math.round(v.top), navBottom: Math.round(n.bottom), viewerH: Math.round(v.height), controlsH: Math.round(c.height), controlsBottom: Math.round(c.bottom), fits: c.bottom <= innerHeight + 0.5 }; });
+        if (w === 1280) { await still(page); await shot(page, 'fit_1280x720.png', { clip: { x: 0, y: 0, width: w, height: h } }); }
+      }
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await page.evaluate(() => window.scrollTo(0, 0));
+    }
+    if (want('fixation')) {
+      const fi = await page.evaluate(() => APP.data.chapters.findIndex((c) => c.id === 'fixacao'));
+      if (fi >= 0) {
+        report.checks.fixation = { chapter: fi + 1, module: await page.evaluate(() => !!(APP.E && APP.E.results.fixation)) };
+        await page.evaluate((k) => { APP.resume(); APP.go(k, { animate: false }); window.scrollTo(0, document.querySelector('.masthead').offsetHeight); }, fi);
+        for (const k of [0, 4, 9]) {
+          await page.evaluate((s) => { APP.stopFix && APP.stopFix(); APP.E.state.fixStep = s; APP.syncControls && APP.syncControls(); APP.still(); }, k);
+          await page.waitForTimeout(300);
+          await shot(page, `fix_step${k}.png`, { clip: { x: 0, y: 0, width: 1440, height: 900 } });
+        }
+        // o painel tem rolagem própria (sticky): rola o painel até o inset e captura a área do painel na tela
+        const clip = await page.evaluate(() => { const el = document.querySelector('#painel .inset-fixation'); if (!el) return null; el.scrollIntoView({ block: 'start' }); const r = document.getElementById('painel').getBoundingClientRect(); return { x: r.left, y: Math.max(0, r.top), width: r.width, height: Math.min(innerHeight, r.bottom) - Math.max(0, r.top) }; });
+        if (clip) { await page.waitForTimeout(200); await shot(page, 'fix_inset.png', { clip }); }
+        const ctl = await page.$('.ctl-needle'); if (ctl) { const pth = out('fix_controls.png'); await ctl.screenshot({ path: pth, timeout: 120000 }); report.shots.push(path.relative(root, pth)); }
+        report.checks.fixation.labels = await labelChecks(page);
+        await page.evaluate(() => { APP.resume(); APP.go(0, { animate: false }); window.scrollTo(0, 0); });
+      }
+    }
     if (want('material')) {
       await page.evaluate(() => APP.resume());
-      for (const [sel, name] of [['#prancha', 'mat_prancha'], ['#planos', 'mat_planos'], ['#usg', 'mat_usg'], ['#tecidos', 'mat_tecidos']]) {
+      for (const [sel, name] of [['#prancha', 'mat_prancha'], ['#planos', 'mat_planos'], ['#usg', 'mat_usg'], ['#tecidos', 'mat_tecidos'], ['#fixacao', 'mat_fixacao']]) {
         const el = await page.$(sel); await el.scrollIntoViewIfNeeded(); await page.waitForTimeout(200);
         const p = out(name + '.png'); await el.screenshot({ path: p, timeout: 120000 }); report.shots.push(path.relative(root, p));
       }
@@ -235,7 +268,7 @@ async function labelChecks(page) {
       report.checks.printBuildMs = Date.now() - tp;
       await page.emulateMedia({ media: 'print' });
       await page.waitForTimeout(400);
-      report.checks.printFit = await page.evaluate(() => [...document.querySelectorAll('#printRoot .sheet')].map((s) => s.dataset.fit + ':' + s.style.getPropertyValue('--fs') + '/' + s.style.getPropertyValue('--hero')));
+      report.checks.printFit = await page.evaluate(() => [...document.querySelectorAll('#printRoot .sheet')].map((s) => (s.classList.contains('extra') ? 'extra:' : '') + s.dataset.fit + ':' + s.style.getPropertyValue('--fs') + '/' + s.style.getPropertyValue('--hero')));
       await shot(page, 'print.png', { fullPage: true });
       if (args.pdf) { await page.pdf({ path: out('print.pdf'), format: 'A4', printBackground: true, preferCSSPageSize: true }); report.shots.push(path.relative(root, out('print.pdf'))); }
       await page.emulateMedia({ media: 'screen' });
@@ -307,6 +340,19 @@ async function labelChecks(page) {
       return null;
     });
     if (pt) { await page.touchscreen.tap(pt.x, pt.y); await page.waitForTimeout(1200); await still(page); await shot(page, 'mobile_card.png'); report.checks.mobileCard = await page.evaluate(() => (document.getElementById('card').hidden ? null : document.getElementById('cardName').textContent)); report.checks.mobileCardLabels = await labelChecks(page); }
+    if (want('mobilechapters')) {
+      const n = await page.evaluate(() => APP.data.chapters.length);
+      const list = !args.chapters || args.chapters === 'all' ? [...Array(n).keys()] : String(args.chapters).split(',').map((v) => +v - 1).filter((v) => v >= 0 && v < n);
+      report.checks.mobileChapters = {};
+      for (const i of list) {
+        await page.evaluate((k) => { APP.closeCard(); APP.resume(); APP.go(k, { animate: false }); window.scrollTo(0, document.querySelector('.masthead').offsetHeight); APP.still(); }, i);
+        await page.waitForTimeout(250);
+        const nn = String(i + 1).padStart(2, '0');
+        const box = await page.evaluate(() => { const v = document.getElementById('viewer').getBoundingClientRect(), k = document.getElementById('lblKey'); const b = k.hidden ? v.bottom : k.getBoundingClientRect().bottom; return { x: 0, y: Math.max(0, v.top), width: innerWidth, height: Math.min(innerHeight, b) - Math.max(0, v.top) }; });
+        await shot(page, `m_cap${nn}.png`, { clip: box });
+        report.checks.mobileChapters[nn] = Object.assign(await labelChecks(page), await page.evaluate(() => ({ key: [...document.querySelectorAll('#lblKey li')].map((li) => li.textContent.trim()), markers: document.querySelectorAll('#labels .lbl.num').length })));
+      }
+    }
     if (want('material') || !only) {
       await page.evaluate(() => { APP.closeCard(); APP.resume(); });
       for (const [sel, name] of [['#prancha', 'm_prancha'], ['#planos', 'm_planos'], ['#usg', 'm_usg']]) {

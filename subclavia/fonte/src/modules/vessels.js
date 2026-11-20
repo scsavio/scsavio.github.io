@@ -54,17 +54,20 @@ ATLAS.define('vessels', function (ctx) {
   // textura mosqueada NEUTRA compartilhada (cinza 0xd8 ≈ 0,686 linear); a cor do material compensa
   const MOT = C.tex.mottle('vx-mottle', 0xd8d8d8, { amp: 0.085, freq: 0.05, size: 128, seed: 4 });
   const tint = (hex) => new THREE.Color(hex).multiplyScalar(1 / 0.686);
+  // cor de SECÇÃO (faces internas vistas pelo plano de corte): veias em azul-escuro de luz venosa, coerente com
+  // C.mats.vein (core) e com a legenda — no corte parassagital a veia não pode parecer uma segunda artéria.
+  const CUT_V = 0x1f3d6e, CUT_A = 0x7a1d1a;
   const MAT = {
-    vein: withRim(C.mat({ color: tint('#33629f'), map: MOT, roughness: 0.3, clearcoat: 0.75, clearcoatRoughness: 0.2, sheen: 0.25, sheenColor: '#a9c8ff', sheenRoughness: 0.5, normalMap: nFine, normalScale: nScale(0.12), cut: 0x4a1f2a }), 'v', [1.55, 1.75, 2.0], 0.55, 2.4),
-    veinDeep: withRim(C.mat({ color: tint('#2d5791'), map: MOT, roughness: 0.33, clearcoat: 0.7, clearcoatRoughness: 0.24, sheen: 0.2, sheenColor: '#a9c8ff', normalMap: nFine, normalScale: nScale(0.12), cut: 0x4a1f2a }), 'v2', [1.5, 1.7, 1.95], 0.5, 2.4),
-    artery: withRim(C.mat({ color: tint('#bf3b30'), map: MOT, roughness: 0.32, clearcoat: 0.7, clearcoatRoughness: 0.24, sheen: 0.3, sheenColor: '#ffb8aa', sheenRoughness: 0.5, normalMap: nFine, normalScale: nScale(0.1), cut: 0x7a1d1a }), 'a', [1.35, 1.3, 1.3], 0.45, 2.6),
-    aorta: withRim(C.mat({ color: tint('#cb4b3e'), map: MOT, roughness: 0.34, clearcoat: 0.65, clearcoatRoughness: 0.26, sheen: 0.35, sheenColor: '#ffc4b4', sheenRoughness: 0.5, normalMap: nFine, normalScale: nScale(0.1), cut: 0x7a1d1a }), 'ao', [1.3, 1.28, 1.25], 0.45, 2.6),
-    capV: C.mat({ vertexColors: true, color: '#ffffff', roughness: 0.36, clearcoat: 0.6, clearcoatRoughness: 0.3, cut: 0x4a1f2a }),
-    capA: C.mat({ vertexColors: true, color: '#ffffff', roughness: 0.36, clearcoat: 0.6, clearcoatRoughness: 0.3, cut: 0x7a1d1a }),
+    vein: withRim(C.mat({ color: tint('#33629f'), map: MOT, roughness: 0.3, clearcoat: 0.75, clearcoatRoughness: 0.2, sheen: 0.25, sheenColor: '#a9c8ff', sheenRoughness: 0.5, normalMap: nFine, normalScale: nScale(0.12), cut: CUT_V }), 'v', [1.55, 1.75, 2.0], 0.55, 2.4),
+    veinDeep: withRim(C.mat({ color: tint('#2d5791'), map: MOT, roughness: 0.33, clearcoat: 0.7, clearcoatRoughness: 0.24, sheen: 0.2, sheenColor: '#a9c8ff', normalMap: nFine, normalScale: nScale(0.12), cut: CUT_V }), 'v2', [1.5, 1.7, 1.95], 0.5, 2.4),
+    artery: withRim(C.mat({ color: tint('#bf3b30'), map: MOT, roughness: 0.32, clearcoat: 0.7, clearcoatRoughness: 0.24, sheen: 0.3, sheenColor: '#ffb8aa', sheenRoughness: 0.5, normalMap: nFine, normalScale: nScale(0.1), cut: CUT_A }), 'a', [1.35, 1.3, 1.3], 0.45, 2.6),
+    aorta: withRim(C.mat({ color: tint('#cb4b3e'), map: MOT, roughness: 0.34, clearcoat: 0.65, clearcoatRoughness: 0.26, sheen: 0.35, sheenColor: '#ffc4b4', sheenRoughness: 0.5, normalMap: nFine, normalScale: nScale(0.1), cut: CUT_A }), 'ao', [1.3, 1.28, 1.25], 0.45, 2.6),
+    capV: C.mat({ vertexColors: true, color: '#ffffff', roughness: 0.36, clearcoat: 0.6, clearcoatRoughness: 0.3, cut: CUT_V }),
+    capA: C.mat({ vertexColors: true, color: '#ffffff', roughness: 0.36, clearcoat: 0.6, clearcoatRoughness: 0.3, cut: CUT_A }),
   };
   const col = (h) => new THREE.Color(h);
   const CAPCOL = {
-    V: { wall: col('#43679c'), lumen: col('#3c1622'), deep: col('#240a12') },
+    V: { wall: col('#43679c'), lumen: col('#24345f'), deep: col('#141d38') }, // luz venosa azul-escura (não vinho)
     A: { wall: col('#dba393'), lumen: col('#741816'), deep: col('#4a0b0b') },
   };
 
@@ -93,15 +96,38 @@ ATLAS.define('vessels', function (ctx) {
     return best;
   }
   const P3 = (v) => [+v.x.toFixed(3), +v.y.toFixed(3), +v.z.toFixed(3)];
+  /**
+   * Óstio de um ramo DERIVADO do eixo real do tronco (não de coordenadas fixas): ponto do eixo de `sys` onde a
+   * coordenada `ax` vale `v` (busca em [from, to]), deslocado de `frac`·raio local na direção `dir` projetada
+   * perpendicularmente à tangente (face de origem: p.ex. superior, inferior, posterossuperior).
+   */
+  function ostiumOn(sys, ax, v, dir, frac, from = 0, to = 1) {
+    const t = tAt(sys.curve, ax, v, from, to), p = sys.curve.getPointAt(t), T = sys.curve.getTangentAt(t);
+    const n = new V3().fromArray(dir); n.addScaledVector(T, -n.dot(T));
+    if (n.lengthSq() > 1e-9) p.addScaledVector(n.normalize(), frac * sys.rAt(t));
+    return P3(p);
+  }
+  /**
+   * Reancora um trajeto desenhado a partir de pts[0]: pts[0] passa a p0 e o mesmo deslocamento é propagado aos
+   * pontos seguintes com peso w(p) ∈ [0,1] (função do ponto ORIGINAL; p.ex. decai com |x| ou y). Mantém a forma
+   * junto ao óstio e devolve o trajeto distal intacto.
+   */
+  function rebase(pts, p0, w) {
+    const d = [p0[0] - pts[0][0], p0[1] - pts[0][1], p0[2] - pts[0][2]];
+    return pts.map((p, i) => { const k = i === 0 ? 1 : w(p, i); return [+(p[0] + d[0] * k).toFixed(3), +(p[1] + d[1] * k).toFixed(3), +(p[2] + d[2] * k).toFixed(3)]; });
+  }
+  /** Mesmo deslocamento `d` (vetor) aplicado com peso w(p). */
+  const shiftBy = (pts, d, w) => pts.map((p, i) => { const k = w(p, i); return [+(p[0] + d[0] * k).toFixed(3), +(p[1] + d[1] * k).toFixed(3), +(p[2] + d[2] * k).toFixed(3)]; });
 
   /** Orientação do eixo N da secção: no plano coronal, perpendicular ao trajeto (B ≈ ântero-posterior). */
   const upCoronal = (t, p, T) => new V3().crossVectors(T, new V3(0, 0, 1));
 
   /* =====================================================================
-     MANÚBRIO ANALÍTICO (a malha extrudada do esqueleto tem faces grandes, sem vértices internos, e
-     não serve para a acomodação por vértices). Mesma construção do esqueleto: contorno da peça
-     (incisuras jugular/clavicular/1ª costal), espessura 1,25 cm centrada em LM.sternum.zMid(y) e
-     curvatura transversal −0,035·x².
+     MANÚBRIO — campo de altura medido na MALHA REAL do esqueleto (id 'manubrium' em layers.bones, construída antes
+     deste módulo): os triângulos são rasterizados no plano coronal (células de 0,05 cm) guardando, por célula, as
+     faces posterior (zmin) e anterior (zmax). Assim a acomodação da VBC E/VCS/VTI acompanha qualquer remodelagem do
+     osso (a malha extrudada tem faces grandes, sem vértices internos, e não serve para a acomodação por vértices).
+     Sem a malha (harness parcial), usa-se a réplica analítica da construção original do esqueleto.
      ===================================================================== */
   const MAN_OUT = [[1.75, 0.5], [2.15, 0.25], [2.5, -0.15], [2.72, -0.55], [2.82, -1.05], [2.98, -1.35], [3.0, -1.9], [2.85, -2.2], [2.45, -3.0], [2.05, -3.85], [1.85, -4.35], [1.85, -4.55]];
   const MAN_TOP = [[0, -0.02], [0.55, 0.06], [1.05, 0.3], [1.45, 0.52], [1.75, 0.5]];
@@ -113,8 +139,7 @@ ATLAS.define('vessels', function (ctx) {
     }
     return null;
   };
-  /** {back, front} do manúbrio em (x, y) ou null se fora do contorno (folga lateral `pad`). */
-  function manubriumAt(x, y, pad = 0.08) {
+  function manubriumAnalytic(x, y, pad) {
     const ax = Math.abs(x);
     if (y < -4.55 || y > 0.55) return null;
     if (y <= 0.5) { const hw = interp(MAN_OUT, 1, y, 0); if (hw == null || ax > hw + pad) return null; }
@@ -123,6 +148,65 @@ ATLAS.define('vessels', function (ctx) {
     const zm = LM.sternum.zMid(y) - 0.035 * ax * ax;
     return { back: zm - 0.625, front: zm + 0.625 };
   }
+  const T_MAN0 = performance.now();
+  const MANF = (function manubriumField() {
+    const meshes = [];
+    if (layers.bones) layers.bones.traverse((o) => { if (o.isMesh && o.geometry && o.userData.info && o.userData.info.id === 'manubrium') meshes.push(o); });
+    if (!meshes.length || !ctx.world) return null;
+    ctx.world.updateMatrixWorld(true);
+    const inv = new THREE.Matrix4().copy(ctx.world.matrixWorld).invert();
+    const cs = 0.05, ox = -4.5, oy = -6.5, NX = 180, NY = 170; // x ∈ [−4,5; 4,5], y ∈ [−6,5; 2,0]
+    const zlo = new Float32Array(NX * NY).fill(1e9), zhi = new Float32Array(NX * NY).fill(-1e9);
+    const M = new THREE.Matrix4(), a = new V3(), b = new V3(), c = new V3();
+    let tris = 0;
+    for (const o of meshes) {
+      M.multiplyMatrices(inv, o.matrixWorld);
+      const g = o.geometry, pa = g.attributes.position, ix = g.index, nt = ix ? ix.count / 3 : pa.count / 3;
+      for (let f = 0; f < nt; f++) {
+        const i0 = ix ? ix.getX(f * 3) : f * 3, i1 = ix ? ix.getX(f * 3 + 1) : f * 3 + 1, i2 = ix ? ix.getX(f * 3 + 2) : f * 3 + 2;
+        a.fromBufferAttribute(pa, i0).applyMatrix4(M); b.fromBufferAttribute(pa, i1).applyMatrix4(M); c.fromBufferAttribute(pa, i2).applyMatrix4(M);
+        const den = (b.y - c.y) * (a.x - c.x) + (c.x - b.x) * (a.y - c.y);
+        if (Math.abs(den) < 1e-9) continue; // face paralela ao eixo z (parede lateral): não define altura
+        tris++;
+        const x0 = Math.max(0, Math.floor((Math.min(a.x, b.x, c.x) - ox) / cs)), x1 = Math.min(NX - 1, Math.floor((Math.max(a.x, b.x, c.x) - ox) / cs));
+        const y0 = Math.max(0, Math.floor((Math.min(a.y, b.y, c.y) - oy) / cs)), y1 = Math.min(NY - 1, Math.floor((Math.max(a.y, b.y, c.y) - oy) / cs));
+        for (let j = y0; j <= y1; j++) for (let i = x0; i <= x1; i++) {
+          const px = ox + (i + 0.5) * cs, py = oy + (j + 0.5) * cs;
+          const l0 = ((b.y - c.y) * (px - c.x) + (c.x - b.x) * (py - c.y)) / den, l1 = ((c.y - a.y) * (px - c.x) + (a.x - c.x) * (py - c.y)) / den, l2 = 1 - l0 - l1;
+          if (l0 < -1e-4 || l1 < -1e-4 || l2 < -1e-4) continue;
+          const z = l0 * a.z + l1 * b.z + l2 * c.z, k = j * NX + i;
+          if (z < zlo[k]) zlo[k] = z; if (z > zhi[k]) zhi[k] = z;
+        }
+      }
+    }
+    if (!tris) return null;
+    const ok = (k) => zhi[k] - zlo[k] > 0.05;
+    let filled = 0; for (let k = 0; k < NX * NY; k++) if (ok(k)) filled++;
+    if (filled < 200) return null;
+    return {
+      /** {back, front} em (x, y); pad > 0 tolera células vizinhas (folga lateral); pad < 0 exige interior a |pad|. */
+      at(x, y, pad) {
+        const i = Math.floor((x - ox) / cs), j = Math.floor((y - oy) / cs);
+        if (i < 0 || j < 0 || i >= NX || j >= NY) return null;
+        const k = j * NX + i;
+        if (pad < 0) {
+          const n = Math.ceil(-pad / cs);
+          for (const [di, dj] of [[n, 0], [-n, 0], [0, n], [0, -n]]) { const ii = i + di, jj = j + dj; if (ii < 0 || jj < 0 || ii >= NX || jj >= NY || !ok(jj * NX + ii)) return null; }
+          return ok(k) ? { back: zlo[k], front: zhi[k] } : null;
+        }
+        if (ok(k)) return { back: zlo[k], front: zhi[k] };
+        const n = Math.ceil(pad / cs); let best = null, bd = 1e9;
+        for (let dj = -n; dj <= n; dj++) for (let di = -n; di <= n; di++) {
+          const ii = i + di, jj = j + dj; if (ii < 0 || jj < 0 || ii >= NX || jj >= NY) continue;
+          const kk = jj * NX + ii, d = di * di + dj * dj; if (d < bd && ok(kk)) { bd = d; best = kk; }
+        }
+        return best == null ? null : { back: zlo[best], front: zhi[best] };
+      },
+    };
+  })();
+  const T_MAN = performance.now() - T_MAN0;
+  /** {back, front} do manúbrio em (x, y) ou null se fora do contorno (folga lateral `pad`). */
+  const manubriumAt = (x, y, pad = 0.08) => (MANF ? MANF.at(x, y, pad) : manubriumAnalytic(x, y, pad));
 
   /* =====================================================================
      ACOMODAÇÃO DE CONTATO (veias ↔ artérias; vasos calibrosos ↔ ossos)
@@ -230,9 +314,13 @@ ATLAS.define('vessels', function (ctx) {
           // recua para DENTRO (radialmente, em direção ao eixo da veia) até passar atrás da artéria → sulco de contato
           const ux = x - RC[i * 3], uy = y - RC[i * 3 + 1], uz = z - RC[i * 3 + 2], ul = Math.hypot(ux, uy, uz) || 1;
           const ac = Math.hypot(bs.x - RC[i * 3], bs.y - RC[i * 3 + 1], bs.z - RC[i * 3 + 2]);
-          if (ac < ul) {
-            const nx = ux / ul, ny = uy / ul, nz = uz / ul, R2 = (bs.r + margin) ** 2, du = dx * nx + dy * ny + dz * nz;
-            const t = du + Math.sqrt(Math.max(0, du * du + R2 - (dx * dx + dy * dy + dz * dz)));
+          const nx = ux / ul, ny = uy / ul, nz = uz / ul, R2 = (bs.r + margin) ** 2, du = dx * nx + dy * ny + dz * nz;
+          const disc = du * du + R2 - (dx * dx + dy * dy + dz * dz);
+          // o.recede: artéria rente à parede (eixo ~na superfície, p.ex. ramos entre VJI e escaleno) — se a linha radial
+          // do vértice cruza a artéria, a parede também RECUA radialmente (sulco que abraça a artéria) em vez de
+          // escorregar ao longo da veia (o que abria um vão entre anéis, atravessado pela artéria)
+          if (ac < ul || (o.recede && disc >= 0)) {
+            const t = du + Math.sqrt(Math.max(0, disc));
             out[0] = -nx * t; out[1] = -ny * t; out[2] = -nz * t;
           } else { const push = margin - best; out[0] = (dx / l) * push; out[1] = (dy / l) * push; out[2] = (dz / l) * push; }
           moved = true; x += out[0]; y += out[1]; z += out[2];
@@ -559,7 +647,7 @@ ATLAS.define('vessels', function (ctx) {
     }
     if (os) applyFillet(geo, curve, len, rings, W, ringT, os);
     if (o.bones || o.sternum || o.kind === 'V') {
-      try { conformGeo(geo, Rr, rings, (i) => Math.min(rx(ringT(i)), ry(ringT(i))), { bones: !!o.bones, sternum: !!o.sternum, arteries: o.kind === 'V', margin: o.margin, maxFrac: o.maxFrac, iters: o.iters ?? (o.kind === 'V' ? 10 : 4), soft: o.kind === 'V' ? 1.7 : 0 }); }
+      try { conformGeo(geo, Rr, rings, (i) => Math.min(rx(ringT(i)), ry(ringT(i))), { bones: !!o.bones, sternum: !!o.sternum, arteries: o.kind === 'V', margin: o.margin, maxFrac: o.maxFrac, recede: !!o.recede, iters: o.iters ?? (o.kind === 'V' ? 10 : 4), soft: o.kind === 'V' ? 1.7 : 0 }); }
       catch (e) { /* acomodação é opcional */ }
     }
     geo.computeVertexNormals();
@@ -590,15 +678,16 @@ ATLAS.define('vessels', function (ctx) {
     });
     // recortes didáticos (parede + luz)
     const wall = o.wall ?? (o.kind === 'V' ? 0.11 : 0.2);
-    if (o.start === 'cut') cutCap(geo, W, 0, curve.getTangentAt(0).negate(), o.kind, wall, out[0].info, out[0].mesh.parent);
-    if (o.end === 'cut') cutCap(geo, W, rings - 1, curve.getTangentAt(1), o.kind, wall, out[out.length - 1].info, out[out.length - 1].mesh.parent);
+    const capMeshes = [];
+    if (o.start === 'cut') capMeshes.push(cutCap(geo, W, 0, curve.getTangentAt(0).negate(), o.kind, wall, out[0].info, out[0].mesh.parent));
+    if (o.end === 'cut') capMeshes.push(cutCap(geo, W, rings - 1, curve.getTangentAt(1), o.kind, wall, out[out.length - 1].info, out[out.length - 1].mesh.parent));
     // amostras do eixo (pai de ramos; obstáculos arteriais para as veias)
     const samples = [];
     const ns = Math.ceil(len / 0.1);
     for (let j = 0; j <= ns; j++) { const t = j / ns, p = curve.getPointAt(t); samples.push({ x: p.x, y: p.y, z: p.z, r: Math.max(rx(t), ry(t)), rm: rAt(t) }); }
     if (o.kind === 'A') for (let j = 0; j < samples.length; j += 1) ART_SAMPLES.push(samples[j]);
     const sys = {
-      curve, len, rAt, rx, ry, geo, pieces: out, meshes: out.map((p) => p.mesh), parent: os ? os.parent : null, kids: [], extra: o.partners || [],
+      curve, len, rAt, rx, ry, geo, pieces: out, meshes: out.map((p) => p.mesh), capMeshes, parent: os ? os.parent : null, kids: [], extra: o.partners || [],
       samples: samples.map((q) => ({ x: q.x, y: q.y, z: q.z, r: q.rm })),
     };
     if (os) os.parent.kids.push(sys);
@@ -608,34 +697,54 @@ ATLAS.define('vessels', function (ctx) {
 
   /** União final das confluências: recorta de cada malha o que fica dentro dos sistemas unidos a ela
       (tronco, ramos e ramos-irmãos do mesmo tronco). Recorte assimétrico: o ramo é cortado rente ao tronco
-      (folga 0,02 cm) e o tronco um pouco mais para dentro do ramo (0,07 cm) — a borda do furo do tronco fica sob o
-      filete do ramo, sem frestas na costura. */
+      (folga 0,02 cm; `parentEps` do ramo, se houver) e o tronco um pouco mais para dentro do ramo (0,07 cm; `trimEps`) — a borda
+      do furo do tronco fica sob o filete do ramo, sem frestas na costura.
+      Ramos SUPERFICIAIS (VJE, ocultáveis — ver update()): o pedaço de parede do tronco recortado por eles não é
+      descartado; vira um REMENDO (mesma estrutura/id do tronco, mesma borda do furo) que fica visível só enquanto o
+      ramo está oculto. Assim o tronco nunca exibe um furo aberto (faces internas na cor de corte) e, com o ramo
+      visível, a luz da confluência continua contínua. */
+  const PATCHES = [];
   function trimAll() {
     const box = (sys) => { if (!sys.geo.boundingBox) sys.geo.computeBoundingBox(); return sys.geo.boundingBox; };
+    /** campo assinado mínimo (sdf + folga) dos parceiros PL nos vértices de g; null se nenhum vértice fica dentro */
+    const field = (g, PL) => {
+      const PA = g.attributes.position.array, nv = PA.length / 3;
+      g.computeBoundingBox();
+      const s = new Float32Array(nv).fill(9);
+      let any = false;
+      for (const p of PL) {
+        if (!p.bb.intersectsBox(g.boundingBox)) continue;
+        for (let i = 0; i < nv; i++) {
+          const x = PA[i * 3], y = PA[i * 3 + 1], z = PA[i * 3 + 2];
+          if (x < p.bb.min.x || x > p.bb.max.x || y < p.bb.min.y || y > p.bb.max.y || z < p.bb.min.z || z > p.bb.max.z) continue;
+          const d = p.f(x, y, z) + p.eps;
+          if (d < s[i]) { s[i] = d; if (d < 0) any = true; }
+        }
+      }
+      return any ? s : null;
+    };
+    const plOf = (map) => [...map].map(([p, eps]) => ({ f: sdfOf(p), eps, bb: box(p).clone().expandByScalar(0.08) }));
     for (const S of SYS) {
-      const partners = new Map(); // sistema → folga
+      const partners = new Map(), sup = new Map(); // sistema → folga
       for (const e of S.extra) partners.set(e, 0.03);
       SYS.forEach((T) => { if (T.extra.includes(S)) partners.set(T, 0.03); });
-      if (S.parent) { for (const sib of S.parent.kids) if (sib !== S) partners.set(sib, 0.03); partners.set(S.parent, 0.02); }
-      for (const k of S.kids) partners.set(k, 0.07);
-      partners.delete(S);
-      if (!partners.size) continue;
-      const PL = [...partners].map(([p, eps]) => ({ f: sdfOf(p), eps, bb: box(p).clone().expandByScalar(0.08) }));
+      if (S.parent) { for (const sib of S.parent.kids) if (sib !== S && !sib.superficial) partners.set(sib, 0.03); partners.set(S.parent, S.parentEps ?? 0.02); }
+      for (const k of S.kids) (k.superficial ? sup : partners).set(k, k.trimEps ?? 0.07);
+      partners.delete(S); sup.delete(S);
+      if (!partners.size && !sup.size) continue;
+      const PL = plOf(partners), PS = plOf(sup);
       for (const m of S.meshes) {
-        const g = m.geometry, PA = g.attributes.position.array, nv = PA.length / 3;
-        if (!g.boundingBox) g.computeBoundingBox();
-        const s = new Float32Array(nv).fill(9);
-        let any = false;
-        for (const p of PL) {
-          if (!p.bb.intersectsBox(g.boundingBox)) continue;
-          for (let i = 0; i < nv; i++) {
-            const x = PA[i * 3], y = PA[i * 3 + 1], z = PA[i * 3 + 2];
-            if (x < p.bb.min.x || x > p.bb.max.x || y < p.bb.min.y || y > p.bb.max.y || z < p.bb.min.z || z > p.bb.max.z) continue;
-            const d = p.f(x, y, z) + p.eps;
-            if (d < s[i]) { s[i] = d; if (d < 0) any = true; }
-          }
-        }
-        if (any) { const ng = trimGeometry(g, s, 0); g.dispose(); m.geometry = ng; }
+        let g = m.geometry;
+        const s = PL.length ? field(g, PL) : null;
+        if (s) { const ng = trimGeometry(g, s, 0); g.dispose(); g = m.geometry = ng; }
+        const ss = PS.length ? field(g, PS) : null;
+        if (!ss) continue;
+        // furo do ramo superficial: o complemento (s ≤ 0) vira remendo com a mesma borda
+        const neg = ss.map((v) => -v);
+        const patch = C.mesh(trimGeometry(g, neg, 0), m.material, m.parent, m.userData.info);
+        patch.castShadow = m.castShadow; patch.receiveShadow = m.receiveShadow; patch.userData.ejvPatch = true;
+        PATCHES.push(patch);
+        const ng = trimGeometry(g, ss, 0); g.dispose(); m.geometry = ng;
       }
     }
   }
@@ -728,6 +837,9 @@ ATLAS.define('vessels', function (ctx) {
     ita3: 'Sobe na borda medial do escaleno anterior, faz alça medial atrás da bainha carotídea (anterior à artéria vertebral) e alcança o polo inferior da tireoide, perto do nervo laríngeo recorrente.',
     ssa: 'Cruza ANTERIORMENTE o escaleno anterior e o nervo frênico, depois a 3ª parte da subclávia e o plexo, atrás e paralela à clavícula, até a incisura da escápula.',
     tca: 'Cruza anteriormente o escaleno anterior e o nervo frênico ~2 cm acima da clavícula, passa sobre o plexo braquial e segue para o trapézio e o levantador da escápula.',
+    cct: 'Ramo da face posterior da subclávia (à direita, 2ª parte, atrás do escaleno anterior; à esquerda, 1ª parte): arqueia para trás sobre a cúpula pleural até o colo da 1ª costela e divide-se em intercostal suprema e cervical profunda.',
+    sic: 'Desce atrás da pleura, à frente dos colos da 1ª e 2ª costelas (gânglio estrelado medial, ramo ventral de T1 lateral) e origina as intercostais posteriores dos 1º e 2º espaços.',
+    dca: 'Passa para trás entre o processo transverso de C7 e o colo da 1ª costela e sobe na nuca entre os semiespinais; anastomosa-se com a occipital e a vertebral.',
     ta: 'Ramo da 2ª parte da axilar na borda superior do peitoral menor; perfura a fáscia clavipeitoral junto à cefálica e se divide em ramos peitoral, deltóideo, acromial e clavicular — referência do trígono clavipeitoral, lateral ao trajeto da agulha.',
     mph: 'Ramo terminal lateral da torácica interna (6º espaço intercostal), ao longo da margem costal.',
     sep: 'Ramo terminal medial da torácica interna; passa atrás da 7ª cartilagem para a bainha do reto.',
@@ -738,10 +850,9 @@ ATLAS.define('vessels', function (ctx) {
      ARTÉRIAS (construídas primeiro: as veias acomodam-se a elas)
      ===================================================================== */
   // ---- Aorta: parte ascendente → arco → parte torácica descendente (recorte no hiato aórtico, T12).
-  //      Último ponto 0,28 cm anterior ao de LM (o de LM toca a face anterior do corpo de T12; ver `requests`).
-  const aortaPts = VV.aorta.pts.slice(0, -1).concat([[-0.85, -22.3, -6.02]]);
+  //      Eixo de LM (v2: último ponto já afastado da face anterior de T12); raio final 0,88 (folga do corpo de T12).
   const aorta = build({
-    kind: 'A', pts: aortaPts, r: VV.aorta.r.slice(0, -1).concat([0.88]), radial: 44, density: 6, start: 'round', end: 'cut', bones: true,
+    kind: 'A', pts: VV.aorta.pts, r: VV.aorta.r.slice(0, -1).concat([0.88]), radial: 44, density: 6, start: 'round', end: 'cut', bones: true,
     rootBulge: 0.06, mat: MAT.aorta,
     pieces: [{ t: 1, info: GA({ id: 'aorta', name: 'Aorta (parte ascendente, arco e parte torácica)', desc: D.aorta }) }],
   });
@@ -826,38 +937,51 @@ ATLAS.define('vessels', function (ctx) {
     kind: 'A', pts: vertR, r: vertRr, radial: 16, density: 8, start: 'round', end: 'cut', bones: true, ostium: { parent: scaR }, mat: MAT.artery,
     pieces: [{ t: 1, info: GA({ id: 'vertebral-a-R', name: 'Artéria vertebral direita', desc: D.vert }) }],
   });
-  build({ // E: origem na face posterossuperior da 1ª parte da subclávia E; restante espelhado (esqueleto simétrico)
-    kind: 'A', pts: [[-2.85, 1.55, -3.75]].concat(mirP(vertR).slice(1)), r: vertRr, radial: 16, density: 8, start: 'round', end: 'cut', bones: true, ostium: { parent: scaL }, mat: MAT.artery,
+  build({ // E: óstio DERIVADO do eixo da subclávia E (face posterossuperior, onde a 1ª parte vira lateralmente); restante espelhado
+    kind: 'A', pts: [ostiumOn(scaL, 0, -3.0, [0, 0.6, -0.8], 0.4)].concat(mirP(vertR).slice(1)), r: vertRr, radial: 16, density: 8, start: 'round', end: 'cut', bones: true, ostium: { parent: scaL }, mat: MAT.artery,
     pieces: [{ t: 1, info: GA({ id: 'vertebral-a-L', name: 'Artéria vertebral esquerda', desc: D.vert }) }],
   });
 
   // ---- Torácicas internas + ramos terminais (6º espaço intercostal): epigástrica superior (continuação) e musculofrênica.
-  //      Trajeto superior (pontos intermediários; LM.itaR mantido de y = −2,9 para baixo): desce atrás do ângulo venoso,
-  //      na face posterolateral da VBC D (a veia cede: sulco de contato) e à frente da cúpula/lobo superior, passa atrás da
-  //      1ª costela e da 1ª cartilagem costal e segue ~1–1,5 cm lateral à borda do esterno.
-  const itaPts = [[3.3, 1.05, -3.3], [3.52, 0.45, -2.82], [3.68, -0.2, -2.42], [3.66, -0.85, -1.9], [3.5, -1.55, -1.38], [3.35, -2.2, -1.12], [3.25, -2.9, -0.72]]
-    .concat(VV.itaR.pts.slice(3), [[3.0, -15.2, 2.72], [2.86, -17.8, 3.3]]);
-  const itaRr = [0.17, 0.168, 0.166, 0.164, 0.162, 0.16, 0.157, 0.155, 0.15, 0.145, 0.12, 0.11];
-  const ITA_BIF = 9; // índice de [3.1, −13, 2] (LM): bifurcação em epigástrica superior e musculofrênica
+  //      Trajeto de LM.itaR (v2): desce atrás do ângulo venoso, na face posterolateral da VBC D (a veia cede: sulco de
+  //      contato) e à frente da cúpula/lobo superior, passa atrás da 1ª costela e da 1ª cartilagem e segue ~1–1,5 cm lateral
+  //      à borda do esterno, ~0,5 cm atrás das cartilagens. O ÓSTIO é derivado do eixo real da subclávia (face inferior
+  //      da 1ª parte, em frente ao tronco tireocervical) — acompanha qualquer mudança do arco em LM.
+  // posição do óstio em relação ao eixo da subclávia (face inferior; à D levemente anterior)
+  const ITA_OFF = { R: [0, -0.33, 0.16], L: [0, -0.34, 0.05] };
+  const itaTail = [[3.0, -15.2, 2.98], [2.86, -17.8, 3.45]]; // epigástrica superior: atrás da 7ª cartilagem → trígono esternocostal
+  const itaRr = [0.17, 0.168, 0.166, 0.164, 0.162, 0.16, 0.157, 0.155, 0.152, 0.15, 0.147, 0.145, 0.12, 0.11];
+  const ITA_BIF = VV.itaR.pts.length - 1; // último ponto de LM (6º espaço): bifurcação em epigástrica superior e musculofrênica
   const mphPts = [[3.1, -12.85, 1.96], [3.65, -13.6, 2.18], [4.55, -14.55, 2.36], [5.75, -15.55, 2.4], [6.6, -16.25, 2.33]];
   const itaSys = {};
   function itaSystem(side) {
-    const L = side === 'L', S = L ? mir : (p) => p;
-    let pts = itaPts.map(S);
-    // E: a 1ª parte da subclávia E é diferente (sobe do arco) → origem própria (face inferior), depois o trajeto espelhado
-    // (sem VBC lateral à esquerda: o trajeto pode ser um pouco mais medial e anterior, à frente do lobo superior E)
-    if (L) pts = [[-3.2, 1.45, -3.5], [-3.45, 0.62, -2.95], [-3.55, -0.2, -2.35], [-3.44, -0.85, -1.58], [-3.4, -1.55, -1.29], [-3.33, -2.2, -1.05]].concat(pts.slice(6));
+    const L = side === 'L', S = L ? mir : (p) => p, sca = L ? scaL : scaR;
+    const axO = (x) => P3(sca.curve.getPointAt(tAt(sca.curve, 0, x)));
+    let pts;
+    if (!L) {
+      const o = axO(3.3), f = ITA_OFF.R; pts = [[o[0] + f[0], o[1] + f[1], o[2] + f[2]]].concat(VV.itaR.pts.slice(1), itaTail);
+    } else {
+      // E: a 1ª parte da subclávia E sobe do arco → óstio próprio (face inferior, onde ela vira lateralmente) e trajeto
+      // superior próprio (sem VBC lateral à esquerda: um pouco mais medial e anterior, à frente do lobo superior E);
+      // abaixo de y ≈ −2,9 espelha a direita.
+      const o = axO(-3.2), f = ITA_OFF.L;
+      pts = [[o[0] + f[0], o[1] + f[1], o[2] + f[2]], [-3.45, 0.62, -2.95], [-3.55, -0.2, -2.35], [-3.44, -0.85, -1.58], [-3.4, -1.55, -1.29], [-3.33, -2.2, -1.05]]
+        .concat(mirP(VV.itaR.pts.slice(6)), mirP(itaTail));
+    }
     const bif = arcParams(C.curve(pts), pts.length)[ITA_BIF];
     const sfx = '-' + side, lado = L ? 'esquerda' : 'direita';
     const sys = build({
-      kind: 'A', pts, r: itaRr, radial: 14, density: 6, start: 'round', end: 'cut', ostium: { parent: L ? scaL : scaR }, mat: MAT.artery,
+      kind: 'A', pts, r: itaRr.slice(0, pts.length), radial: 14, density: 6, start: 'round', end: 'cut', ostium: { parent: sca }, mat: MAT.artery,
       pieces: [
         { t: bif, info: GA({ id: 'ita' + sfx, name: 'Artéria torácica interna ' + lado, desc: D.ita }) },
         { t: 1, info: GA({ id: 'superior-epigastric-a' + sfx, name: 'Artéria epigástrica superior ' + lado, desc: D.sep }) },
       ],
     });
+    // musculofrênica: nasce logo acima da bifurcação (dentro da ITA) e segue a margem costal; a parte lateral é fixa
+    const m0 = S(ostiumOn(sys, 1, -12.85, [L ? -1 : 1, 0, 0], 0.15, 0.7, 1)); // em coordenadas do lado D (S é involutiva)
+    const mph = rebase(mphPts, m0, (p) => 1 - C.smooth(13.0, 15.6, -p[1]));
     build({
-      kind: 'A', pts: mphPts.map(S), r: [0.13, 0.12, 0.115, 0.105, 0.1], radial: 12, density: 6, start: 'round', end: 'cut', ostium: { parent: sys }, mat: MAT.artery,
+      kind: 'A', pts: mph.map(S), r: [0.13, 0.12, 0.115, 0.105, 0.1], radial: 12, density: 6, start: 'round', end: 'cut', ostium: { parent: sys }, mat: MAT.artery,
       pieces: [{ t: 1, info: GA({ id: 'musculophrenic-a' + sfx, name: 'Artéria musculofrênica ' + lado, desc: D.mph }) }],
     });
     itaSys[side] = sys;
@@ -868,23 +992,47 @@ ATLAS.define('vessels', function (ctx) {
   //      supraescapular e a cervical transversa nascem em pontos escalonados do tronco, contornam a borda medial do
   //      escaleno anterior e cruzam ANTERIORMENTE o músculo e o frênico, atrás da VJI (que cede).
   //      A tireóidea inferior sobe na borda medial do escaleno e arqueia ATRÁS da bainha carotídea (≈ C7).
-  const TCT_R = {
+  //      Travessia (pontos 1–3 da SSA/TCA): os ramos sobem colados à borda MEDIAL do escaleno anterior (|x| ≈ 3,9, na
+  //      interface com a VJI, que cede), para a frente até z ≈ −1,2 — à frente da face anterior do músculo e do frênico
+  //      (|x| 4,3–4,4; z ≈ −1,55) — e só então viram lateralmente. Medido nas malhas reais (escaleno moldado, frênico, VJI):
+  //      folga ≥ 0,02 cm ao escaleno, ≥ 0,04 ao frênico, ≥ 0,01 à VJI acomodada.
+  //      Trajetos de referência (abaixo) desenhados com o óstio SOBRE o eixo da subclávia; em tempo de construção o óstio
+  //      é recalculado no eixo REAL (LM v2: arco ~0,6 cm mais alto) e o deslocamento é propagado: integral no tronco e na
+  //      travessia do escaleno/frênico, decaindo até zero nos destinos fixos (arco da tireóidea inferior em C7, incisura
+  //      da escápula, levantador da escápula/trapézio).
+  const TCT_R0 = {
     main: [[3.86, 1.75, -3.15], [3.9, 2.2, -2.92], [3.93, 2.5, -2.66], [3.92, 3.05, -2.78], [3.72, 3.8, -2.98], [3.45, 4.5, -3.12], [3.15, 5.1, -3.3], [2.7, 5.45, -3.4], [2.15, 5.3, -3.35], [1.7, 4.9, -3.1], [1.42, 4.45, -2.85]],
     mainR: [0.23, 0.22, 0.205, 0.165, 0.158, 0.152, 0.146, 0.14, 0.13, 0.12, 0.105],
     split: 2, // fim do tronco (após as origens dos ramos) → tireóidea inferior
-    ssa: [[3.9, 2.22, -2.9], [4.0, 2.3, -2.45], [4.09, 2.37, -1.92], [4.33, 2.42, -1.45], [4.95, 2.36, -1.3], [5.6, 2.3, -1.25], [6.2, 2.25, -1.25], [7.6, 1.95, -1.35], [9.0, 1.65, -2.0], [10.2, 1.35, -3.6], [11.1, 1.05, -5.8], [11.6, 0.9, -7.8], [11.8, 0.85, -8.75]],
+    // SSA: atrás e paralela à clavícula até passar SOBRE o ligamento transverso superior da escápula (incisura: SG)
+    ssa: [[3.9, 2.27, -2.9], [3.91, 2.36, -2.42], [3.94, 2.42, -1.95], [4.12, 2.44, -1.22], [4.95, 2.38, -1.02], [5.6, 2.3, -1.05], [6.2, 2.25, -1.12], [7.6, 1.95, -1.35], [9.0, 1.65, -2.0], [10.2, 1.4, -3.6], [11.0, 1.15, -5.8], [11.55, 1.0, -7.75], [11.85, 0.95, -8.85]],
     // TCA: depois do escaleno anterior aprofunda-se sob o ventre inferior do omo-hióideo, rumo ao levantador da escápula/trapézio
-    tca: [[3.93, 2.5, -2.68], [4.0, 2.68, -2.32], [4.03, 2.82, -1.93], [4.34, 2.97, -1.42], [5.0, 3.4, -1.38], [5.8, 3.85, -1.75], [6.45, 3.7, -3.05], [7.4, 3.5, -4.0], [8.5, 3.15, -5.25], [9.3, 2.85, -6.65]],
+    tca: [[3.93, 2.5, -2.68], [3.86, 2.68, -2.38], [3.94, 2.84, -1.98], [4.13, 2.98, -1.26], [5.0, 3.4, -1.2], [5.8, 3.85, -1.72], [6.45, 3.7, -3.05], [7.4, 3.5, -4.0], [8.5, 3.15, -5.25], [9.3, 2.85, -6.65]],
   };
-  // E: o ducto torácico arqueia ANTERIOR ao tronco e aos ramos → tronco e tireóidea inferior mais posteriores; os ramos
-  //    passam atrás do ducto (lateralmente) e só então vêm à frente do escaleno anterior.
-  const TCT_L = {
+  // E: o ducto torácico arqueia ANTERIOR/MEDIAL ao tronco e aos ramos → tronco e tireóidea inferior mais posteriores; os
+  //    ramos passam atrás do ducto (lateralmente) e só então vêm à frente do escaleno anterior. Lateralmente, a
+  //    supraescapular e a cervical transversa ESPELHAM as da direita (mesmo trajeto rebaseado).
+  const TCT_L0 = {
     main: [[-3.88, 1.82, -3.3], [-3.94, 2.22, -3.42], [-3.98, 2.55, -3.52], [-3.98, 3.1, -3.7], [-3.78, 3.95, -3.88], [-3.45, 4.6, -3.7], [-3.12, 5.1, -3.42], [-2.68, 5.45, -3.42], [-2.15, 5.3, -3.35], [-1.72, 4.9, -3.12], [-1.45, 4.45, -2.88]],
-    mainR: TCT_R.mainR, split: 2,
-    // os ramos saem ACIMA da subclávia E (que aqui sobe atrás do escaleno) e vêm à frente entre o ducto (medial) e a borda do escaleno
-    ssa: [[-3.95, 2.45, -3.46], [-4.02, 2.52, -2.95], [-4.04, 2.5, -2.4], [-4.07, 2.47, -1.95], [-4.34, 2.45, -1.45], [-4.95, 2.38, -1.3], [-5.6, 2.3, -1.25]].concat(mirP(TCT_R.ssa).slice(6)),
-    tca: [[-3.96, 2.62, -3.5], [-4.06, 2.72, -3.05], [-4.03, 2.86, -2.42], [-4.03, 2.98, -1.93], [-4.34, 3.02, -1.42], [-5.0, 3.4, -1.38]].concat(mirP(TCT_R.tca).slice(5)),
+    mainR: TCT_R0.mainR, split: 2,
+    ssa: [[-3.95, 2.55, -3.48], [-3.91, 2.64, -2.98], [-3.9, 2.58, -2.42], [-3.93, 2.5, -1.92], [-3.92, 2.48, -1.55], [-4.1, 2.46, -1.18], [-4.95, 2.38, -1.02], [-5.6, 2.3, -1.05]],
+    tca: [[-3.96, 2.62, -3.5], [-3.88, 2.8, -3.05], [-3.8, 2.98, -2.42], [-3.88, 3.08, -1.95], [-4.13, 3.06, -1.26], [-5.0, 3.4, -1.2]],
   };
+  // óstio do tronco em relação ao eixo da subclávia: D face anterossuperior (quase no eixo); E um pouco posterior (ducto)
+  const TCT_OFF = { R: [0, -0.07, 0.1], L: [0, -0.12, -0.05] };
+  const wMain = (p, i) => (i <= 2 ? 1 : 1 - C.smooth(3.3, 5.2, p[1])); // tronco integral; tireóidea inferior volta ao arco de C7
+  const wSsa = (p) => 1 - C.smooth(5.2, 7.8, Math.abs(p[0]));          // integral na travessia do escaleno; incisura fixa
+  const wTca = (p) => 1 - C.smooth(5.0, 7.4, Math.abs(p[0]));
+  function tctRebase(T0, sca, L) {
+    const x0 = T0.main[0][0], o = P3(sca.curve.getPointAt(tAt(sca.curve, 0, x0)));
+    const off = TCT_OFF[L ? 'L' : 'R'], p0 = [o[0] + off[0], o[1] + off[1], o[2] + off[2]];
+    const d = [p0[0] - T0.main[0][0], p0[1] - T0.main[0][1], p0[2] - T0.main[0][2]];
+    return { d, main: shiftBy(T0.main, d, wMain), mainR: T0.mainR, split: T0.split, ssa: shiftBy(T0.ssa, d, wSsa), tca: shiftBy(T0.tca, d, wTca) };
+  }
+  const TCT_R = tctRebase(TCT_R0, scaR, false);
+  const TCT_L = tctRebase(TCT_L0, scaL, true);
+  TCT_L.ssa = TCT_L.ssa.concat(mirP(TCT_R.ssa).slice(6));
+  TCT_L.tca = TCT_L.tca.concat(mirP(TCT_R.tca).slice(5));
   function tctSystem(T, side, parent) {
     const sfx = '-' + side, ad = side === 'R' ? 'direito' : 'esquerdo', af = side === 'R' ? 'direita' : 'esquerda';
     const main = build({
@@ -905,6 +1053,38 @@ ATLAS.define('vessels', function (ctx) {
   }
   tctSystem(TCT_R, 'R', scaR); tctSystem(TCT_L, 'L', scaL);
 
+  // ---- Troncos costocervicais: D da face posterior da 2ª parte (atrás do escaleno anterior); E da 1ª parte (medial ao
+  //      escaleno). Arqueiam para trás SOBRE a cúpula pleural, sob a raiz C8 e medialmente ao tronco inferior, até o colo
+  //      da 1ª costela, onde se dividem: intercostal suprema (desce à frente dos colos da 1ª e 2ª costelas, atrás da pleura,
+  //      com o gânglio estrelado medial e o ramo ventral de T1 lateral) e cervical profunda (para trás, entre o processo
+  //      transverso de C7 e o colo da 1ª costela). O tronco continua como intercostal suprema; a cervical profunda nasce da
+  //      sua extremidade. Corredor medido sobre o domo pleural de LM v2 (folga ≥ 0,1 cm da pleura e da raiz C8).
+  const CCT_R = [[4.15, 3.38, -4.2], [3.7, 3.55, -4.95], [3.25, 3.68, -5.5], [2.82, 3.7, -6.2], [2.92, 3.74, -6.85], [3.0, 3.86, -7.4], // tronco
+    [2.88, 3.5, -7.66], [2.8, 2.85, -8.0], [2.95, 1.9, -8.55], [3.2, 1.0, -9.0]]; // intercostal suprema (à frente do colo da 1ª costela)
+  const CCT_SPLIT = 5;
+  const DCA_R = [[3.0, 3.86, -7.4], [2.96, 4.2, -8.2], [2.95, 4.6, -9.1], [2.9, 5.1, -10.0]];
+  ['R', 'L'].forEach((side) => {
+    const L = side === 'L', sca = L ? scaL : scaR, sfx = '-' + side, ad = L ? 'esquerdo' : 'direito', af = L ? 'esquerda' : 'direita';
+    // óstio: D na 2ª parte (x 4,55, face posterossuperior); E na 1ª parte medial ao escaleno (x −3,7)
+    const o = L ? ostiumOn(sca, 0, -3.7, [0, 0.5, -0.85], 0.35) : ostiumOn(sca, 0, 4.55, [0, 0.45, -0.9], 0.35);
+    const first = L ? [[-3.8, 3.32, -4.3]] : [CCT_R[0]];
+    const pts = [o].concat(first, (L ? mirP(CCT_R) : CCT_R).slice(1));
+    const t = arcParams(C.curve(pts), pts.length)[CCT_SPLIT + 1];
+    const cct = build({
+      kind: 'A', pts, r: pts.map((p, i) => (i <= CCT_SPLIT + 1 ? 0.15 - (0.03 * i) / (CCT_SPLIT + 1) : 0.085 - (0.02 * (i - CCT_SPLIT - 1)) / (pts.length - CCT_SPLIT - 2))),
+      radial: 12, density: 9, start: 'round', end: 'round', bones: true, ostium: { parent: sca }, mat: MAT.artery,
+      pieces: [
+        { t, info: GA({ id: 'costocervical' + sfx, name: 'Tronco costocervical ' + ad, desc: D.cct }) },
+        { t: 1, info: GA({ id: 'supreme-intercostal-a' + sfx, name: 'Artéria intercostal suprema ' + af, desc: D.sic }) },
+      ],
+    });
+    const dca = L ? mirP(DCA_R) : DCA_R;
+    build({
+      kind: 'A', pts: dca, r: [0.1, 0.095, 0.088, 0.08], radial: 10, density: 9, start: 'round', end: 'round', bones: true, ostium: { parent: cct, F: 0.035, reach: 0.12 }, mat: MAT.artery,
+      pieces: [{ t: 1, info: GA({ id: 'deep-cervical-a' + sfx, name: 'Artéria cervical profunda ' + af, desc: D.dca }) }],
+    });
+  });
+
   // ---- Tronco toracoacromial (2ª parte da axilar, na borda superior do peitoral menor): sobe ACIMA da veia axilar,
   //      perfura a fáscia clavipeitoral e continua como ramo peitoral (entre os peitorais); os ramos acromial (sobre o
   //      processo coracoide, profundo ao deltoide), clavicular (ao subclávio) e deltóideo (no sulco deltopeitoral,
@@ -915,7 +1095,8 @@ ATLAS.define('vessels', function (ctx) {
     split: 3,
     acro: [[11.18, -0.12, -0.45], [11.7, 0.15, -0.4], [12.4, 0.55, -0.55], [13.1, 0.75, -0.85], [13.6, 0.85, -1.15]],
     clav: [[11.1, -0.06, 0.1], [10.62, 0.1, 0.32], [10.15, 0.18, 0.45]],
-    delt: [[11.05, -0.22, 0.32], [11.6, -0.1, 0.5], [12.4, 0.02, 0.8], [13.2, -0.4, 1.3], [13.95, -1.55, 1.55]],
+    // deltóideo: no sulco deltopeitoral junto à cefálica, PROFUNDO (≥1 cm abaixo da superfície dos músculos) e lateral a ela
+    delt: [[11.05, -0.22, 0.32], [11.65, 0.0, 0.24], [12.4, 0.22, 0.04], [13.2, -0.22, 0.04], [14.05, -1.2, 0.24], [14.75, -2.4, 0.29]],
   };
   function taSystem(side) {
     const L = side === 'L', S = L ? mirP : (p) => p, sfx = '-' + side, lado = L ? 'esquerdo' : 'direito';
@@ -964,7 +1145,9 @@ ATLAS.define('vessels', function (ctx) {
   const iAx = VV.axillaryV.pts.length - 1, iCorner = axScv.length, iSvc = iCorner + VV.rbcv.pts.length - 1;
   const tCornerR = chRT[iCorner], tSvc = chRT[iSvc];
   const channelR = build({
-    kind: 'V', pts: chRpts, r: chRr, radial: 32, density: 8, start: 'cut', end: 'round', up: 'coronal', bones: true, sternum: true,
+    kind: 'V', pts: chRpts, r: chRr, radial: 32, density: 8, start: 'cut', end: 'round', up: 'coronal', bones: true, sternum: true, margin: 0.06,
+    // folga de acomodação 0,06 cm (não 0,035): a extremidade esternal da clavícula, convexa, ficava 0,015 cm DENTRO do
+    // canal (vista de dentro da luz nos cortes parassagitais como mancha cor de osso no disco azul)
     // razão (eixo no plano coronal ⟂ trajeto)/(AP): subclávia achatada entre clavícula e 1ª costela (<1);
     // VBC/VCS quase circulares (eixo coronal = lateral → ligeiramente > 1)
     oval: [[0, 0.95], [chRT[iAx] - 0.04, 0.92], [chRT[iAx] + 0.03, 0.84], [chRT[iCorner] - 0.03, 0.88], [chRT[iCorner] + 0.02, 1.06], [tSvc, 1.1], [1, 1.1]],
@@ -988,7 +1171,7 @@ ATLAS.define('vessels', function (ctx) {
   const chLC = C.curve(chLpts), chLT = arcParams(chLC, chLpts.length), chLlen = chLC.getLength();
   const tCornerL = chLT[iCorner];
   const channelL = build({
-    kind: 'V', pts: chLpts, r: chLr, radial: 32, density: 8, start: 'cut', end: 'round', up: 'coronal', bones: true, sternum: true,
+    kind: 'V', pts: chLpts, r: chLr, radial: 32, density: 8, start: 'cut', end: 'round', up: 'coronal', bones: true, sternum: true, margin: 0.06,
     // VBC E achatada AP atrás do manúbrio (eixo coronal = vertical)
     oval: [[0, 0.95], [chLT[iAx] - 0.04, 0.92], [chLT[iAx] + 0.03, 0.84], [tCornerL - 0.03, 0.9], [tCornerL + 0.04, 1.3], [0.9, 1.3], [1, 1.1]],
     ostium: { parent: channelR, at: 'end', taper: 0.45, F: 0.2, reach: 0.9 },
@@ -1001,39 +1184,57 @@ ATLAS.define('vessels', function (ctx) {
     ],
   });
   // ---- Veias jugulares internas: bulbo inferior com válvula; desembocam de cima no ângulo venoso (a E em geral menor)
+  //      A supraescapular e a cervical transversa passam entre a VJI e a borda medial do escaleno anterior (que se tocam):
+  //      a VJI CEDE — acomodação com recuo radial (`recede`) e folga de 0,07 cm, formando um sulco raso que abraça cada
+  //      ramo, sem que a malha da veia (anéis a ~0,3 cm) atravesse a artéria.
   function ijv(side) {
     const L = side === 'L';
     const pts = L ? mirP(VV.ijvR.pts) : VV.ijvR.pts, c = C.curve(pts);
-    return build({
-      kind: 'V', pts, r: L ? VV.ijvR.r.map((v) => v * 0.9) : VV.ijvR.r, radial: 30, density: 8, start: 'cut', end: 'round', up: 'coronal', bones: true,
+    const sys = build({
+      kind: 'V', pts, r: L ? VV.ijvR.r.map((v) => v * 0.9) : VV.ijvR.r, radial: 30, density: 8, start: 'cut', end: 'round', up: 'coronal', bones: true, recede: true, margin: 0.07,
       oval: [[0, 1.28], [0.55, 1.22], [0.85, 1.12], [1, 1.06]],
       ostium: { parent: L ? channelL : channelR, at: 'end', taper: 0.4, F: 0.36 },
       valves: [{ s: tAt(c, 1, 3.35) * c.getLength(), k: 0.03 }], noise: veinNoise(L ? 25 : 24), mat: MAT.vein,
       pieces: [{ t: 1, info: GV({ id: 'ijv-' + side, name: 'Veia jugular interna ' + (L ? 'esquerda' : 'direita'), desc: D.ijv }) }],
     });
+    // confluência oblíqua (face anterolateral do ângulo venoso): a VJI é recortada quase RENTE à superfície do canal
+    // (folga 0,004 cm, não 0,02) — ali ela encontra o canal quase tangente e o "lábio" de ~0,02 cm que sobrava dentro da
+    // luz aparecia, nos cortes parassagitais, como um traço claro no disco azul (fresta). A borda da VJI fica a ±0,01 cm
+    // da parede do canal (viés da distância estimada) e a borda do furo do canal continua 0,07 cm dentro da VJI: de
+    // fora a costura segue fechada.
+    sys.parentEps = 0.004;
+    return sys;
   }
   ijv('R'); ijv('L');
-  // ---- Jugulares externas (válvulas: terminal e ~4 cm acima da clavícula)
+  // ---- Jugulares externas (válvulas: terminal e ~4 cm acima da clavícula). Veias SUPERFICIAIS (tela subcutânea, sob o
+  //      platisma): ficam na camada de veias, mas só aparecem com o plano superficial (camada da pele) ligado ou quando
+  //      a própria VJE é destacada (glossário/seleção) — ver update(). Nas cenas profundas (pele desligada) deixam de
+  //      encobrir artéria subclávia, frênico, plexo e cúpula nas vistas oblíquas direitas.
+  const SUPERFICIAL = [];
   ['R', 'L'].forEach((side) => {
     const L = side === 'L';
     const pts = L ? mirP(VV.ejvR.pts) : VV.ejvR.pts, c = C.curve(pts), len = c.getLength();
-    build({
+    const sys = build({
       kind: 'V', pts, r: VV.ejvR.r, radial: 20, density: 9, start: 'cut', end: 'round', ostium: { parent: L ? channelL : channelR, at: 'end', F: 0.17, reach: 0.55 },
       valves: [{ s: tAt(c, 1, 4.9) * len, k: 0.04 }, { s: tAt(c, 1, 1.75) * len, k: 0.04 }], noise: veinNoise(L ? 27 : 26), mat: MAT.vein,
       pieces: [{ t: 1, info: GV({ id: 'ejv-' + side, name: 'Veia jugular externa ' + (L ? 'esquerda' : 'direita'), desc: D.ejv }) }],
     });
+    sys.superficial = true; // trimAll: o furo no canal ganha remendo (visível com a VJE oculta)
+    sys.pieces.forEach((pc) => SUPERFICIAL.push(pc.mesh));
+    if (sys.capMeshes) sys.capMeshes.forEach((m) => SUPERFICIAL.push(m));
   });
-  // ---- Cefálicas: sulco deltopeitoral (LM até y = −2) → trígono deltopeitoral, ANTERIOR e MEDIAL à ponta do coracoide →
-  //      perfura a fáscia clavipeitoral acima do peitoral menor → face anterossuperior da veia axilar, à qual se une
-  //      obliquamente, no sentido do fluxo (pontos próprios
-  //      abaixo de y = −2: o trajeto de LM passava pela ponta do coracoide; ver `requests`).
-  const cephR = VV.cephalicR.pts.slice(0, 3).concat([[13.35, -0.75, 0.85], [12.55, -0.3, 0.55], [12.0, -0.5, 0.0], [11.62, -0.72, -0.42], [11.25, -0.98, -0.8]]);
-  const cephRr = [0.25, 0.27, 0.28, 0.28, 0.29, 0.3, 0.31, 0.32];
+  // ---- Cefálicas: trajeto de LM.cephalicR (v2) — fundo do sulco deltopeitoral (no nível da face profunda dos músculos) →
+  //      trígono deltopeitoral, ANTERIOR e MEDIAL à ponta do coracoide → perfura a fáscia clavipeitoral acima do peitoral
+  //      menor → face anterossuperior da veia axilar. Um ponto final DENTRO da axilar (o último de LM fica na parede) dá a
+  //      união oblíqua, no sentido do fluxo. Calibre de ~4,5–5 mm (r 0,22–0,25): bem menor que a axilar, para não ser
+  //      confundida com ela na janela do ultrassom.
+  const cephR = VV.cephalicR.pts.concat([[11.22, -1.08, -0.92]]);
+  const cephRr = [0.22, 0.225, 0.23, 0.235, 0.24, 0.245, 0.25, 0.25];
   ['R', 'L'].forEach((side) => {
     const L = side === 'L';
     build({
       kind: 'V', pts: L ? mirP(cephR) : cephR, r: cephRr, radial: 20, density: 8, start: 'cut', end: 'round', bones: true,
-      ostium: { parent: L ? channelL : channelR, at: 'end', F: 0.18, reach: 0.6 }, noise: veinNoise(L ? 29 : 28), mat: MAT.vein,
+      ostium: { parent: L ? channelL : channelR, at: 'end', F: 0.15, reach: 0.55 }, noise: veinNoise(L ? 29 : 28), mat: MAT.vein,
       pieces: [{ t: 1, info: GV({ id: 'cephalic-v-' + side, name: 'Veia cefálica ' + (L ? 'esquerda' : 'direita'), desc: D.ceph }) }],
     });
   });
@@ -1048,7 +1249,9 @@ ATLAS.define('vessels', function (ctx) {
   // ---- Torácicas internas (mediais às artérias, atrás das cartilagens) → VBC do mesmo lado.
   //      D: sobe na face anterior da VCS/VBC D e afunda-se nela obliquamente (confluência alongada), atrás da borda
   //      lateral do manúbrio.
-  const itvRpts = [[2.6, -13.3, 1.8], [2.58, -9.0, 0.62], [2.58, -5.6, -0.3], [2.62, -3.9, -0.68], [2.7, -3.0, -1.05], [2.72, -2.4, -1.4], [2.68, -1.9, -1.75], [2.62, -1.5, -2.05]];
+  //      Abaixo de y ≈ −3,9 acompanha a ATI de LM v2 (~0,5 cm medial, quase na mesma profundidade: ~0,5 cm atrás das
+  //      cartilagens costais migradas com o esterno).
+  const itvRpts = [[2.62, -13.3, 2.18], [2.58, -9.0, 1.27], [2.58, -5.6, 0.3], [2.62, -3.9, -0.45], [2.7, -3.0, -1.05], [2.72, -2.4, -1.4], [2.68, -1.9, -1.75], [2.62, -1.5, -2.05]];
   const itvLpts = mirP(itvRpts.slice(0, 4)).concat([[-2.6, -2.85, -1.05], [-2.58, -2.0, -1.5], [-2.53, -1.2, -1.8], [-2.45, -0.5, -1.95], [-2.42, -0.12, -1.98]]);
   build({
     kind: 'V', pts: itvRpts, r: [0.16, 0.17, 0.175, 0.18, 0.18, 0.19, 0.2, 0.18], radial: 14, density: 7, start: 'cut', end: 'round', sternum: true,
@@ -1064,7 +1267,7 @@ ATLAS.define('vessels', function (ctx) {
   // ---- União das confluências (recorte das partes internas; ver trimAll)
   const tTrim0 = performance.now();
   trimAll();
-  if (typeof location !== 'undefined' && /[?&]vxdbg=1/.test(location.search)) window.__vx = { SYS, sdfOf, AXES, trimMs: performance.now() - tTrim0, T0: T_START };
+  if (typeof location !== 'undefined' && /[?&]vxdbg=1/.test(location.search)) window.__vx = { SYS, sdfOf, AXES, trimMs: performance.now() - tTrim0, T0: T_START, manubriumAt, manubriumAnalytic, MANF, T_MAN };
 
   /* =====================================================================
      SÓLIDOS DE REFERÊNCIA (somente no harness de verificação: ?solids=…)
@@ -1103,7 +1306,9 @@ ATLAS.define('vessels', function (ctx) {
   const anchors = {
     scvR: onCurve(scvRc, 0, 5.3, 0, tCornerR),
     scvLateralR: VV.scv.pts[0].slice(),
-    axillaryVR: onCurve(scvRc, 0, 11.4, 0, tCornerR),
+    // veia axilar sob o peitoral menor, LATERAL à desembocadura da cefálica (x ≈ 11,3): a janela da punção guiada.
+    // x = 12,3 (não 13,2): na vista do cap. 14 o ponto em 13,2 projeta-se sobre a cefálica do sulco deltopeitoral
+    axillaryVR: onCurve(scvRc, 0, 12.3, 0, tCornerR),
     ijvR: onCurve(C.curve(VV.ijvR.pts), 1, 5.0),
     venousAngleR: VV.venousAngleR.slice(),
     bcvR: onCurve(chRC, 1, -1.2, tCornerR, tSvc),
@@ -1132,14 +1337,25 @@ ATLAS.define('vessels', function (ctx) {
     suprascapularR: TCT_R.ssa[6].slice(),
     transverseCervicalR: TCT_R.tca[4].slice(),
     inferiorThyroidR: TCT_R.main[6].slice(),
+    costocervicalR: CCT_R[2].slice(),
+    supremeIntercostalR: CCT_R[8].slice(),
     itvR: [2.58, -5.0, -0.38],
     aortaDesc: [-2.6, -12.0, -6.6],
     ascAorta: front(P3(aorta.curve.getPointAt(0.12)), 0.9),
     vertebralC6R: F6.p.slice(),
   };
 
+  const E = ctx.engine;
+  let supVis = null;
   return {
     anchors,
+    /** Veias superficiais (VJE): visíveis com o plano superficial (camada da pele) ou quando destacadas. */
+    update() {
+      const hl = E && typeof E.highlighted === 'function' ? E.highlighted() || '' : '';
+      const v = !!(layers.skin && layers.skin.visible) || /^ejv-/.test(hl);
+      if (v === supVis) return;
+      supVis = v; SUPERFICIAL.forEach((m) => (m.visible = v)); PATCHES.forEach((m) => (m.visible = !v));
+    },
     api: {
       /** Eixo amostrado (coords anatômicas) de um vaso registrado por este módulo. */
       axis: (id) => (AXES[id] ? AXES[id].map((p) => p.slice()) : null),

@@ -141,7 +141,6 @@ ATLAS.define('instruments', async function (ctx) {
   let sSkin = 0;
   { let best = 1e9, sb = 0; for (let s = -1.2; s <= 1.2; s += 0.02) { const p = along(s); const d = Math.abs(p.z - skinZ(p.x, p.y)); if (d < best) { best = d; sb = s; } } if (best < 0.3) sSkin = sb; }
   const entryEff = along(sSkin);
-  const sClav = (P0.x - 7.5) / -dir.x;                 // ponta sob a clavícula (x ≈ 7,5)
 
   /* ---- 2b. Luz venosa (de LM.vessels): eixo contínuo com raio, para derivar fio, cateter e profundidade ---- */
   const vs = LM.vessels;
@@ -172,9 +171,44 @@ ATLAS.define('instruments', async function (ctx) {
   /* Fases 4–5: a ponta avança só o suficiente para que todo o bisel (~4 mm) fique na luz — ~5 mm além da parede
      anterior (a agulha cruza a veia em ângulo raso: isso equivale a ~2 mm "radiais" dentro da luz). Nunca até o canhão. */
   const sTip4 = sWall + 0.5;
-  // eixo "bisel para cima": componente de +z perpendicular à agulha
+  /* Fase 3 ("ponta sob a clavícula") definida pela GEOMETRIA, não por um x fixo: entre sSkin + 1 e sWall − 0,45, o
+     ponto do trajeto DENTRO do músculo subclávio (paridade de raio na malha do módulo muscles) mais próximo da
+     clavícula (vértices da malha do esqueleto) — a ponta passou para trás do plano da cortical anterior, rente à face
+     posteroinferior do osso, e ainda não tocou a veia. Sem as malhas: sWall − 0,6. */
+  const clavInfo = (() => {
+    const out = { s: sWall - 0.6, dClav: null, inSubclavius: null, how: 'fallback' };
+    const reg = (ctx.ATLAS || window.ATLAS || {}).registry;
+    const meshesOf = (id) => { const e = reg && reg.get(id), ms = []; if (e) e.objects.forEach((o) => o.traverse((c) => { if (c.isMesh && c.geometry && c.geometry.attributes.position) ms.push(c); })); return ms; };
+    const cl = meshesOf('clavicle-R'), sb = meshesOf('subclavius-R');
+    if (!cl.length) return out;
+    ctx.world.updateMatrixWorld(true);
+    const Wi = new THREE.Matrix4().copy(ctx.world.matrixWorld).invert(), M = new THREE.Matrix4(), v = new THREE.Vector3(), CV = [];
+    const xa = along(sWall).x - 1.5, xb = entryEff.x + 1.5;
+    for (const m of cl) { M.multiplyMatrices(Wi, m.matrixWorld); const pa = m.geometry.attributes.position; for (let i = 0; i < pa.count; i++) { v.fromBufferAttribute(pa, i).applyMatrix4(M); if (v.x > xa && v.x < xb) CV.push(v.clone()); } }
+    if (!CV.length) return out;
+    const dCl = (p) => { let b = 1e9; for (const q of CV) b = Math.min(b, q.distanceToSquared(p)); return Math.sqrt(b); };
+    const rc = new THREE.Raycaster(), rd = new THREE.Vector3(0.13, 0.97, 0.21).normalize().applyMatrix4(new THREE.Matrix4().extractRotation(ctx.world.matrixWorld));
+    const sides = sb.map((m) => m.material.side); sb.forEach((m) => { m.material.side = THREE.DoubleSide; });
+    const inside = (p) => { if (!sb.length) return null; rc.set(p.clone().applyMatrix4(ctx.world.matrixWorld), rd); return rc.intersectObjects(sb, false).length % 2 === 1; };
+    let best = null, bestAny = null;
+    try {
+      for (let s = sSkin + 1; s <= sWall - 0.45 + 1e-6; s += 0.08) {
+        const p = along(s), d = dCl(p), ins = d < 1.0 ? inside(p) : false;
+        if (!bestAny || d < bestAny.d) bestAny = { s, d, ins };
+        if (ins && (!best || d < best.d)) best = { s, d, ins };
+      }
+    } finally { sb.forEach((m, i) => { m.material.side = sides[i]; }); }
+    const b = best || bestAny; if (!b) return out;
+    return { s: b.s, dClav: +b.d.toFixed(2), inSubclavius: b.ins, how: best ? 'subclávio × clavícula' : 'clavícula' };
+  })();
+  const sClav = clavInfo.s;
+  // eixo "bisel para cima": componente de +z perpendicular à agulha; "bisel caudal": componente de −y perpendicular
+  // (na fase 5 a agulha é girada ~90° para que o bisel — e a saída da ponta em J — se volte para os pés, favorecendo a
+  // descida do fio para a braquiocefálica e não a subida para a VJI)
   const bevelUp = new THREE.Vector3(0, 0, 1).addScaledVector(dir, -dir.z).normalize();
-  const needleQuat = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3().crossVectors(dir, bevelUp), dir, bevelUp));
+  const bevelCaud = new THREE.Vector3(0, -1, 0).addScaledVector(dir, dir.y).normalize();
+  const bevelQuat = (up) => new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3().crossVectors(dir, up), dir, up));
+  const needleQuat = bevelQuat(bevelUp), needleQuatCaud = bevelQuat(bevelCaud);
   setA('entry', entryEff.toArray());
 
   /* ======================================================================
@@ -183,8 +217,9 @@ ATLAS.define('instruments', async function (ctx) {
   const fineN = C.tex.noiseNormal('fine', { freq: 0.16, strength: 1.6, seed: 8 });
   const PM = (o) => new THREE.MeshPhysicalMaterial(o);
   const mats = {
-    steel: PM({ color: '#d9e0e6', metalness: 1, roughness: 0.17, transparent: true, depthWrite: true }),
-    wire: PM({ color: '#c9d1d8', metalness: 1, roughness: 0.28, transparent: true, depthWrite: true }),
+    // aço escovado mais escuro: com metalness 1 a IBL clara deixava agulha/fio quase brancos (sem contraste com a pele)
+    steel: PM({ color: '#9ea9b3', metalness: 1, roughness: 0.26, transparent: true, depthWrite: true }),
+    wire: PM({ color: '#aab4bd', metalness: 1, roughness: 0.3, transparent: true, depthWrite: true }),
     hub: PM({ color: '#f08fb2', roughness: 0.18, clearcoat: 1, clearcoatRoughness: 0.08, transparent: true, opacity: 0.72, depthWrite: false, side: THREE.DoubleSide }),
     barrel: PM({ color: '#eef6f8', roughness: 0.06, clearcoat: 1, clearcoatRoughness: 0.05, transparent: true, opacity: 0.24, depthWrite: false, side: THREE.DoubleSide }),
     rod: PM({ color: '#f4f5f2', roughness: 0.3, clearcoat: 0.4, transparent: true, opacity: 0.94, depthWrite: true }),
@@ -198,7 +233,10 @@ ATLAS.define('instruments', async function (ctx) {
     brown: PM({ color: '#6e4128', roughness: 0.35, clearcoat: 0.5, transparent: true, depthWrite: true }),
     blue: PM({ color: '#2d6db5', roughness: 0.35, clearcoat: 0.5, transparent: true, depthWrite: true }),
     white: PM({ color: '#f3f3ef', roughness: 0.35, clearcoat: 0.5, transparent: true, depthWrite: true }),
-    wireMal: PM({ color: '#e5a03a', metalness: 0.4, roughness: 0.35, transparent: true, opacity: 0.5, depthWrite: false }),
+    // trajeto alternativo (anômalo) do fio: magenta de alerta, tracejado (alphaMap) — não confundir com o âmbar do destaque
+    wireMal: PM({ color: '#d23c6e', metalness: 0.3, roughness: 0.4, transparent: true, opacity: 0.6, depthWrite: false, side: THREE.DoubleSide }),
+    dilator: PM({ color: '#e9f2f6', roughness: 0.22, clearcoat: 0.8, clearcoatRoughness: 0.15, transparent: true, opacity: 0.9, depthWrite: true }),
+    dilHub: PM({ color: '#2f6fb0', roughness: 0.3, clearcoat: 0.6, transparent: true, depthWrite: true }),
     gold: new THREE.MeshStandardMaterial({ color: '#c99a3e', emissive: '#6b4a12', emissiveIntensity: 0.55, roughness: 0.35, metalness: 0.3 }),
     marker: new THREE.MeshBasicMaterial({ color: '#c99a3e', transparent: true, opacity: 0.92 }),
     plane: new THREE.MeshBasicMaterial({ color: '#8fd0de', transparent: true, opacity: 0.16, depthWrite: false, side: THREE.DoubleSide }),
@@ -206,9 +244,17 @@ ATLAS.define('instruments', async function (ctx) {
     sector: new THREE.MeshBasicMaterial({ color: '#e0b24f', transparent: true, opacity: 0.28, depthWrite: false, side: THREE.DoubleSide }),
     xrayWire: new THREE.MeshBasicMaterial({ color: '#eef4f7', transparent: true, opacity: 0.72, depthWrite: false, depthFunc: THREE.GreaterDepth }),
     xrayCath: new THREE.MeshBasicMaterial({ color: '#fbf7e8', transparent: true, opacity: 0.55, depthWrite: false, depthFunc: THREE.GreaterDepth }),
-    xrayMal: new THREE.MeshBasicMaterial({ color: '#f2a93b', transparent: true, opacity: 0.7, depthWrite: false, depthFunc: THREE.GreaterDepth }),
+    xrayMal: new THREE.MeshBasicMaterial({ color: '#e4558a', transparent: true, opacity: 0.7, depthWrite: false, depthFunc: THREE.GreaterDepth }),
+    xrayDil: new THREE.MeshBasicMaterial({ color: '#cfe3ee', transparent: true, opacity: 0.5, depthWrite: false, depthFunc: THREE.GreaterDepth }),
   };
   mats.wire.normalMap = fineN; mats.wire.normalScale = new THREE.Vector2(0.25, 0.25);
+  // tracejado do trajeto anômalo: listras ao longo de v (traço 0,35 cm, intervalo 0,17 cm com vScale = 0,52)
+  {
+    const cv = document.createElement('canvas'); cv.width = 4; cv.height = 64; const g2 = cv.getContext('2d');
+    g2.fillStyle = '#000'; g2.fillRect(0, 0, 4, 64); g2.fillStyle = '#fff'; g2.fillRect(0, 0, 4, 43);
+    const t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    mats.wireMal.alphaMap = t; mats.xrayMal.alphaMap = t; mats.xrayMal.alphaTest = 0.5;
+  }
 
   const mesh = (geo, mat, parent, info, o) => C.mesh(geo, mat, parent, info, o);
   // LatheGeometry: normal = perfil girado no sentido horário em (r, y) → percorra subindo pelo lado externo.
@@ -335,10 +381,13 @@ ATLAS.define('instruments', async function (ctx) {
   const jPts = (start, head, side, rad) => { const out = []; const cc = start.clone().addScaledVector(side, rad); for (let k = 1; k <= 8; k++) { const ph = (k / 8) * Math.PI; out.push(cc.clone().addScaledVector(side, -rad * Math.cos(ph)).addScaledVector(head, rad * Math.sin(ph))); } out.push(out[out.length - 1].clone().addScaledVector(head, -0.12)); return out; };
   const perpTo = (v, axis) => v.clone().addScaledVector(axis, -v.dot(axis)).normalize();
   const hubRear = (s) => along(s).addScaledVector(dir, L_HUB1 - 0.02);
-  function wireExternal(sTip) { // trecho externo: sai da boca do canhão e arqueia para lateral/anterior (segurado pela mão direita)
+  /* Trecho externo: sai da boca do canhão RETO por ~3 cm (eixo da agulha — é também o eixo do dilatador, cuja traseira
+     fica ~2,7 cm além da boca do canhão) e só então arqueia para lateral/anterior (segurado pela mão direita). */
+  const WIRE_STRAIGHT = 3.0;
+  function wireExternal(sTip) {
     const r0 = hubRear(sTip), out = [];
     const lift = new THREE.Vector3(0.15, 0.35, 1).normalize();
-    for (let k = 9; k >= 1; k--) { const s = k * 1.6; out.push(r0.clone().addScaledVector(dir, -s).addScaledVector(lift, 0.022 * s * s)); }
+    for (let k = 9; k >= 1; k--) { const s = k * 1.7; out.push(r0.clone().addScaledVector(dir, -s).addScaledVector(lift, 0.03 * Math.max(0, s - WIRE_STRAIGHT) ** 2)); }
     out.push(r0.clone());
     return out;
   }
@@ -418,11 +467,39 @@ ATLAS.define('instruments', async function (ctx) {
   const sVA = nearestOn(tabMal, v3(vs.venousAngleR)).s;
   const sMalEnd = sAtYUp(tabMal, 5.6, sVA) ?? (tabMal.L - 1);
   const malRoute = veinRoute(tabMal, tipVein, dir, sMalEnd);
-  const malPts = malRoute.pts.filter((p, i) => malRoute.ss[i] >= sVA - 1.2);
+  /* No ângulo venoso a cadeia subclávia → VJI faz uma quina (~100°): um fio de 0,035″ não dobra assim. Os pontos a
+     ±a cm de sVA são trocados por uma Bézier quadrática (controle na confluência, desviado 0,25 cm medialmente),
+     com a escolhido para raio de curvatura mínimo ≥ 0,7 cm. */
+  const malBend = (() => {
+    const bez = (A, Cc, B, t) => A.clone().multiplyScalar((1 - t) ** 2).addScaledVector(Cc, 2 * (1 - t) * t).addScaledVector(B, t * t);
+    const minRad = (A, Cc, B) => { let m = 1e9; for (let k = 1; k < 40; k++) { const t = k / 40, e = 1e-3; const p0 = bez(A, Cc, B, t - e), p1 = bez(A, Cc, B, t), p2 = bez(A, Cc, B, t + e); const a = p1.distanceTo(p0), b = p2.distanceTo(p1), c = p2.distanceTo(p0); const ar = new THREE.Vector3().crossVectors(p1.clone().sub(p0), p2.clone().sub(p0)).length() / 2; if (ar > 1e-12) m = Math.min(m, (a * b * c) / (4 * ar)); } return m; };
+    // folga na luz (cm) dos pontos da curva: menor (r − distância ao eixo − raio do fio) nas duas cadeias
+    const lumenOK = (pts) => { let m = 1e9; for (const p of pts) { let b = 1e9; for (const tb of [tabMal, tabMain]) { const q = nearestOn(tb, p); b = Math.min(b, q.d - q.r); } m = Math.min(m, -(b + R_WIRE * 1.04)); } return m; };
+    let res = null;
+    for (const off of [0.25, 0.4, 0.1, 0]) {
+      const ctrl = atS(tabMal, sVA).p.clone().add(new THREE.Vector3(-off, 0, 0));
+      for (let a = 0.9; a <= 2.01; a += 0.1) {
+        const A = atS(tabMal, sVA - a).p, B = atS(tabMal, sVA + a).p, r = minRad(A, ctrl, B);
+        if (r < 0.7 && !(res && res.r < 0.7 && r > res.r)) continue;
+        const n = Math.max(6, Math.round((a * 2) / 0.25)), pts = []; for (let k = 0; k <= n; k++) pts.push(bez(A, ctrl, B, k / n));
+        const lm = lumenOK(pts); if (lm < 0.05 && r >= 0.7) continue;
+        res = { a, off, r, pts, lm };
+        if (r >= 0.7 && lm >= 0.05) break;
+      }
+      if (res && res.r >= 0.7 && res.lm >= 0.05) break;
+    }
+    return { a: +res.a.toFixed(2), off: res.off, minRadius: +res.r.toFixed(2), lumenMargin: +res.lm.toFixed(3), pts: res.pts };
+  })();
+  const malPts = [
+    ...malRoute.pts.filter((p, i) => malRoute.ss[i] >= sVA - 1.2 && malRoute.ss[i] < sVA - malBend.a - 0.15),
+    ...malBend.pts,
+    ...malRoute.pts.filter((p, i) => malRoute.ss[i] > sVA + malBend.a + 0.15),
+  ];
   const mA = atS(tabMal, sMalEnd), wireIJVTip = mA.p;
   const malJ = jPts(wireIJVTip, mA.T, perpTo(new THREE.Vector3(1, 0, 0.2), mA.T), 0.3);
   lumenCheck('fio-guia (trajeto anômalo)', [...malPts, ...malJ], [tabMal, tabMain], R_WIRE * 1.04);
-  const wireMal = growTube([...malPts, ...malJ], { r: R_WIRE * 1.04, radial: 10, segments: 160 }, mats.wireMal, layers.instrument, GI({ id: 'guidewire-ijv', name: 'Trajeto anômalo do fio-guia: ascensão para a veia jugular interna', desc: 'Malposição clássica na via subclávia direita: o fio sobe pela VJI em vez de descer para a braquiocefálica. Suspeitar se houver resistência/ectopia; confirmar por imagem.' }));
+  const infoMal = GI({ id: 'guidewire-ijv', name: 'Fio-guia — trajeto alternativo (anômalo): ascensão para a veia jugular interna', desc: 'Malposição clássica na via subclávia direita: o fio sobe pela VJI em vez de descer para a braquiocefálica. Suspeitar se houver resistência/ectopia; confirmar por imagem. Orientar o bisel e o J caudalmente ao introduzir o fio reduz esse desvio.' });
+  const wireMal = growTube([...malPts, ...malJ], { r: R_WIRE * 1.04, radial: 10, segments: 200, vScale: 0.52 }, mats.wireMal, layers.instrument, infoMal);
   wireMal.castShadow = false;
   setA('wireTip', wireJ[3].toArray());
   setA('wireIJV', malJ[3].toArray());
@@ -438,9 +515,26 @@ ATLAS.define('instruments', async function (ctx) {
   lumenCheck('cateter', [tipVein, ...cathRoute.pts], [tabMain], R_CATH);
   const infoCath = GI({ id: 'catheter', name: 'Cateter venoso central 7 Fr, triplo lúmen', desc: 'Inserido sobre o fio (Seldinger); ponta na VCS distal, acima do átrio direito. Vias: distal (marrom), medial (azul) e proximal (branca). Confirmar a posição por imagem.' });
   const catheterGrp = new THREE.Group(); catheterGrp.name = 'Cateter'; layers.instrument.add(catheterGrp);
-  // marcas de profundidade (faixas a cada 1 cm, sem números) via textura em v (vScale = 1 cm)
-  const markTex = (() => { const cv = document.createElement('canvas'); cv.width = 8; cv.height = 128; const g2 = cv.getContext('2d'); g2.fillStyle = '#f1f1ea'; g2.fillRect(0, 0, 8, 128); g2.fillStyle = '#2a3035'; g2.fillRect(0, 0, 8, 7); const t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; return t; })();
+  /* Marcas de profundidade CONTADAS A PARTIR DA PONTA (v invertido após a varredura): faixa fina a cada 1 cm, larga
+     em 5 cm, dupla em 10 e tripla em 15 (padrão ilustrativo, comum em kits). Período da textura 25,6 cm (40 px/cm),
+     maior que o cateter — sem repetição. */
+  const MARK_VS = 25.6;
+  const markTex = (() => {
+    const PX = 40, Hh = Math.round(MARK_VS * PX), cv = document.createElement('canvas'); cv.width = 8; cv.height = Hh;
+    const g2 = cv.getContext('2d'); g2.fillStyle = '#f1f1ea'; g2.fillRect(0, 0, 8, Hh); g2.fillStyle = '#2a3035';
+    const band = (d, w) => g2.fillRect(0, Math.round(Hh - (d + w / 2) * PX), 8, Math.max(2, Math.round(w * PX))); // flipY: v = 0 na última linha
+    for (let d = 1; d <= 22; d++) {
+      if (d === 5) band(5, 0.24);
+      else if (d === 10) { band(9.86, 0.12); band(10.14, 0.12); }
+      else if (d === 15) { band(14.72, 0.12); band(15, 0.12); band(15.28, 0.12); }
+      else if (d === 20) band(20, 0.24);
+      else band(d, 0.07);
+    }
+    const t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t;
+  })();
   mats.cath.map = markTex;
+  /** v ← L − v: a textura passa a contar a partir da ponta (o trajeto começa no canhão). */
+  const vFromTip = (g, vs) => { const uv = g.attributes.uv, L = g.userData.length / vs; for (let i = 0; i < uv.count; i++) uv.setY(i, L - uv.getY(i)); uv.needsUpdate = true; };
   const cathTaper = (t) => (t > 0.985 ? R_CATH * (1 - 0.45 * C.smooth(0.985, 1, t)) : R_CATH);
   const cath = mesh(new THREE.BufferGeometry(), mats.cath, catheterGrp, infoCath);
   // orifícios laterais (vias medial e proximal) — pequenas elipses escuras perto da ponta
@@ -489,16 +583,79 @@ ATLAS.define('instruments', async function (ctx) {
   const xyLen = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
   /** Maior altura da superfície sob um segmento (amostras a cada ~0,25 cm) — para assentar peças rígidas. */
   const maxUnder = (fz, a, b, pad = 0.25) => { const n = Math.max(2, Math.ceil(xyLen(a, b) / 0.25)); let m = -1e9; for (let k = 0; k <= n; k++) { const x = C.lerp(a.x, b.x, k / n), y = C.lerp(a.y, b.y, k / n); for (const [dx, dy] of [[0, 0], [pad, 0], [-pad, 0], [0, pad], [0, -pad]]) m = Math.max(m, fz(x + dx, y + dy)); } return m; };
-  let hubC = new THREE.Vector3(), extReport = {};
+  let hubC = new THREE.Vector3(), extReport = {}, cathReport = {};
   /** Geometria do trecho externo (para o módulo fixation): atualizada a cada layoutExternal; ouvintes notificados. */
   let extInfo = null; const extListeners = [];
   /* Assenta todo o trecho externo (canhão, saída do cateter, extensões, clampes e conectores) sobre a superfície de
      apoio atual (pele, ou pele + campo estéril). Refeito a cada troca pele ↔ campo (ver syncSurface). */
+  /* Fenestra do campo estéril (módulo skin: api.drapeWindow, se exportada; senão a cópia da geometria atual do campo
+     em skin.js — retângulo arredondado {cx, cy, hx, hy, r}). O canhão e as asas devem ficar sobre a PELE, dentro da
+     janela (fixação/sutura), com folga ≥ 0,4 cm. */
+  const skinApi = ctx.engine && ctx.engine.results && ctx.engine.results.skin && ctx.engine.results.skin.api;
+  const WIN = Object.assign({ cx: 6.2, cy: -0.45, hx: 8.3, hy: 4.45, r: 2.2 }, (skinApi && skinApi.drapeWindow) || {});
+  const winD = (x, y) => { const qx = Math.abs(x - WIN.cx) - (WIN.hx - WIN.r), qy = Math.abs(y - WIN.cy) - (WIN.hy - WIN.r); return Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - WIN.r; };
+    const bez3 = (P, t) => { const s = 1 - t; return P[0].clone().multiplyScalar(s * s * s).addScaledVector(P[1], 3 * s * s * t).addScaledVector(P[2], 3 * s * t * t).addScaledVector(P[3], t * t * t); };
+  /** Menor raio de curvatura (cm) de uma polilinha densa (círculo por 3 pontos consecutivos). */
+  const minRadius = (pts) => { let m = 1e9; for (let k = 1; k < pts.length - 1; k++) { const a = pts[k].distanceTo(pts[k - 1]), b = pts[k + 1].distanceTo(pts[k]), c = pts[k + 1].distanceTo(pts[k - 1]); const ar = new THREE.Vector3().crossVectors(pts[k].clone().sub(pts[k - 1]), pts[k + 1].clone().sub(pts[k - 1])).length() / 2; if (ar > 1e-10) m = Math.min(m, (a * b * c) / (4 * ar)); } return m; };
+  /** Trecho externo da saída E até o ponto Nb (0,6 cm antes do nariz do canhão): Bézier cúbica que PARTE tangente ao
+      eixo da agulha (sem quina na pele: alça curta h0 limita a subida) e CHEGA alinhada ao canhão (rumo v3, alça
+      h1s × corda). Fora dos primeiros ~6 mm, a altura é mantida ≥ superfície + raio + 0,06 (mínimo suave, sem
+      "quinas" de grampeamento). Retorna os pontos depois de E até Nb. */
+  function exitCurve(fz, Nb, v3_, h0, h1s, step = 0.15) {
+    const t0 = dir.clone().negate(), E = entryEff, h1 = h1s * E.distanceTo(Nb);
+    const P = [E, E.clone().addScaledVector(t0, h0), Nb.clone().addScaledVector(v3_, -h1), Nb];
+    const out = []; const n = Math.max(10, Math.ceil((E.distanceTo(Nb) + h0 + h1) / step));
+    for (let k = 1; k <= n; k++) {
+      const p = bez3(P, k / n);
+      if (k < n) { const w = C.smooth(0.3, 0.9, p.distanceTo(E)), zMin = fz(p.x, p.y) + R_CATH + 0.06; if (p.z < zMin + 0.08) p.z = C.lerp(p.z, zMin + 0.08 * Math.exp((p.z - zMin - 0.08) / 0.08), w); }
+      out.push(p);
+    }
+    return out;
+  }
+  /* Posição e orientação do canhão (feitas uma vez; dependem da pele, não do campo). Busca:
+     centro a θ/d da saída; rumo ψ com que o cateter entra no nariz do canhão; alças da curva.
+     Restrições: contorno do corpo e das asas dentro da fenestra (≥ 0,4 cm da borda) e a ≥ 1 cm da saída; raio de
+     curvatura do trecho externo ≥ 0,85 cm; ≥ 2 cm de cateter livre entre a saída e o nariz (espaço para a fixação em
+     bailarina); a curva não passa sobre o canhão. Preferência: continuação ínfero-lateral da saída. */
+  const hubPlan = (() => {
+    const foot = [[0, 1.95], [0, -1.2], [0.5, 0], [-0.5, 0], [1.45, -0.4], [-1.45, -0.4], [1.45, 0.7], [-1.45, 0.7], [0.5, 1.2], [-0.5, 1.2], [0.5, -0.9], [-0.5, -0.9]];
+    const E2 = new THREE.Vector2(entryEff.x, entryEff.y), pIn = along(sSkin + 0.6);
+    const cand = [];
+    for (let deg = -10; deg >= -170; deg -= 10) for (let d = 2.7; d <= 4.51; d += 0.3) {
+      const a = (deg * Math.PI) / 180, hc = new THREE.Vector2(entryEff.x + Math.cos(a) * d, entryEff.y + Math.sin(a) * d);
+      for (let psi = deg - 60; psi <= deg + 60; psi += 15) { // o cateter chega ao canhão em rumo próximo ao da posição
+        const pr = (psi * Math.PI) / 180, v = new THREE.Vector2(Math.cos(pr), Math.sin(pr)), Y = v.clone().negate(), X = new THREE.Vector2(Y.y, -Y.x);
+        let wmax = -1e9, dE = 1e9;
+        for (const [lx, ly] of foot) { const q = new THREE.Vector2(hc.x + X.x * lx + Y.x * ly, hc.y + X.y * lx + Y.y * ly); wmax = Math.max(wmax, winD(q.x, q.y)); dE = Math.min(dE, q.distanceTo(E2)); }
+        let pen = 0; if (wmax > -0.4) pen += 10 + 5 * (wmax + 0.4); if (dE < 1.0) pen += 5;
+        cand.push({ deg, d, psi, hc, v, Y, wmax, pen });
+      }
+    }
+    const minPen = Math.min(...cand.map((c) => c.pen));
+    let best = null, nEval = 0;
+    for (const c of cand) {
+      if (c.pen > minPen) continue; // só as posições viáveis (ou, se nenhuma, as menos ruins)
+      const nose = new THREE.Vector3(c.hc.x + c.Y.x * 1.35, c.hc.y + c.Y.y * 1.35, 0); nose.z = skinZ(nose.x, nose.y) + 0.36;
+      const v3_ = new THREE.Vector3(c.v.x, c.v.y, 0), Nb = nose.clone().addScaledVector(v3_, -0.6), inner = nose.clone().addScaledVector(v3_, 0.4);
+      for (const h0 of [0.6]) for (const h1s of [0.42, 0.75]) {
+        nEval++;
+        const ex = exitCurve(skinZ, Nb, v3_, h0, h1s, 0.25), R = minRadius([pIn, entryEff, ...ex, nose, inner]);
+        let free = 0.6, over = 1e9, prev = entryEff; for (const q of ex) { free += q.distanceTo(prev); prev = q; over = Math.min(over, Math.hypot(q.x - c.hc.x, q.y - c.hc.y)); }
+        let score = Math.min(R, 1.6) - c.pen - 0.006 * Math.abs(c.psi + 40) - 0.004 * Math.abs(c.deg + 50) - 0.25 * Math.abs(c.d - 3.2) - 0.35 * Math.max(0, free - 3.6);
+        if (over < 1.6) score -= 5;
+        if (R < 0.85) score -= 3 + 6 * (0.85 - R);
+        if (free < 2.0) score -= 3 + 3 * (2.0 - free);
+        if (!best || score > best.score) best = { deg: c.deg, d: +c.d.toFixed(2), psi: c.psi, h0, hs: h1s, hc: c.hc, v: c.v, score: +score.toFixed(2), win: +c.wmax.toFixed(2), minRadius: +R.toFixed(2), free: +free.toFixed(2) };
+      }
+    }
+    best.nEval = nEval;
+    return best;
+  })();
   function layoutExternal() {
     const fz = restZ;
-    // canhão: ínfero-lateral à inserção (continuação natural da saída do cateter), deitado sobre a superfície
-    const hubDirXY = new THREE.Vector2(0.6, -0.8).normalize();
-    const hc2 = new THREE.Vector2(entryEff.x + hubDirXY.x * 3.3, entryEff.y + hubDirXY.y * 3.3);
+    // canhão: deitado sobre a superfície, no rumo escolhido em hubPlan (continuação suave da saída do cateter)
+    const hubDirXY = hubPlan.v.clone();                          // rumo do cateter ao entrar no nariz do canhão
+    const hc2 = hubPlan.hc.clone();
     const hubN = surfNormal(fz, hc2.x, hc2.y, 1.1); // normal suavizada (ignora pregas do campo)
     let hz = -1e9; for (const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1.2], [0, -1.2], [0.7, 0.7], [-0.7, -0.7], [0.7, -0.7], [-0.7, 0.7]]) hz = Math.max(hz, fz(hc2.x + dx * 0.9, hc2.y + dy * 0.9));
     hubC = new THREE.Vector3(hc2.x, hc2.y, hz + 0.36);
@@ -506,16 +663,25 @@ ATLAS.define('instruments', async function (ctx) {
     const hubX = new THREE.Vector3().crossVectors(hubY, hubN).normalize();
     const setHub = () => { hubLocal.matrix.makeBasis(hubX, hubY, hubN).setPosition(hubC); hubLocal.matrixWorldNeedsUpdate = true; };
     setHub();
-    { const pen = penetration(hubLocal, fz, 0.03, 2); if (pen > 0) { hubC.addScaledVector(hubN, pen / Math.max(0.5, hubN.z)); setHub(); } }
+    // assenta: levanta se penetra, abaixa se flutua (o vértice mais baixo do canhão/asas a 0,03 cm da superfície)
+    for (let it = 0; it < 2; it++) { const pen = penetration(hubLocal, fz, 0.03, 2); if (Math.abs(pen) < 0.01) break; hubC.addScaledVector(hubN, pen / Math.max(0.5, hubN.z)); setHub(); }
     const hubNose = hubC.clone().addScaledVector(hubY, 1.35);
-    // saída suave: acompanha o trajeto por ~3 mm, encurva e deita sobre a superfície até o canhão
-    const ext1 = entryEff.clone().addScaledVector(dir, -0.32);
-    const ext2 = hubNose.clone().addScaledVector(hubY, 0.9); ext2.z = Math.max(ext2.z, fz(ext2.x, ext2.y) + R_CATH + 0.06);
-    const extM = ext1.clone().lerp(ext2, 0.5); extM.z = Math.max(extM.z, fz(extM.x, extM.y) + R_CATH + 0.12);
-    const cathPath = [hubNose.clone().addScaledVector(hubY, -0.4), hubNose, ext2, extM, ext1, ...cathInt];
-    setTube(cath, cathPath, { r: cathTaper, radial: 14, segments: 360, vScale: 1, capStart: true });
-    { hubLocal.updateMatrix && hubLocal.matrixWorldNeedsUpdate; const M = hubLocal.matrix, wing = (lx) => new THREE.Vector3(lx, 0.15, -0.24).applyMatrix4(M).toArray();
-      extInfo = { path: cathPath.map((p) => p.toArray()), nExternal: 5, entry: entryEff.toArray(), exitDir: dir.clone().negate().toArray(), hub: hubC.toArray(), hubX: hubX.toArray(), hubY: hubY.toArray(), hubN: hubN.toArray(), hubNose: hubNose.toArray(), wingHoles: [wing(-1.02), wing(1.02)], rCath: R_CATH, surface: surfKey || 'skin' }; }
+    // saída suave: segue o eixo da agulha por 6 mm, depois curva (raio ≥ 0,85 cm) e deita até o nariz do canhão
+    const u3 = hubY.clone().negate(), Nb = hubNose.clone().addScaledVector(u3, -0.6);
+    const ext = exitCurve(fz, Nb, u3, hubPlan.h0, hubPlan.hs).reverse();     // Nb → (logo após) E
+    const extPts = [hubNose.clone().addScaledVector(hubY, -0.4), hubNose, ...ext];
+    const cathPath = [...extPts, ...cathInt];
+    setTube(cath, cathPath, { r: cathTaper, radial: 14, segments: 380, vScale: MARK_VS, capStart: true });
+    vFromTip(cath.geometry, MARK_VS);
+    { const M = hubLocal.matrix, wing = (lx) => new THREE.Vector3(lx, 0.15, -0.24).applyMatrix4(M).toArray();
+      extInfo = { path: cathPath.map((p) => p.toArray()), nExternal: extPts.length, entry: entryEff.toArray(), exitDir: dir.clone().negate().toArray(), hub: hubC.toArray(), hubX: hubX.toArray(), hubY: hubY.toArray(), hubN: hubN.toArray(), hubNose: hubNose.toArray(), wingHoles: [wing(-1.02), wing(1.02)], rCath: R_CATH, surface: surfKey || 'skin' }; }
+    // comprimento introduzido (pele → ponta) e marca de profundidade junto à pele
+    { const cv = cath.geometry.userData.curve, L = cath.geometry.userData.length, n = 600; let sE = 0, dB = 1e9, prev = cv.getPointAt(0), acc = 0;
+      for (let k = 1; k <= n; k++) { const p = cv.getPointAt(k / n); acc += p.distanceTo(prev); prev = p; const d = p.distanceTo(entryEff); if (d < dB) { dB = d; sE = acc; } }
+      const ins = L - sE; cathReport = {}; cathReport.insertedCm = +ins.toFixed(1); cathReport.markAtSkin = Math.ceil(ins);
+      const tn = cv.getTangentAt(Math.min(1, (sE - 0.35) / L)); setA('catheterSkinMark', cv.getPointAt(Math.max(0, (sE - (Math.ceil(ins) - ins) - 0.02) / L)).toArray());
+      const extCurve = []; for (let k = 0; k <= 160; k++) { const t = (k / 160) * (sE + 0.6) / L; extCurve.push(cv.getPointAt(Math.min(1, t))); }
+      { const ec = extCurve.slice(8); let m = 1e9, at = null; for (let k = 2; k < ec.length - 2; k++) { const r = minRadius(ec.slice(k - 2, k + 3)); if (r < m) { m = r; at = ec[k]; } } cathReport.minRadiusExternal = +m.toFixed(2); cathReport.minRadiusAt = at && at.toArray().map((x) => +x.toFixed(2)); } cathReport.exitTangentZ = +tn.z.toFixed(2); }
     if (xrayCath) xrayCath.geometry = cath.geometry;
     { const cv = C.curve(cathPath), L = cv.getLength();
       for (const e of holes) { const t = 1 - e.userData.back / L, p = cv.getPointAt(t), T = cv.getTangentAt(t); const side = new THREE.Vector3(0, 0, 1).cross(T).normalize(); e.position.copy(p.addScaledVector(side, R_CATH * 0.93)); e.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), T); } }
@@ -580,12 +746,29 @@ ATLAS.define('instruments', async function (ctx) {
       extReport[extDefs[i][1]] = { uc: +uc.toFixed(2), tube: +penetration(E.tube, fz, 0, 3).toFixed(2), clamp: +penetration(E.clamp, fz, 0, 2).toFixed(2), conn: +penetration(E.conn, fz, 0, 2).toFixed(2) };
     });
     extReport.hub = +penetration(hubLocal, fz, 0, 2).toFixed(2);
-    extReport.cathExternal = (() => { const cv = C.curve(cathPath.slice(0, 5)), L = cv.getLength(); let m = -1e9; for (let u = 0; u <= L; u += 0.1) { const p = cv.getPointAt(Math.min(1, u / L)); m = Math.max(m, fz(p.x, p.y) + R_CATH - p.z); } return +m.toFixed(2); })();
+    extReport.cathExternal = (() => { const cv = C.curve(extPts), L = cv.getLength(); let m = -1e9; for (let u = 0; u <= L; u += 0.1) { const p = cv.getPointAt(Math.min(1, u / L)); if (p.distanceTo(entryEff) < 0.5) continue; m = Math.max(m, fz(p.x, p.y) + R_CATH - p.z); } return +m.toFixed(2); })(); // > 0: penetra a superfície (fora dos 5 mm da saída)
     setA('catheterHub', hubC.toArray());
     extListeners.forEach((f) => { try { f(extInfo); } catch (e) { /* noop */ } });
   }
   layoutExternal();
   setA('catheterTip', cathTipP.toArray());
+
+  /* ======================================================================
+     6b. Dilatador 8 Fr (Ø 2,7 mm, ~10 cm, ponta cônica de 1 cm) sobre o fio — etapa intermediária entre o fio (fase 5)
+         e o cateter (fase 6): ativada por state.dilator (com fase ≥ 5) ou pela subfase 5,5. É rígido e reto: corre no
+         eixo da agulha e para com a ponta 2 mm além da parede anterior da veia (sWall + 0,2), "milímetros" dentro dela.
+     ====================================================================== */
+  const R_DIL = 0.133, S_DIL = sWall + 0.2;
+  const dilAsm = new THREE.Group(); dilAsm.name = 'Dilatador'; dilAsm.quaternion.copy(needleQuat); layers.instrument.add(dilAsm);
+  const infoDil = GI({ id: 'dilator', name: 'Dilatador de tecidos 8 Fr (sobre o fio-guia)', desc: 'Rígido e calibroso: dilata pele, tecido subcutâneo e a parede venosa. Avançar só até a profundidade em que a agulha alcançou a veia — no máximo milímetros dentro dela — e retirá-lo mantendo o fio; à direita, a curva subclávia → cava favorece a perfuração por dilatador introduzido fundo.' });
+  {
+    // local: +Y = avanço (ponta em y = 0); haste branca com ponta cônica + canhão Luer azul
+    mesh(latheTD([[0.047, 0], [0.06, -0.025], [R_DIL, -1.0], [R_DIL, -8.9]], 28), mats.dilator, dilAsm, infoDil);
+    mesh(latheTD([[R_DIL, -8.85], [0.2, -9.0], [0.29, -9.25], [0.3, -9.95], [0.37, -10.0], [0.37, -10.3], [0.32, -10.38], [0.047, -10.38]], 28), mats.dilHub, dilAsm, infoDil);
+  }
+  const xrayDil = new THREE.Mesh(dilAsm.children[0].geometry, mats.xrayDil); xrayDil.renderOrder = 3; dilAsm.add(xrayDil); C.reg(xrayDil, infoDil);
+  xrayDil.castShadow = false; xrayDil.receiveShadow = false;
+  setA('dilatorTip', along(S_DIL).toArray()); setA('dilatorLimit', along(sWall).toArray());
 
   mark('wire+cath');
   /* ======================================================================
@@ -597,6 +780,16 @@ ATLAS.define('instruments', async function (ctx) {
   const markers = [];
   markers.push(ring(notchP, surfNormal(skinZ, notchP.x, notchP.y), 0.95, GI({ id: 'landmark-notch', name: 'Marcador: incisura jugular (polpa do indicador)' })));
   markers.push(ring(entryEff, surfNormal(skinZ, entryEff.x, entryEff.y), 0.42, GI({ id: 'landmark-entry', name: 'Marcador: região ilustrativa de entrada', desc: 'Cerca de 1 cm abaixo da clavícula, lateral à junção dos terços medial e médio. Referência didática — não é coordenada fixa.' })));
+  // limite do dilatador: anel dourado em torno do fio na parede anterior da veia (visto através dos tecidos)
+  const dilLimit = new THREE.Group(); dilLimit.name = 'Limite do dilatador'; aids.add(dilLimit);
+  {
+    const info = GI({ id: 'dilator-limit', name: 'Limite do dilatador: parede da veia', desc: 'Profundidade em que a agulha alcançou a veia — o dilatador não precisa (nem deve) ir além de milímetros dela.' });
+    const m = new THREE.MeshBasicMaterial({ color: '#e0b24f', transparent: true, opacity: 0.95, depthTest: false, depthWrite: false });
+    dilLimit.userData.mat = m; // depthTest desligado só nas vistas anatômicas (sem pele): ver update()
+    const r1 = mesh(new THREE.TorusGeometry(0.34, 0.035, 10, 48), m, dilLimit, info, { cast: false, receive: false });
+    const r2 = mesh(new THREE.TorusGeometry(0.5, 0.018, 8, 48), m, dilLimit, info, { cast: false, receive: false });
+    for (const r of [r1, r2]) { r.position.copy(along(sWall)); r.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), dir); r.renderOrder = 6; }
+  }
   // planos/ângulos (state.showPlanes)
   const planes = new THREE.Group(); planes.name = 'Planos e ângulo'; aids.add(planes);
   {
@@ -643,7 +836,7 @@ ATLAS.define('instruments', async function (ctx) {
   const xrayWire = new THREE.Mesh(wire.geometry, mats.xrayWire); xrayWire.renderOrder = 3; xrayGrp.add(xrayWire); C.reg(xrayWire, infoWire);
   xrayCath = new THREE.Mesh(cath.geometry, mats.xrayCath); xrayCath.renderOrder = 3; xrayGrp.add(xrayCath); C.reg(xrayCath, infoCath);
   const xrayMal = new THREE.Mesh(wireMal.geometry, mats.xrayMal); xrayMal.renderOrder = 3; xrayGrp.add(xrayMal);
-  C.reg(xrayMal, { id: 'guidewire-ijv', name: 'Trajeto anômalo do fio-guia (VJI)', group: 'Instrumentos' });
+  C.reg(xrayMal, infoMal);
   [xrayWire, xrayCath, xrayMal].forEach((m) => { m.castShadow = false; m.receiveShadow = false; });
 
   /* ======================================================================
@@ -939,8 +1132,6 @@ float gloveHeight(vec3 p, vec3 n) {
       return fitInfo;
     }
     mark('pads');
-    fit();
-    handRoot.add(rig);
     const domBone = (i) => { let bi = 0, bw = -1; for (let c = 0; c < 4; c++) if (sW.getComponent(i, c) > bw) { bw = sW.getComponent(i, c); bi = sI.getComponent(i, c); } return skin.skeleton.bones[bi].name; };
     // vértices de cada dedo (por osso dominante), para medir penetração
     const fingerVerts = {};
@@ -962,14 +1153,11 @@ float gloveHeight(vec3 p, vec3 n) {
         fit();
       }
     };
-    refineContact();
     /* Indicador × incisura: a ponta não pode afundar na encosta contralateral da incisura. Critério: penetração máxima
        de TODOS os vértices das falanges média/distal do indicador ≤ pressão pretendida + 0,5 mm. Se exceder, o alvo
        da polpa desliza para a direita (+x, até 0,6 cm, ainda dentro da incisura) e refaz-se o ajuste. */
     const idxPen = () => { rig.parent.updateWorldMatrix(true, true); return maxPen(idxDistal, skinZ); };
-    let pIdx = idxPen();
-    for (let it = 0; it < 6 && pIdx > PRESS_I + 0.05; it++) { idxShift += 0.1; setTargets(); fit(); refineContact(); pIdx = idxPen(); }
-    if (pIdx > PRESS_I + 0.05) { pI.z += pIdx - PRESS_I; fit(); pIdx = idxPen(); } // último recurso: eleva o alvo
+    let pIdx = 0;
     /* Adaptação da pose à superfície (pele, ou pele + campo): dedos 3–5 que toquem a superfície têm a flexão da MCF
        reduzida e a da IFP aumentada (enrolam-se mais junto à palma), sem alterar as polpas do indicador e do polegar. */
     function adaptFingers() {
@@ -983,20 +1171,49 @@ float gloveHeight(vec3 p, vec3 n) {
       }
       applyPose(1);
     }
-    adaptFingers();
+    /* Cache do ajuste (por visitante, localStorage): o encaixe acima depende só de LM e da pele, mas custa ~0,4–1 s.
+       Guarda-se o resultado (polpas, deslocamento do indicador, pose final, matriz-base) com uma assinatura de LM, da
+       escala/pressões e de uma amostragem da superfície; se a assinatura diferir (pele ou marcos mudaram), refaz-se. */
+    const FIT_V = 'hand-fit-v1', LS_KEY = 'atlas.instruments.handFit';
+    const fitKey = (() => {
+      let h = 2166136261 >>> 0; const add = (x) => { const t = String(x); for (let i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } };
+      add(FIT_V); add(posA.count); add(S_HAND); add(PRESS_I); add(PRESS_T); add(NL.indexSkin.join()); add(NL.thumbSkin.join());
+      for (let x = -3; x <= 16; x++) for (let y = -6; y <= 10; y++) add(restZ(x, y).toFixed(2));
+      return FIT_V + ':' + h.toString(36);
+    })();
+    let fitCache = null; try { const c = JSON.parse(window.localStorage.getItem(LS_KEY) || 'null'); if (c && c.key === fitKey) fitCache = c; } catch (e) { fitCache = null; }
+    if (fitCache) {
+      padIdx = fitCache.padIdx; padThumb = fitCache.padThumb; idxShift = fitCache.idxShift; setTargets(); pI.z = fitCache.pIz;
+      for (const f of Object.keys(POSE.final)) Object.assign(POSE.final[f], JSON.parse(JSON.stringify(fitCache.pose[f])));
+      baseMatrix.fromArray(fitCache.base); rig.matrixAutoUpdate = false; rig.matrix.copy(baseMatrix); rig.matrixWorldNeedsUpdate = true;
+      fitInfo = fitCache.fitInfo; pIdx = fitCache.pIdx;
+      handRoot.add(rig); applyPose(1);
+    } else {
+      fit();
+      handRoot.add(rig);
+      refineContact();
+      pIdx = idxPen();
+      for (let it = 0; it < 6 && pIdx > PRESS_I + 0.05; it++) { idxShift += 0.1; setTargets(); fit(); refineContact(); pIdx = idxPen(); }
+      if (pIdx > PRESS_I + 0.05) { pI.z += pIdx - PRESS_I; fit(); pIdx = idxPen(); } // último recurso: eleva o alvo
+      adaptFingers();
+      try { window.localStorage.setItem(LS_KEY, JSON.stringify({ key: fitKey, padIdx, padThumb, idxShift, pIz: pI.z, pose: POSE.final, base: baseMatrix.toArray(), fitInfo, pIdx })); } catch (e) { /* sem armazenamento: recalcula na próxima vez */ }
+    }
     mark('fit');
     // direção de afastamento (pose 0): normal média da pele nas polpas
     const awayAnat = surfNormal(skinZ, tI.x, tI.y).add(surfNormal(skinZ, tT.x, tT.y)).add(new THREE.Vector3(0, 0.35, 0.6)).normalize();
     const awayPhys = v3(phys(awayAnat.toArray()));
-    let lastK = -1;
+    let lastK = -1, lastLift = -1;
     const tmpQ = new THREE.Quaternion();
-    function setPose(k) {
-      k = C.clamp(k, 0, 1); if (Math.abs(k - lastK) < 1e-4) return; lastK = k;
+    /** k: 0 = aproximando (mão aberta, 3 cm afastada) … 1 = apoio final; lift (cm): afastamento extra ao longo da mesma
+        direção — usado quando a mão sai de cena (fases 5–6: a agulha/fio/cateter ficam à vista). */
+    function setPose(k, lift = 0) {
+      k = C.clamp(k, 0, 1); if (Math.abs(k - lastK) < 1e-4 && Math.abs(lift - lastLift) < 1e-3) return; lastK = k; lastLift = lift;
       if (!rig.parent) return;
-      rig.matrix.copy(baseMatrix); const off = awayPhys.clone().multiplyScalar(3.0 * (1 - k));
+      rig.matrix.copy(baseMatrix); const off = awayPhys.clone().multiplyScalar(3.0 * (1 - k) + lift);
       rig.matrix.elements[12] += off.x; rig.matrix.elements[13] += off.y; rig.matrix.elements[14] += off.z;
       rig.matrixWorldNeedsUpdate = true;
       applyPose(k); handRoot.updateWorldMatrix(true, false); rig.updateMatrixWorld(true);
+      if (lift > 1e-3) return; // âncoras (polpas/palma) só com a mão em cena
       setA('indexTip', physToAnat(vPos(padIdx)));
       setA('thumbTip', physToAnat(vPos(padThumb)));
       const palm = new THREE.Vector3();
@@ -1015,28 +1232,57 @@ float gloveHeight(vec3 p, vec3 n) {
     const onSurfaceChange = () => { adaptFingers(); lastK = -1; setPose(1); };
     // diagnóstico: vértices da mão abaixo da superfície (por osso dominante)
     const penReport = (fz = restZ, clear = 0) => { const out = {}; const w = new THREE.Vector3(); for (let i = 0; i < posA.count; i += 7) { vPos(i, w); const a = physToAnat(w); const d = fz(a[0], a[1]) + clear - a[2]; if (d > 0) { let bi = 0, bw = -1; for (let c = 0; c < 4; c++) if (sW.getComponent(i, c) > bw) { bw = sW.getComponent(i, c); bi = sI.getComponent(i, c); } const n = skin.skeleton.bones[bi].name; const o = out[n] || (out[n] = { n: 0, max: 0, at: null }); o.n++; if (d > o.max) { o.max = +d.toFixed(2); o.at = a.map((x) => +x.toFixed(1)); } } } return out; };
-    return { gloveMat, gloveBump, rig, bones, skin, setPose, get fitInfo() { return Object.assign({ handLenCm: +handLen.toFixed(1), indexShift: +idxShift.toFixed(2), indexPen: +pIdx.toFixed(3) }, fitInfo); }, refit, penReport, onSurfaceChange, get padIdx() { return padIdx; }, get padThumb() { return padThumb; }, tI, tT, nailAnat, dorsalThumb, applyPose, POSE, baseMatrix, vPos, physToAnat, maxPen, fingerVerts, idxDistal };
+    return { gloveMat, gloveBump, rig, bones, skin, setPose, get fitInfo() { return Object.assign({ handLenCm: +handLen.toFixed(1), indexShift: +idxShift.toFixed(2), indexPen: +pIdx.toFixed(3), cached: !!fitCache }, fitInfo); }, refit, penReport, onSurfaceChange, get padIdx() { return padIdx; }, get padThumb() { return padThumb; }, tI, tT, nailAnat, dorsalThumb, applyPose, POSE, baseMatrix, vPos, physToAnat, maxPen, fingerVerts, idxDistal };
   }
 
   /* Vetor de pressão do polegar: seta dourada (posterior/inferior) AO LADO do polegar — não sobre a unha —, com a
-     ponta 2–3 mm acima da pele, e dois anéis de "depressão" na pele sob a polpa (legíveis também na vista frontal).
-     A posição lateral é escolhida automaticamente para não tocar a mão (preferência: lateral, depois inferolateral). */
+     ponta 2–3 mm acima da pele, e dois arcos de "depressão" na pele sob a polpa, voltados para a seta.
+     A posição é escolhida automaticamente: sem tocar a mão, visível nas vistas usuais e fora da projeção frontal da
+     agulha. Some quando a mão sai de cena (fase ≥ 5). */
   const thumbArrow = new THREE.Group(); thumbArrow.name = 'Vetor do polegar'; aids.add(thumbArrow);
   {
     const tT = hand ? hand.tT : new THREE.Vector3(NL.thumbSkin[0], NL.thumbSkin[1], skinZ(NL.thumbSkin[0], NL.thumbSkin[1]));
-    const dP = new THREE.Vector3(0, -0.7, -0.71).normalize(); // posterior e inferior (~45°: legível também de frente)
     const info = GI({ id: 'thumb-vector', name: 'Vetor do polegar: depressão suave dos tecidos (posterior/inferior)', desc: 'Indica apenas a direção do apoio do polegar; não quantifica força nem serve de batente de profundidade.' });
-    const LEN = 3.6, RR = 1.42;
-    const hv = []; if (hand) { const n = hand.skin.geometry.attributes.position.count; for (let i = 0; i < n; i += 7) hv.push(new THREE.Vector3(...hand.physToAnat(hand.vPos(i)))); }
-    const segD = (p, a, b) => { const ab = b.clone().sub(a), t = C.clamp(p.clone().sub(a).dot(ab) / ab.lengthSq(), 0, 1); return p.distanceTo(a.clone().addScaledVector(ab, t)); };
-    let best = null;
-    for (const deg of [0, -20, 20, -40, -60, 40, -80, 60, -100, 90, 180]) {
-      const a = (deg * Math.PI) / 180, hx = tT.x + RR * Math.cos(a), hy = tT.y + RR * Math.sin(a);
-      const head = new THREE.Vector3(hx, hy, skinZ(hx, hy) + 0.25), tail = head.clone().addScaledVector(dP, -LEN);
-      let clr = 1e9; for (const p of hv) clr = Math.min(clr, segD(p, head, tail) - 0.3);
-      const score = Math.min(clr, 0.6) - 0.004 * Math.abs(deg);
-      if (!best || score > best.score) best = { head, tail, clr, deg, score };
+    // vértices da mão perto do polegar (as setas candidatas ficam a ≤ ~5 cm da polpa); a oclusão usa todos
+    const hvAll = []; if (hand) { const n = hand.skin.geometry.attributes.position.count; for (let i = 0; i < n; i += 11) hvAll.push(new THREE.Vector3(...hand.physToAnat(hand.vPos(i)))); }
+    const hv = hvAll.filter((p) => p.distanceTo(tT) < 7);
+    const segD = (p, a, b) => { // distância ponto–segmento (sem alocações: chamada ~10⁶ vezes)
+      const abx = b.x - a.x, aby = b.y - a.y, abz = b.z - a.z, l2 = abx * abx + aby * aby + abz * abz || 1e-12;
+      const t = C.clamp(((p.x - a.x) * abx + (p.y - a.y) * aby + (p.z - a.z) * abz) / l2, 0, 1);
+      const dx = p.x - a.x - t * abx, dy = p.y - a.y - t * aby, dz = p.z - a.z - t * abz; return Math.sqrt(dx * dx + dy * dy + dz * dz);
+    };
+    /* A seta não pode ficar sobre a projeção frontal da agulha (entrada → incisura): cabeça E haste projetadas (xy) a
+       ≥ 1,2 cm do segmento — senão, de frente, parece um alfinete cravado no caminho da agulha. Também deve ficar
+       visível (não encoberta pela mão) nas vistas usuais: 'hand' e frontal. Busca: lado/distância ao polegar e
+       inclinação da seta (posterior com 35–45° de componente inferior) e comprimento. */
+    const flat = (p) => new THREE.Vector3(p.x, p.y, 0), nA = flat(entryEff), nB = flat(v3(NL.notchAim));
+    const needleClr = (head, tail) => { let m = 1e9; for (let k = 0; k <= 8; k++) m = Math.min(m, segD(flat(head.clone().lerp(tail, k / 8)), nA, nB)); return m; };
+    const camDir = (v) => new THREE.Vector3(-Math.sin(v.az) * Math.cos(v.el), Math.sin(v.el), Math.cos(v.az) * Math.cos(v.el)); // anatômico
+    const views = [camDir(LM.views.hand), camDir({ az: 0, el: 0.06 })];
+    const occluded = (p, vd) => { const far = p.clone().addScaledVector(vd, 18); for (const q of hvAll) if (segD(q, p, far) < 0.28) return true; return false; };
+    const cands = [];
+    for (const tilt of [45, 35]) for (const LEN of [2.0, 2.4]) {
+      const tr = (tilt * Math.PI) / 180, dP = new THREE.Vector3(0, -Math.sin(tr), -Math.cos(tr));
+      // legibilidade: comprimento projetado (cm) nas vistas 'hand' e frontal (seta vista "de ponta" parece um alfinete)
+      const leg = Math.min(...views.map((vd) => LEN * Math.sqrt(Math.max(0, 1 - dP.dot(vd) ** 2))));
+      for (let deg = -180; deg < 180; deg += 15) for (const RR of [1.9, 2.3, 2.7, 3.1]) {
+        const a = (deg * Math.PI) / 180, hx = tT.x + RR * Math.cos(a), hy = tT.y + RR * Math.sin(a);
+        const head = new THREE.Vector3(hx, hy, skinZ(hx, hy) + 0.25), tail = head.clone().addScaledVector(dP, -LEN);
+        let clr = 1e9; for (const p of hv) clr = Math.min(clr, segD(p, head, tail) - 0.3);
+        const nclr = needleClr(head, tail);
+        const score = Math.min(clr, 0.6) + (nclr < 1.2 ? -2 - (1.2 - nclr) : 0) + 0.4 * Math.min(leg, 1.4) - (leg < 0.9 ? 1 : 0) - 0.25 * (RR - 1.9) - 0.002 * Math.abs(deg + 90) - 0.1 * Math.abs(LEN - 2.4);
+        cands.push({ head, tail, dP, tilt, LEN, leg, clr, nclr, occ: 0, deg, RR, score });
+      }
     }
+    // oclusão (cara) só para os melhores, em ordem: a penalidade só reduz a nota
+    cands.sort((p, q) => q.score - p.score);
+    let best = null;
+    for (const c of cands) {
+      if (best && c.score <= best.score) break;
+      const mid = c.head.clone().lerp(c.tail, 0.4); views.forEach((vd, i) => { if (occluded(c.head, vd) || occluded(mid, vd)) c.occ += i === 0 ? 1 : 0.6; });
+      c.score -= c.occ; if (!best || c.score > best.score) best = c;
+    }
+    const dP = best.dP;
     const { head, tail } = best;
     const shaftEnd = head.clone().addScaledVector(dP, -0.78);
     mesh(C.segmentGeometry(tail.toArray(), shaftEnd.toArray(), 0.09, 0.09, 14), mats.gold, thumbArrow, info, { cast: false });
@@ -1045,49 +1291,64 @@ float gloveHeight(vec3 p, vec3 n) {
     // "ondas" de depressão na pele, entre a polpa do polegar e a seta (arcos concêntricos que acompanham a pele)
     const n0 = surfNormal(skinZ, tT.x, tT.y), e1 = new THREE.Vector3(1, 0, 0).addScaledVector(n0, -n0.x).normalize(), e2 = new THREE.Vector3().crossVectors(n0, e1);
     const a0 = (best.deg * Math.PI) / 180;
-    [[0.92, 0.9, 0.03], [1.16, 0.55, 0.024]].forEach(([r, op, rt]) => {
-      const pts = []; for (let i = 0; i <= 40; i++) { const a = a0 + (-1.25 + 2.5 * (i / 40)); const p = tT.clone().addScaledVector(e1, r * Math.cos(a)).addScaledVector(e2, r * Math.sin(a)); p.z = skinZ(p.x, p.y) + 0.05; pts.push(p); }
+    // arcos concêntricos ("ondas") da polpa até a seta: ligam visualmente a seta ao polegar, mesmo a ~3 cm
+    const nArc = best.RR > 2.5 ? 3 : 2, rOut = Math.max(1.16, best.RR - 0.85);
+    Array.from({ length: nArc }, (_, i) => [0.92 + ((rOut - 0.92) * i) / (nArc - 1), 0.9 - (0.5 * i) / (nArc - 1), 0.03 - 0.003 * i, 1.25 - 0.3 * (i / (nArc - 1))]).forEach(([r, op, rt, span]) => {
+      const pts = []; for (let i = 0; i <= 40; i++) { const a = a0 + (-span + 2 * span * (i / 40)); const p = tT.clone().addScaledVector(e1, r * Math.cos(a)).addScaledVector(e2, r * Math.sin(a)); p.z = skinZ(p.x, p.y) + 0.05; pts.push(p); }
       const m = new THREE.MeshBasicMaterial({ color: '#c99a3e', transparent: true, opacity: op, depthWrite: false });
       const arc = mesh(C.sweepGeometry(pts, { r: rt, radial: 8, segments: 60, caps: 'round' }), m, thumbArrow, GI({ id: 'thumb-vector', name: 'Depressão dos tecidos sob a polpa do polegar' }), { cast: false, receive: false });
       arc.renderOrder = 2;
     });
     setA('thumbVector', tail.clone().lerp(head, 0.35).toArray());
-    thumbArrow.userData.choice = { deg: best.deg, clearance: +best.clr.toFixed(2) };
+    thumbArrow.userData.choice = { deg: best.deg, RR: best.RR, tilt: best.tilt, len: best.LEN, legibleCm: +best.leg.toFixed(2), occluded: best.occ, clearance: +best.clr.toFixed(2), needleClearanceXY: +best.nclr.toFixed(2), head: best.head.toArray().map((x) => +x.toFixed(2)) };
   }
   if (!hand) { setA('indexTip', NL.indexSkin); setA('thumbTip', NL.thumbSkin); setA('palm', [6, 4.5, 6]); }
 
   /* ======================================================================
-     9. Estado: fases com transições suaves (~0,6 s)
+     9. Estado: fases com transições suaves (~0,6 s; ~1 s quando um objeto sai e outro entra)
+        Etapa extra 7 = dilatador (state.dilator com fase ≥ 5, ou subfase 5,5): agulha fora, fio no lugar.
+        hL = presença da mão de apoio: ela sai de cena a partir da fase 5 (afasta-se e some), deixando à vista o
+        canhão, o fio e o cateter; o vetor do polegar some junto.
      ====================================================================== */
+  const D_OUT = sSkin - 2.5; // dilatador "estacionado" fora da pele (invisível)
   const PH = [
-    { s: sSkin - 2.0, nd: 0, syr: 1, ret: 0, blood: 0, wire: 0, cath: 0 },  // 0 sem agulha
-    { s: sSkin - 2.0, nd: 1, syr: 1, ret: 0, blood: 0, wire: 0, cath: 0 },  // 1 aproximação (2 cm fora da pele)
-    { s: sSkin + 0.5, nd: 1, syr: 1, ret: 0.25, blood: 0, wire: 0, cath: 0 }, // 2 ponta sob a pele
-    { s: sClav, nd: 1, syr: 1, ret: 0.35, blood: 0, wire: 0, cath: 0 },     // 3 ponta sob a clavícula
-    { s: sTip4, nd: 1, syr: 1, ret: 1.35, blood: 1, wire: 0, cath: 0 },     // 4 ponta (bisel inteiro) logo além da parede: refluxo de sangue escuro
-    { s: sTip4, nd: 1, syr: 0, ret: 1.35, blood: 1, wire: 1, cath: 0 },     // 5 seringa removida (agulha imóvel), fio-guia avançado
-    { s: sTip4 - 7, nd: 0, syr: 0, ret: 0, blood: 0, wire: 0, cath: 1 },    // 6 agulha e fio retirados; cateter posicionado
+    { s: sSkin - 2.0, nd: 0, syr: 1, ret: 0, blood: 0, wire: 0, cath: 0, roll: 0, dil: 0, dS: D_OUT, hL: 1 },  // 0 sem agulha
+    { s: sSkin - 2.0, nd: 1, syr: 1, ret: 0, blood: 0, wire: 0, cath: 0, roll: 0, dil: 0, dS: D_OUT, hL: 1 },  // 1 aproximação (2 cm fora da pele)
+    { s: sSkin + 0.5, nd: 1, syr: 1, ret: 0.25, blood: 0, wire: 0, cath: 0, roll: 0, dil: 0, dS: D_OUT, hL: 1 }, // 2 ponta sob a pele
+    { s: sClav, nd: 1, syr: 1, ret: 0.35, blood: 0, wire: 0, cath: 0, roll: 0, dil: 0, dS: D_OUT, hL: 1 },     // 3 ponta sob a clavícula (no subclávio)
+    { s: sTip4, nd: 1, syr: 1, ret: 1.35, blood: 1, wire: 0, cath: 0, roll: 0, dil: 0, dS: D_OUT, hL: 1 },     // 4 bisel inteiro na luz: refluxo escuro
+    { s: sTip4, nd: 1, syr: 0, ret: 1.35, blood: 1, wire: 1, cath: 0, roll: 1, dil: 0, dS: D_OUT, hL: 0 },     // 5 seringa removida, bisel caudal, fio avançado
+    { s: sTip4 - 7, nd: 0, syr: 0, ret: 0, blood: 0, wire: 0, cath: 1, roll: 1, dil: 0, dS: D_OUT, hL: 0 },    // 6 agulha e fio retirados; cateter posicionado
+    { s: sTip4 - 7, nd: 0, syr: 0, ret: 0, blood: 0, wire: 1, cath: 0, roll: 1, dil: 1, dS: S_DIL, hL: 0 },    // 7 dilatador sobre o fio (até a parede venosa)
   ];
-  const cur = Object.assign({}, PH[0]); let from = Object.assign({}, PH[0]), to = PH[0], tt = 1, lastPhase = -1;
+  // grupos de visibilidade para escalonar as transições: quem sai anda na 1ª metade, quem entra na 2ª
+  const GRP = { s: 'nd', nd: 'nd', syr: 'syr', dil: 'dil', dS: 'dil', cath: 'cath', wire: 'wire', hL: 'hL' };
+  let stag = {};
+  const stageOf = (st) => { const ph = +st.phase || 0; if ((st.dilator && ph >= 4.5) || (ph >= 5.25 && ph < 5.75)) return 7; return Math.max(0, Math.min(6, Math.round(ph))); };
+  const cur = Object.assign({}, PH[0]); let from = Object.assign({}, PH[0]), to = PH[0], tt = 1, lastPhase = -1, dur = 0.6;
   const fade = (g, k) => { g.visible = k > 0.01; g.traverse((o) => { const m = o.material; if (!m || !m.isMaterial) return; if (m.userData.op0 === undefined) m.userData.op0 = m.opacity; m.opacity = m.userData.op0 * k; }); };
   const tipNow = new THREE.Vector3();
   function applyCur(state) {
     tipNow.copy(along(cur.s));
     needleAsm.position.copy(tipNow);
+    needleAsm.quaternion.slerpQuaternions(needleQuat, needleQuatCaud, C.clamp(cur.roll, 0, 1));
     needleAsm.visible = cur.nd > 0.01;
     fade(needleGrp, cur.nd); hubBlood.visible = cur.blood > 0.05 && cur.nd > 0.05 && cur.syr < 0.5;
     fade(syringe, Math.min(cur.syr, cur.nd)); syringe.position.y = -(1 - cur.syr) * 4.5;
     plunger.position.y = -cur.ret;
     syrBlood.visible = cur.blood > 0.02; bloodCol.scale.y = Math.max(0.001, (cur.ret + 0.1) * cur.blood);
     wire.userData.grow(cur.wire); wire.visible = cur.wire > 0.01;
-    const mal = !!(state && state.wireMal);
+    const mal = !!(state && state.wireMal) && cur.dil < 0.5;
     wireMal.visible = mal && cur.wire > 0.5; wireMal.userData.grow(mal ? C.clamp((cur.wire - 0.5) * 2, 0, 1) : 0);
     cath.userData.grow(cur.cath); catheterGrp.visible = cur.cath > 0.01;
     fade(hubGrp, C.smooth(0.6, 1, cur.cath));
     catheterGrp.children.forEach((c) => { if (c !== cath && c !== hubGrp && !c.userData.internal) { c.visible = cur.cath > 0.97; } });
+    dilAsm.position.copy(along(cur.dS)); fade(dilAsm, C.clamp(cur.dil, 0, 1));
+    dilLimit.visible = cur.dil > 0.5;
     setA('needleTip', tipNow.toArray());
     setA('needleHub', along(cur.s).addScaledVector(dir, (L_HUB0 + L_HUB1) / 2).toArray());
     setA('syringe', along(cur.s).addScaledVector(dir, (B_FRONT + B_REAR) / 2 - (1 - cur.syr) * 4.5).toArray());
+    setA('dilatorTip', along(cur.dil > 0.01 ? cur.dS : S_DIL).toArray());
   }
   let lastWireMal = null, lastState = {};
   /** Superfície de apoio = pele, ou pele + campo estéril quando a camada 'drape' está visível. O campo (módulo skin) é
@@ -1105,21 +1366,41 @@ float gloveHeight(vec3 p, vec3 n) {
   function update(state, dt) {
     state = state || {}; lastState = state;
     syncSurface(state);
-    const p = Math.max(0, Math.min(6, Math.round(+state.phase || 0)));
-    if (p !== lastPhase) { from = Object.assign({}, cur); to = PH[p]; tt = dt > 0 && lastPhase >= 0 ? 0 : 1; lastPhase = p; }
+    const p = stageOf(state);
+    if (p !== lastPhase) {
+      from = Object.assign({}, cur); to = PH[p]; tt = dt > 0 && lastPhase >= 0 ? 0 : 1; lastPhase = p;
+      // escalonamento: só quando há troca de objetos (algum grupo some E algum aparece)
+      stag = {}; let up = false, down = false;
+      for (const k of ['nd', 'syr', 'dil', 'cath', 'wire', 'hL']) { const d = to[k] - from[k]; if (d > 0.5) { stag[k] = 'late'; up = true; } else if (d < -0.5) { stag[k] = 'early'; down = true; } }
+      if (!(up && down)) stag = {};
+      dur = up && down ? 1.0 : 0.6;
+    }
     const animating = tt < 1; // inclui o quadro em que a transição termina
-    if (tt < 1) tt = Math.min(1, tt + (dt || 0) / 0.6);
-    const e = ease(tt); for (const k in to) cur[k] = from[k] + (to[k] - from[k]) * e;
+    if (tt < 1) tt = Math.min(1, tt + (dt || 0) / dur);
+    for (const k in to) {
+      const md = stag[GRP[k]], e = md === 'early' ? ease(Math.min(1, tt / 0.55)) : md === 'late' ? ease(Math.max(0, (tt - 0.45) / 0.55)) : ease(tt);
+      cur[k] = from[k] + (to[k] - from[k]) * e;
+    }
     if (animating || !dt || lastWireMal !== !!state.wireMal) { applyCur(state); lastWireMal = !!state.wireMal; }
-    if (hand) hand.setPose(state.handPose === undefined ? 1 : +state.handPose);
-    planes.visible = !!state.showPlanes;
     const hp = state.handPose === undefined ? 1 : +state.handPose;
-    thumbArrow.visible = !!hand && hp > 0.85 && layers.hand.visible;
+    if (hand) {
+      const pres = C.clamp(cur.hL, 0, 1);
+      handRoot.visible = pres > 0.02;
+      if (handRoot.visible) hand.setPose(hp, 9 * (1 - pres));
+    }
+    planes.visible = !!state.showPlanes;
+    thumbArrow.visible = !!hand && hp > 0.85 && cur.hL > 0.97 && layers.hand.visible;
     markers.forEach((m) => { m.visible = layers.skin.visible || layers.hand.visible; });
+    if (+state.fixStep > 0) markers[1].visible = false; // a fixação (bailarina) ocupa o sítio de saída
+    dilLimit.userData.mat.depthTest = layers.skin.visible; // com a pele visível, o anel fica sob ela (sem "flutuar")
     const instOn = layers.instrument.visible;
     // "raio X" só nas vistas anatômicas (sem pele): numa vista realista o trajeto interno não deve atravessar mão/pele
     const xr = instOn && !layers.skin.visible;
-    xrayWire.visible = xr && wire.visible; xrayCath.visible = xr && catheterGrp.visible; xrayMal.visible = xr && wireMal.visible;
+    xrayWire.visible = xr && wire.visible; xrayCath.visible = xr && catheterGrp.visible; xrayMal.visible = xr && wireMal.visible; xrayDil.visible = xr;
+    // destaque do motor (E.highlight): as cópias "raio X" são MeshBasic (sem emissivo) — sem isto o fio destacado
+    // continuaria branco dentro das veias. O motor troca o material por um clone enquanto destaca: só o clone é tingido.
+    const hlId = ctx.engine && ctx.engine.highlighted ? ctx.engine.highlighted() : null;
+    for (const [m, id, base] of [[xrayWire, 'guidewire', mats.xrayWire], [xrayCath, 'catheter', mats.xrayCath], [xrayDil, 'dilator', mats.xrayDil]]) if (hlId === id && m.material !== base) m.material.color.set('#f2b84b');
   }
   update({ phase: 0, handPose: 1 }, 0);
   mark('total');
@@ -1132,12 +1413,15 @@ float gloveHeight(vec3 p, vec3 n) {
       /** trecho externo do cateter (coords anatômicas): path[0..nExternal-1] = canhão→saída; entry = sítio de saída na pele;
           surfaceZ(x,y) = superfície de apoio atual (pele ou campo); onExternal(fn) chamado a cada reassentamento */
       external: () => extInfo, surfaceZ: (x, y) => restZ(x, y), skinZ: (x, y) => skinZ(x, y), onExternal: (fn) => { extListeners.push(fn); },
-      setXray(on) { [mats.xrayWire, mats.xrayCath, mats.xrayMal].forEach((m) => { m.visible = !!on; }); },
+      setXray(on) { [mats.xrayWire, mats.xrayCath, mats.xrayMal, mats.xrayDil].forEach((m) => { m.visible = !!on; }); },
       // vista caudal, perpendicular ao plano agulha–eixo anteroposterior: o setor do ângulo aparece em verdadeira grandeza
       // (a vista lateral olha quase ao longo da agulha, que corre mediolateralmente, e achata o setor)
       angleView: { target: entryEff.toArray(), radius: 16, az: -0.25, el: -1.2 },
       debug: () => ({
-        prof, hasSkin, sSkin, sClav, sVein, sWall, sTip4,
+        prof, hasSkin, sSkin, sClav, sVein, sWall, sTip4, stage: lastPhase,
+        phase3: Object.assign({ tip: along(sClav).toArray().map((x) => +x.toFixed(2)), beforeWall: +(sWall - sClav).toFixed(2) }, clavInfo),
+        dilator: { tipS: +S_DIL.toFixed(2), pastWall: +(S_DIL - sWall).toFixed(2), tip: along(S_DIL).toArray().map((x) => +x.toFixed(2)), depthFromSkin: +(S_DIL - sSkin).toFixed(2) },
+        malBend: { a: malBend.a, off: malBend.off, minRadius: malBend.minRadius, lumenMargin: malBend.lumenMargin }, hubPlan: { deg: hubPlan.deg, d: hubPlan.d, psi: hubPlan.psi, hs: hubPlan.hs, center: hubPlan.hc.toArray().map((x) => +x.toFixed(2)), winMargin: -hubPlan.win, minRadius: hubPlan.minRadius, freeCath: hubPlan.free, score: hubPlan.score, nEval: hubPlan.nEval, window: WIN }, catheter: cathReport,
         needle4: { depthFromSkin: +(sTip4 - sSkin).toFixed(2), shaftOutsideSkin: +(NEEDLE_L - (sTip4 - sSkin)).toFixed(2), pastWall: +(sTip4 - sWall).toFixed(2) },
         lumen: lumenReport, external: extReport, heartStartY: heartHit && +heartHit.y.toFixed(2), cathTip: cathTipP.toArray().map((x) => +x.toFixed(2)),
         thumbArrow: thumbArrow.userData.choice, drapeMeshes, surface: surfKey,

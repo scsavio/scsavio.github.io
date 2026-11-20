@@ -9,7 +9,7 @@
      A superfície média é relaxada (Laplaciano) e "assentada" por projeção contra obstáculos analíticos:
      parede costal (raster polar das costelas/cartilagens/esterno), tubos ósseos com secção elíptica
      idêntica à do esqueleto (clavícula, costelas, acrômio, coracoide, espinha, úmero), esferas/elipsoides
-     (cabeça e tubérculos do úmero), a lâmina escapular (réplica do patch do esqueleto), eixos vasculares de LM
+     (cabeça e tubérculos do úmero), a lâmina escapular (superfície compartilhada LM.scapulaGeom), eixos vasculares de LM
      e outras lâminas (camadas musculares). O deslocamento de projeção é suavizado na grade (dilatação pelo
      vetor de maior norma) e a face SUPERFICIAL é suavizada à parte (Laplaciano com bordas fixas e espessura
      limitada): o relevo do leito fica na face profunda, a superficial permanece lisa e convexa.
@@ -17,7 +17,8 @@
      (supraespinal, infraespinal, redondo menor) renderizado como leito do deltoide e do trapézio.
    - Músculos fusiformes/acintados (ECM, escalenos, subclávio, omo-hióideo, infra-hióideos): varreduras
      de secção elíptica com orientação controlada.
-   - Cor por vértice: ventre muscular ↔ tendão/aponeurose (transição gradual) + mosqueado sutil;
+   - Cor por vértice: ventre muscular ↔ tendão/aponeurose (transição nítida de ~0,45 cm, junção miotendínea
+     levemente escurecida) + mosqueado sutil;
      textura normal de fibras (C.mats.muscle) com v ao longo das fibras.
    ========================================================================== */
 ATLAS.define('muscles', function (ctx) {
@@ -38,25 +39,33 @@ ATLAS.define('muscles', function (ctx) {
   /* =====================================================================
      Materiais e cores
      ===================================================================== */
+  // sheen baixo e avermelhado (o veludo salmão claro lavava o ventre); relevo de fibras discreto; leve verniz úmido
   const MUS = C.mat({
-    color: '#ffffff', vertexColors: true, roughness: 0.56, sheen: 0.55, sheenRoughness: 0.5, sheenColor: '#efa392',
-    clearcoat: 0.12, clearcoatRoughness: 0.55, normalMap: C.mats.muscle.normalMap, normalScale: new THREE.Vector2(0.36, 0.36), cut: 0x8e3a33,
+    color: '#ffffff', vertexColors: true, roughness: 0.5, sheen: 0.25, sheenRoughness: 0.6, sheenColor: '#cf7563',
+    clearcoat: 0.2, clearcoatRoughness: 0.4, normalMap: C.mats.muscle.normalMap, normalScale: new THREE.Vector2(0.2, 0.2), cut: 0x8e3a33,
   });
   const LIG = C.mats.ligament;
   const FAS = C.mat({ color: '#f1e9da', roughness: 0.28, clearcoat: 0.7, clearcoatRoughness: 0.2, sheen: 0.4, sheenColor: '#ffffff',
     transparent: true, opacity: 0.36, depthWrite: false, side: THREE.DoubleSide });
   const MEMB = C.mat({ color: '#eadfcd', roughness: 0.3, clearcoat: 0.5, transparent: true, opacity: 0.55, depthWrite: false, side: THREE.DoubleSide });
-  const COL = { mus: '#ab4a40', deep: '#9b4339', dark: '#8f3d35', ten: '#e9e0cd', apo: '#dcc8b2' };
+  const COL = { mus: '#983a31', deep: '#8c3a31', dark: '#80342d', ten: '#e3dccb', apo: '#d8c6ae' };
   const colCache = {};
   const lin = (hex) => colCache[hex] || (colCache[hex] = new THREE.Color(hex)); // sRGB → linear (ColorManagement)
-  /** cor final: base ↔ tendão (k), mosqueado sutil por ruído 3D */
-  function musRGB(base, k, x, y, z, seed) {
+  /** cor final: base ↔ tendão (k), mosqueado sutil por ruído 3D; j (0..1) escurece a junção miotendínea */
+  function musRGB(base, k, x, y, z, seed, j = 0) {
     const b = lin(base), t = lin(COL.ten);
     const n = C.fbm3(x * 0.42 + seed, y * 0.42, z * 0.42, 2, 7) - 0.5;
     const n2 = C.noise3(x * 2.1, y * 2.1, z * 2.1, 3) - 0.5;
-    const m = 1 + n * 0.22 * (1 - k) + n2 * 0.06;
+    const m = (1 + n * 0.22 * (1 - k) + n2 * 0.06) * (1 - 0.1 * clamp(j, 0, 1));
     return [lerp(b.r, t.r, k) * m, lerp(b.g, t.g, k) * m, lerp(b.b, t.b, k) * m];
   }
+  /* Transições ventre → tendão/aponeurose NÍTIDAS (≈0,4–0,5 cm), como a borda prateada de uma aponeurose real,
+     em vez de degradês longos ("geada"). x = parâmetro ao longo das fibras; c = posição da junção; w = largura
+     da rampa no mesmo parâmetro (em geral 0,45 cm ÷ comprimento). */
+  const ramp = (x, c, w) => sm(c - w / 2, c + w / 2, x);
+  /** faixa da junção miotendínea, do lado MUSCULAR (escurecida ~10% em musRGB); dir = +1 se o tendão fica em x > c */
+  const band = (x, c, w, dir = 1) => Math.max(0, 1 - Math.abs(x - (c - dir * w * 0.9)) / (w * 0.9));
+  const RW = 0.45; // largura-alvo da rampa (cm)
   /** aplica cores por vértice a uma geometria: fn(i, x,y,z) → [r,g,b] */
   function paint(geo, fn) {
     const pos = geo.attributes.position, n = pos.count, out = new Float32Array(n * 3);
@@ -228,7 +237,7 @@ ATLAS.define('muscles', function (ctx) {
   const obScapSup = obSphere(LM.scapulaGeom().superiorAngle, 0.9);
 
   /* =====================================================================
-     Escápula: réplica do patch de Coons do esqueleto (superfície média, normal POSTERIOR, meia-espessura).
+     Escápula: superfície média compartilhada com o esqueleto (LM.scapulaGeom), normal POSTERIOR, meia-espessura.
      Serve de leito ao manguito rotador e de obstáculo (face posterior / face costal).
      ===================================================================== */
   const scap = (() => {
@@ -316,6 +325,8 @@ ATLAS.define('muscles', function (ctx) {
   const obEJV = lmTube(VS.ejvR.pts, 0.28, 0.05);
   // cefálica no sulco deltopeitoral: as BORDAS das lâminas apenas a margeiam (folga fixa, não a meia-espessura inteira)
   const obCephEdge = (p, d) => obCeph(p, Math.min(d, 0.1));
+  // borda anterior do deltoide (espessa, ≥ 0,6 cm): afasta-se mais, para a veia ficar NO sulco e não sob o músculo
+  const obCephDelt = (p, d) => obCeph(p, Math.min(d, 0.32));
 
   /* =====================================================================
      Parede costal: raster polar (θ, y) → raio externo ρ (envoltório das costelas + cartilagens + esterno)
@@ -548,8 +559,10 @@ ATLAS.define('muscles', function (ctx) {
       const k = j * W + i, p = P[k], u = i / nu, v = j / nv;
       const U = o.uvFn ? o.uvFn(u, v, arc[k]) : [u * uvW / (o.tileU || 3.4), arc[k] / (o.tileV || 12)];
       uv.set(U, k * 2); uv.set(U, (NV + k) * 2);
-      const kt = o.tendon ? clamp(o.tendon(u, v), 0, 1) : 0;
-      const c = musRGB(o.colFn ? o.colFn(u, v) : (o.col || COL.mus), kt, p.x, p.y, p.z, o.seed || 0);
+      // tendon(u, v, w) → k ou [k, junção]; w = largura (em v) de uma rampa de RW cm nesta coluna de fibras
+      const tv = o.tendon ? o.tendon(u, v, RW / Math.max(1, arc[nv * W + i])) : 0;
+      const kt = clamp(Array.isArray(tv) ? tv[0] : tv, 0, 1), jt = Array.isArray(tv) ? tv[1] : 0;
+      const c = musRGB(o.colFn ? o.colFn(u, v) : (o.col || COL.mus), kt, p.x, p.y, p.z, o.seed || 0, jt);
       if (o.grooveFn) { const gq = 1 - 0.22 * o.grooveFn(u, v) * (1 - kt); c[0] *= gq; c[1] *= gq; c[2] *= gq; }
       col.set(c, k * 3);
       const db = o.darkBottom ?? 0.82; col.set([c[0] * db, c[1] * db, c[2] * db], (NV + k) * 3);
@@ -592,12 +605,79 @@ ATLAS.define('muscles', function (ctx) {
     for (const a of map.values()) if (a.length > 1) { const s = new Vec(); for (const i of a) s.x += n.getX(i), s.y += n.getY(i), s.z += n.getZ(i); s.normalize(); for (const i of a) n.setXYZ(i, s.x, s.y, s.z); }
     n.needsUpdate = true; return g;
   }
-  /** varredura (C.sweepGeometry) + cores por vértice; colFn(t,x,y,z) → {base,k} */
+  /**
+   * Deformação MACIA de uma varredura contra obstáculos (fn(Vector3) in place): o deslocamento bruto de cada vértice
+   * (soldado na costura) é espalhado pela malha (dilatação pelo vetor de maior norma, como em sheet/soft) e as posições
+   * deslocadas recebem suavização laplaciana; por fim, só as penetrações residuais (> tol) são corrigidas. Produz sulcos
+   * e achatamentos de contato lisos, sem as facetas/dobras de uma projeção vértice a vértice.
+   * o: { weight(p0)→0..1, passes, smooth, lam, tol }
+   */
+  function deformSoft(g, fn, o = {}) {
+    const p = g.attributes.position, n = p.count, idx = g.index;
+    const map = new Map(), wid = new Int32Array(n); let nw = 0;
+    for (let i = 0; i < n; i++) {
+      const k = Math.round(p.getX(i) * 2000) + ',' + Math.round(p.getY(i) * 2000) + ',' + Math.round(p.getZ(i) * 2000);
+      let w = map.get(k); if (w === undefined) { w = nw++; map.set(k, w); } wid[i] = w;
+    }
+    const P0 = Array.from({ length: nw }, () => new Vec());
+    for (let i = 0; i < n; i++) P0[wid[i]].fromBufferAttribute(p, i);
+    const nbS = Array.from({ length: nw }, () => new Set());
+    for (let t = 0; t < idx.count; t += 3) {
+      const a = wid[idx.getX(t)], b = wid[idx.getX(t + 1)], c = wid[idx.getX(t + 2)];
+      nbS[a].add(b).add(c); nbS[b].add(a).add(c); nbS[c].add(a).add(b);
+    }
+    const NB = nbS.map((s, i) => [...s].filter((j) => j !== i));
+    const wf = o.weight || (() => 1);
+    const D = P0.map((q) => { const v = q.clone(); fn(v); return v.sub(q).multiplyScalar(wf(q)); });
+    for (let ps = 0; ps < (o.passes ?? 3); ps++) {
+      const E = D.map((d, i) => { const a = d.clone().multiplyScalar(2); for (const j of NB[i]) a.add(D[j]); return a.multiplyScalar(1 / (2 + NB[i].length)); });
+      for (let i = 0; i < nw; i++) if (E[i].lengthSq() > D[i].lengthSq()) D[i].copy(E[i]);
+    }
+    const P = P0.map((q, i) => q.clone().add(D[i])), moved = D.map((d) => d.lengthSq() > 1e-6);
+    const lam = o.lam ?? 0.5;
+    for (let it = 0; it < (o.smooth ?? 2); it++) {
+      const Q = P.map((q, i) => { if (!moved[i] || !NB[i].length) return q; const a = new Vec(); for (const j of NB[i]) a.add(P[j]); return q.clone().lerp(a.multiplyScalar(1 / NB[i].length), lam); });
+      for (let i = 0; i < nw; i++) P[i].copy(Q[i]);
+    }
+    const tol = o.tol ?? 0.03, tmp = new Vec();
+    for (let i = 0; i < nw; i++) { const wi = wf(P0[i]); if (wi <= 0) continue; tmp.copy(P[i]); fn(tmp); if (tmp.distanceToSquared(P[i]) > tol * tol) P[i].lerp(tmp, wi); }
+    for (let i = 0; i < n; i++) { const q = P[wid[i]]; p.setXYZ(i, q.x, q.y, q.z); }
+    return deformWeld(g, () => {});
+  }
+  /** raio INSCRITO da malha já moldada ao longo do eixo (quadros F): perfil [[t, r]] para C.solid — os sulcos e
+   *  achatamentos de contato entram na checagem automática de interpenetração */
+  function inscribedR(geo, F, n = 30) {
+    const p = geo.attributes.position, v = new Vec(), out = [];
+    for (let k = 0; k <= n; k++) {
+      const f = fAt(F, k / n); let best = Infinity;
+      for (let i = 0; i < p.count; i++) {
+        v.fromBufferAttribute(p, i).sub(f.c); const a = v.dot(f.T);
+        if (Math.abs(a) < 0.12) best = Math.min(best, Math.sqrt(Math.max(0, v.lengthSq() - a * a)));
+      }
+      out.push([k / n, isFinite(best) ? Math.max(0.05, best) : Math.min(f.rx, f.ry)]);
+    }
+    return out;
+  }
+  /** ponto da superfície de uma geometria atingido por um raio que vem de fora (dir) em direção a c; + afastamento off */
+  function surfHit(geo, c, dir, off = 0) {
+    const d = v3(dir).normalize(), from = v3(c).addScaledVector(d, 5);
+    const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }));
+    const h = new THREE.Raycaster(from, d.clone().negate(), 0, 5).intersectObject(m, false)[0];
+    return h ? arr(h.point.addScaledVector(d, off)) : null;
+  }
+  /** tubo de um sólido já registrado por outro módulo (eixo real construído), ou do eixo de LM se ausente */
+  function solidTube(id, pts, r, extra = 0) {
+    const s = (ATLAS.solids || []).find((q) => q.id === id);
+    // id '-L': eixo refletido para o lado direito (a malha direita é espelhada para formar a esquerda)
+    if (s) return obTube(frames(/-L$/.test(id) ? s.pts.map((q) => [-q[0], q[1], q[2]]) : s.pts, { rx: s.r, ry: s.r, step: 0.2 }), extra);
+    return pts ? obTube(frames(pts, { rx: r, ry: r, step: 0.2 }), extra) : () => {};
+  }
+  /** varredura (C.sweepGeometry) + cores por vértice; colFn(t, w, x,y,z) → {base, k, j?}; w = rampa de RW cm em t */
   function sweep(pts, o, colFn, seed = 0) {
     o = Object.assign({}, o, { vScale: o.vScale ? o.vScale * 2.6 : 10 });
     const g = C.sweepGeometry(pts, o);
-    const len = g.userData.length, vS = o.vScale || 4, uvA = g.attributes.uv;
-    paint(g, (i, x, y, z) => { const t = clamp(uvA.getY(i) * vS / len, 0, 1); const c = colFn(t, x, y, z); return musRGB(c.base, c.k, x, y, z, seed); });
+    const len = g.userData.length, vS = o.vScale || 4, uvA = g.attributes.uv, w = RW / Math.max(0.5, len);
+    paint(g, (i, x, y, z) => { const t = clamp(uvA.getY(i) * vS / len, 0, 1); const c = colFn(t, w, x, y, z); return musRGB(c.base, c.k, x, y, z, seed, c.j || 0); });
     return g;
   }
 
@@ -651,9 +731,9 @@ ATLAS.define('muscles', function (ctx) {
     });
     subclF = frames(pts, { up: [0, 1, 0], rx: sv, ry: sa, step: 0.1 });
     const g = sweep(pts, { up: [0, 1, 0], rx: sv, ry: sa, radial: 22, density: 9, caps: 'round', vScale: 3 },
-      (t) => ({ base: COL.deep, k: 1 - sm(0.22, 0.34, t) + 0.25 * sm(0.93, 1, t) }), 11);
+      (t, w) => ({ base: COL.deep, k: 1 - ramp(t, 0.28, w) + 0.25 * ramp(t, 0.97, w), j: band(t, 0.28, w, -1) }), 11);
     addR(g, MUS, G({ id: 'subclavius-R', name: 'Músculo subclávio direito',
-      desc: 'Fusiforme, sob o terço médio da clavícula, anterossuperior à veia subclávia; com a fáscia clavipeitoral, amortece e protege a veia — a agulha passa logo abaixo dele.' }));
+      desc: 'Fusiforme, no sulco da face inferior do terço médio da clavícula, envolto pela fáscia clavipeitoral, anterossuperior à veia subclávia. No acesso infraclavicular a agulha atravessa a fáscia e o ventre do subclávio imediatamente antes de alcançar a parede anterior da veia.' }));
     C.solid('mus-subclavius-R', pts, (t) => Math.min(sv(t), sa(t)));
     anchors.subclaviusR = arr(onTube(clavF, 0.45, [0, -1, 0.35], 0.62));
   }
@@ -668,18 +748,24 @@ ATLAS.define('muscles', function (ctx) {
   {
     const SA = LM.muscles.scaleneAnt;
     const pts = SA.pts.slice(0, 4).concat([[5.1, 0.5, -1.78], [5.16, 0.12, -1.74]]);
-    const w = C.profile([[0, 0.5], [0.25, 0.64], [0.5, 0.72], [0.78, 0.6], [0.92, 0.5], [1, 0.42]]);
-    const t = C.profile([[0, 0.3], [0.25, 0.38], [0.5, 0.42], [0.78, 0.38], [0.92, 0.3], [1, 0.24]]);
+    // ventre de ~1 cm de espessura AP junto à 1ª costela (Bannon et al.: 1–1,5 cm) — é a barreira entre veia e artéria
+    const w = C.profile([[0, 0.5], [0.25, 0.64], [0.5, 0.72], [0.78, 0.62], [0.92, 0.54], [1, 0.44]]);
+    const t = C.profile([[0, 0.3], [0.25, 0.42], [0.5, 0.5], [0.78, 0.5], [0.92, 0.42], [1, 0.3]]);
     const g = sweep(pts, { up: [1, 0, -0.32], rx: w, ry: t, radial: 22, density: 6, caps: 'round', vScale: 4 },
-      (s) => ({ base: COL.deep, k: 0.85 * sm(0.9, 0.99, s) + 0.3 * (1 - sm(0, 0.06, s)) }), 21);
-    // a VJI (medial) e a veia subclávia (anterior) moldam o ventre: a face em contato é achatada, sem invadir as veias
-    const obIJVs = obTube(frames(VS.ijvR.pts, { rx: VS.ijvR.r, ry: VS.ijvR.r, step: 0.2 }), 0.06), obScvS = obTube(frames(VS.scv.pts, { rx: VS.scv.r, ry: VS.scv.r, step: 0.2 }), 0.05);
-    deformWeld(g, (p) => { obIJVs(p, 0); obScvS(p, 0); });
+      (s, w) => ({ base: COL.deep, k: 0.85 * ramp(s, 0.945, w) + 0.3 * (1 - ramp(s, 0.03, w)), j: band(s, 0.945, w) }), 21);
+    // a VJI (medial), a veia subclávia (anterior), a artéria subclávia (posterior) e os ramos que cruzam a face anterior
+    // (supraescapular, cervical transversa) moldam o ventre: as faces em contato são achatadas, sem invadir os vasos
+    const obsSA = [solidTube('ijv-R', VS.ijvR.pts, VS.ijvR.r, 0.06), solidTube('scv-R', VS.scv.pts, VS.scv.r, 0.05), solidTube('sca-R', VS.scaR.pts, VS.scaR.r, 0.05),
+      solidTube('suprascapular-a-R', null, 0, 0.03), solidTube('transverse-cervical-a-R', null, 0, 0.03),
+      solidTube('thyrocervical-R', null, 0, 0.03), solidTube('inferior-thyroid-a-R', null, 0, 0.03), solidTube('vertebral-a-R', null, 0, 0.03),
+      // ramos do lado esquerdo (não exatamente simétricos): o mesmo leito serve à malha espelhada
+      solidTube('suprascapular-a-L', null, 0, 0.03), solidTube('transverse-cervical-a-L', null, 0, 0.03)];
+    deformSoft(g, (p) => { for (const ob of obsSA) ob(p, 0); }, { passes: 3, smooth: 2 });
     const info = G({ id: 'scalene-ant-R', name: 'Músculo escaleno anterior direito',
       desc: 'Dos tubérculos anteriores de C3–C6 ao tubérculo do escaleno da 1ª costela. A veia subclávia passa ANTERIOR a ele; a artéria subclávia e o plexo braquial, POSTERIORES — barreira entre veia e artéria.' });
     addR(g, MUS, info);
-    C.solid('mus-scalene-ant-R', pts, (s) => Math.min(w(s), t(s)));
     const Fa = frames(pts, { rx: w, ry: t, up: [1, 0, -0.32] });
+    C.solid('mus-scalene-ant-R', pts, inscribedR(g, Fa));
     // fascículos de origem (C4–C6): tendíneos junto ao osso, carnosos junto ao ventre
     [['C4', 0.06], ['C5', 0.26], ['C6', 0.44]].forEach(([n, s], i) => {
       const a = antTub(n), f = fAt(Fa, s);
@@ -687,39 +773,45 @@ ATLAS.define('muscles', function (ctx) {
       const start = [a[0] + 0.12, a[1] + 0.05, a[2] + 0.28];
       const mid = lerp3(start, end, 0.5); mid[2] += 0.15;
       const gg = sweep([start, mid, end], { rx: [[0, 0.16], [1, 0.3]], ry: [[0, 0.11], [1, 0.22]], up: [0, 1, 0], radial: 12, segments: 12, caps: 'round', vScale: 2 },
-        (q) => ({ base: COL.deep, k: 1 - sm(0.25, 0.75, q) }), 23 + i);
+        (q, w) => ({ base: COL.deep, k: 1 - ramp(q, 0.45, w), j: band(q, 0.45, w, -1) }), 23 + i);
       addR(gg, MUS, Object.assign({}, info, { name: info.name + ' — fascículo de origem (' + n + ')' }));
     });
-    anchors.scaleneAntR = arr(onTube(Fa, 0.62, [0.1, 0, 1], 0.02));
+    // âncora na face ANTEROLATERAL do terço inferior (y ≈ 2,45), medida sobre a malha já moldada: visível de frente
+    // (acima da clavícula, lateral à VJI e ao frênico) e, no corte parassagital do cap. 08 visto pela direita,
+    // projetada sobre a secção do próprio músculo (não sobre a VJI, medial a ele)
+    anchors.scaleneAntR = surfHit(g, fAt(Fa, tAt(Fa, 1, 2.45)).c, [0.62, 0, 0.78], 0.03) || arr(onTube(Fa, 0.8, [0.62, 0, 0.78], 0.03));
   }
   {
     const SM = LM.muscles.scaleneMid;
-    // inserção na face superior da 1ª costela, posterior ao sulco da artéria subclávia
-    const tR = tAt(r1.body, 2, -3.75), ins = onTube(r1.body, tR, [0, 1, 0], -0.05);
+    // inserção na face superior da 1ª costela, posterior ao sulco da artéria subclávia e ao tronco inferior do plexo
+    // (ligeiramente mais posterior que LM.muscles.scaleneMid, com a ponta mais estreita: deixa o leito do tronco livre)
+    const tR = tAt(r1.body, 2, -3.92), ins = onTube(r1.body, tR, [0, 1, 0], -0.05);
     const pts = SM.pts.slice(0, 3).concat([[5.95, 2.45, -3.95], arr(ins)]);
-    const w = C.profile([[0, 0.6], [0.3, 0.82], [0.6, 0.9], [0.86, 0.85], [1, 0.75]]);
+    const w = C.profile([[0, 0.6], [0.3, 0.82], [0.6, 0.9], [0.86, 0.78], [1, 0.6]]);
     const t = C.profile([[0, 0.4], [0.3, 0.5], [0.6, 0.55], [0.86, 0.42], [1, 0.22]]);
     const g = sweep(pts, { up: [0.42, 0, -0.9], rx: w, ry: t, radial: 22, density: 6, caps: 'round', vScale: 4 },
-      (s) => ({ base: COL.deep, k: 0.5 * sm(0.93, 1, s) + 0.3 * (1 - sm(0, 0.06, s)) }), 31);
+      (s, w) => ({ base: COL.deep, k: 0.5 * ramp(s, 0.965, w) + 0.3 * (1 - ramp(s, 0.03, w)), j: 0.5 * band(s, 0.965, w) }), 31);
     // troncos do plexo e artéria subclávia apoiam-se na face ANTERIOR do escaleno médio (hiato interescalênico):
-    // a face é rebaixada em canaletas rasas, sem que os troncos fiquem "enterrados" no músculo
-    const trk = LM.nerves.plexusTrunks, offs = [[0, 0.3, 0.15], [0, 0.05, -0.12], [0, -0.4, -0.2]];
-    const obTr = [];
-    trk.forEach((T, i) => { obTr.push(lmTube(T.pts, 0.32, 0.06)); obTr.push(lmTube(T.pts.map((q) => add3(q, offs[i])), 0.32, 0.06));
-      if (i) obTr.push(lmTube(T.pts.map((q) => add3(q, [0, offs[i][1], 0.5])), 0.3, 0.05)); }); // troncos médio/inferior afastados à frente pelo módulo de nervos
-    const obScaM = obTube(frames(VS.scaR.pts, { rx: VS.scaR.r, ry: VS.scaR.r, step: 0.2 }), 0.06);
-    deformWeld(g, (p) => { if (p.y < 1.2 || p.y > 8.5) return; for (const ob of obTr) ob(p, 0); obScaM(p, 0); });
+    // a face é rebaixada em canaletas rasas e lisas (deformação macia); o módulo de nervos assenta os troncos
+    // contra esta malha, então não são necessárias cópias deslocadas dos eixos
+    const obTr = LM.nerves.plexusTrunks.map((T) => lmTube(T.pts, 0.26, 0.05));
+    // tronco inferior: sobre a 1ª costela fica ATRÁS da 3ª parte da artéria (que o afasta para baixo/trás) e à frente
+    // da inserção do escaleno médio — canaleta também nessa posição (o módulo de nervos o assenta ali)
+    obTr.push(lmTube([[4.45, 3.6, -4.85], [4.94, 2.34, -3.67], [5.4, 1.88, -3.53], [5.7, 1.72, -3.36], [5.86, 2.02, -3.2], [6.15, 2.13, -3.25], [6.54, 2.0, -3.18], [7.06, 1.6, -3.1], [8.0, 1.1, -2.8]], 0.25, 0.08));
+    const obScaM = solidTube('sca-R', VS.scaR.pts, VS.scaR.r, 0.06);
+    deformSoft(g, (p) => { for (const ob of obTr) ob(p, 0); obScaM(p, 0); },
+      { weight: (p) => sm(1.0, 1.7, p.y) * (1 - sm(8.0, 8.8, p.y)), passes: 4, smooth: 3, tol: Infinity }); // sem correção dura final (recriaria dobras); os troncos são assentados pelo módulo de nervos
     const info = G({ id: 'scalene-mid-R', name: 'Músculo escaleno médio direito',
       desc: 'Dos tubérculos posteriores de C2–C7 à face superior da 1ª costela, atrás do sulco da artéria subclávia. Com o escaleno anterior delimita o hiato interescalênico (artéria subclávia e troncos do plexo).' });
     addR(g, MUS, info);
-    C.solid('mus-scalene-mid-R', pts, (s) => Math.min(w(s), t(s)));
     const Fm = frames(pts, { rx: w, ry: t });
+    C.solid('mus-scalene-mid-R', pts, inscribedR(g, Fm));
     [['C4', 0.04], ['C5', 0.2], ['C6', 0.38], ['C7', 0.55]].forEach(([n, s], i) => {
       const a = postTub(n), f = fAt(Fm, s);
       const end = arr(f.c.clone().addScaledVector(new Vec(-1, 0, 0), 0.25));
       const start = [a[0] + 0.15, a[1] + 0.05, a[2] + 0.1];
       const gg = sweep([start, lerp3(start, end, 0.5), end], { rx: [[0, 0.17], [1, 0.32]], ry: [[0, 0.12], [1, 0.24]], up: [0, 1, 0], radial: 12, segments: 12, caps: 'round', vScale: 2 },
-        (q) => ({ base: COL.deep, k: 1 - sm(0.25, 0.75, q) }), 33 + i);
+        (q, w) => ({ base: COL.deep, k: 1 - ramp(q, 0.45, w), j: band(q, 0.45, w, -1) }), 33 + i);
       addR(gg, MUS, Object.assign({}, info, { name: info.name + ' — fascículo de origem (' + n + ')' }));
     });
     anchors.scaleneMidR = arr(fAt(Fm, 0.55).c.clone().add(new Vec(0.6, 0, -0.1)));
@@ -734,19 +826,22 @@ ATLAS.define('muscles', function (ctx) {
     const upFn = (t) => new Vec(lerp(1, 0.86, t), 0, lerp(-0.25, -0.5, t));
     const info = G({ id: 'scm-R', name: 'Músculo esternocleidomastóideo direito',
       desc: 'Cabeça esternal (tendínea, da face anterior do manúbrio) e clavicular (larga, do terço medial da clavícula), fundidas num ventre comum. Entre as cabeças, a fossa supraclavicular menor, sobre a veia jugular interna.' });
-    // cabeça esternal: tendão arredondado → ventre; termina dentro do ventre comum
-    const stPts = [scm.sternalOrigin, [1.3, 0.55, 0.78], [1.85, 2.3, 0.62], [2.62, 4.6, 0.2], [3.35, 6.6, -0.22], [3.62, 7.4, -0.4]];
+    // cabeça esternal: tendão arredondado → ventre; termina dentro do ventre comum. Origem na face anterior do manúbrio
+    // LATERAL à incisura jugular (centro x ≈ 1,45; borda medial ≈ 1,15): a fossa supraesternal entre os dois tendões
+    // tem ~2,3 cm (LM.muscles.scm.sternalOrigin, x 0,95, deixava a fossa estreita demais para a polpa do indicador)
+    const so = scm.sternalOrigin, so2 = [Math.max(so[0], 1.45), so[1] - 0.05, so[2]];
+    const stPts = [so2, [1.62, 0.55, 0.8], [2.0, 2.3, 0.62], [2.68, 4.6, 0.2], [3.36, 6.6, -0.22], [3.62, 7.4, -0.4]];
     const stW = C.profile([[0, 0.3], [0.14, 0.36], [0.3, 0.62], [0.6, 0.95], [1, 0.9]]);
     const stT = C.profile([[0, 0.27], [0.14, 0.3], [0.3, 0.38], [0.6, 0.44], [1, 0.38]]);
     const g1 = sweep(stPts, { up: (t) => upFn(t * 0.6), rx: stW, ry: stT, radial: 26, density: 6, caps: 'round', vScale: 4 },
-      (t) => ({ base: COL.mus, k: 1 - sm(0.16, 0.3, t) }), 41);
+      (t, w) => ({ base: COL.mus, k: 1 - ramp(t, 0.25, w), j: band(t, 0.25, w, -1) }), 41);
     addR(g1, MUS, Object.assign({}, info, { name: info.name + ' — cabeça esternal' }));
     // cabeça clavicular: larga e achatada, sobe quase verticalmente e passa profundamente à esternal
     const clPts = [[4.4, 1.82, 0.42], [4.3, 2.65, 0.26], [4.14, 4.3, -0.24], [4.22, 6.2, -0.82], [4.35, 7.1, -1.02]];
     const clW = C.profile([[0, 1.25], [0.15, 1.15], [0.45, 0.95], [0.8, 0.85], [1, 0.7]]);
     const clT = C.profile([[0, 0.2], [0.15, 0.27], [0.45, 0.36], [1, 0.34]]);
     const g2 = sweep(clPts, { up: (t) => upFn(t * 0.5 + 0.05), rx: clW, ry: clT, radial: 26, density: 6, caps: 'round', vScale: 4 },
-      (t) => ({ base: COL.mus, k: 0.35 * (1 - sm(0, 0.05, t)) }), 43);
+      (t, w) => ({ base: COL.mus, k: 0.35 * (1 - ramp(t, 0.03, w)) }), 43);
     addR(g2, MUS, Object.assign({}, info, { name: info.name + ' — cabeça clavicular' }));
     // ventre comum (envolve as extremidades superiores das duas cabeças); corte plano em y = 11
     const bPts = [[3.32, 4.1, -0.05], [3.6, 5.6, -0.34], [4.12, 7.7, -0.78], [4.62, 9.6, -1.18], [4.88, 10.45, -1.36], [4.9, 11.0, -1.38]];
@@ -771,13 +866,13 @@ ATLAS.define('muscles', function (ctx) {
   {
     const shPts = [[1.95, -0.45, -1.42], [1.85, 0.9, -1.3], [1.5, 3.6, -0.98], [1.08, 7.2, -0.55], [0.78, 11.0, -0.22]];
     const shO = { up: (t, p, T) => new Vec(1, 0, 0.18), rx: [[0, 0.62], [0.3, 0.72], [1, 0.62]], ry: [[0, 0.1], [0.3, 0.14], [1, 0.13]], radial: 18, density: 5, caps: 'flat', vScale: 4 };
-    const shC = (t) => ({ base: COL.mus, k: 0.35 * (1 - sm(0, 0.08, t)) });
+    const shC = (t, w) => ({ base: COL.mus, k: 0.35 * (1 - ramp(t, 0.03, w)) });
     const shInfo = G({ id: 'sternohyoid-R', name: 'Músculo esterno-hióideo direito',
       desc: 'Infra-hióideo fino que nasce da face posterior do manúbrio e da extremidade medial da clavícula; anterior à traqueia e à confluência venosa.' });
     addR(sweep(shPts, shO, shC, 51), MUS, shInfo, { noMirror: true });
     const stPts = [[0.95, -1.28, -1.02], [1.15, 0.5, -1.68], [1.55, 3.6, -1.42], [1.9, 7.0, -1.18], [2.05, 9.6, -1.0]];
     const stO = { up: (t, p, T) => new Vec(1, 0, 0.2), rx: [[0, 0.78], [0.25, 0.9], [0.8, 0.85], [1, 0.7]], ry: [[0, 0.07], [0.2, 0.12], [1, 0.12]], radial: 18, density: 5, caps: 'flat', vScale: 4 };
-    const stC = (t) => ({ base: COL.deep, k: 0.4 * (1 - sm(0, 0.1, t)) + 0.4 * sm(0.94, 1, t) });
+    const stC = (t, w) => ({ base: COL.deep, k: 0.4 * (1 - ramp(t, 0.035, w)) + 0.4 * ramp(t, 0.97, w) });
     const stInfo = G({ id: 'sternothyroid-R', name: 'Músculo esternotireóideo direito',
       desc: 'Profundo ao esterno-hióideo, da face posterior do manúbrio (nível da 1ª cartilagem) à linha oblíqua da cartilagem tireóidea; separa-se da veia braquiocefálica por poucos milímetros.' });
     addR(sweep(stPts, stO, stC, 53), MUS, stInfo, { noMirror: true });
@@ -812,10 +907,12 @@ ATLAS.define('muscles', function (ctx) {
     // sob o ECM o tendão intermédio e o ventre superior ficam "deitados" (face larga paralela à face profunda do ECM)
     const upO = (s, p, T) => { const a = new Vec(0, 1, 0.45).normalize(), b = new Vec(T.y, -T.x, 0).normalize(); return a.lerp(b, sm(0.36, 0.52, s)).normalize(); };
     const g = sweep(pts, { up: upO, rx: w, ry: t, radial: 16, density: 6, caps: 'flat', capStart: true, vScale: 3 },
-      (s) => ({ base: COL.mus, k: sm(0.5, 0.56, s) * (1 - sm(0.66, 0.73, s)) + 0.5 * (1 - sm(0, 0.04, s)) }), 61);
+      (s, w) => ({ base: COL.mus, k: ramp(s, 0.53, w) * (1 - ramp(s, 0.695, w)) + 0.5 * (1 - ramp(s, 0.02, w)), j: band(s, 0.53, w) + band(s, 0.695, w, -1) }), 61);
     // entre a face profunda do ECM e a VJI: afasta-se do ECM e, por último, da veia
     const obIJVo = obTube(frames(VS.ijvR.pts, { rx: VS.ijvR.r, ry: VS.ijvR.r, step: 0.2 }), 0.03);
-    deformWeld(g, (p) => { if (p.x > 6.2 || p.y < 3.5) return; for (const ob of scmObs) ob(p, 0.02); for (const ob of strapObs) ob(p, 0.02); obIJVo(p, 0); });
+    // a cervical transversa passa PROFUNDAMENTE ao ventre inferior (D e E, esta refletida para o lado da malha)
+    const obTCAo = [solidTube('transverse-cervical-a-R', null, 0, 0.03), solidTube('transverse-cervical-a-L', null, 0, 0.03)];
+    deformWeld(g, (p) => { for (const ob of obTCAo) ob(p, 0); if (p.x > 6.2 || p.y < 3.5) return; for (const ob of scmObs) ob(p, 0.02); for (const ob of strapObs) ob(p, 0.02); obIJVo(p, 0); });
     addR(g, MUS, G({ id: 'omohyoid-R', name: 'Músculo omo-hióideo direito',
       desc: 'Ventre inferior cruza o trígono cervical posterior ~2 cm acima da clavícula, superficial ao plexo braquial e à artéria subclávia; o tendão intermédio fica sobre a veia jugular interna, sob o ECM.' }));
     C.solid('mus-omohyoid-R', pts, (s) => t(s) + 0.02);
@@ -905,7 +1002,7 @@ ATLAS.define('muscles', function (ctx) {
       nu: 24, nv: 34, f: (u, v) => f0(u, serr(u) + v * (1 - serr(u))),
       th: (u, v) => (0.24 + 0.52 * Math.pow(Math.sin(Math.PI * clamp(v / 0.86, 0, 1)), 0.7)) * (0.55 + 0.45 * Math.pow(Math.sin(Math.PI * u), 0.5)) * (v > 0.86 ? 0.8 : 1),
       out: (p) => [0.3, 0.1, 1], obst: [obWall, obAxV, obAxA, obCeph], gap: 0.06, iters: 4, lam: 0.45,
-      pin: (i, j) => j === 34 || j === 0, col: COL.deep, tendon: (u, v) => sm(0.8, 0.9, v) + 0.35 * (1 - sm(0, 0.06, v)), uvW: 5, seed: 81, bundles: 4, grooveAmp: 0.1,
+      pin: (i, j) => j === 34 || j === 0, col: COL.deep, tendon: (u, v, w) => [ramp(v, 0.86, w) + 0.35 * (1 - ramp(v, 0.025, w)), band(v, 0.86, w)], uvW: 5, seed: 81, bundles: 4, grooveAmp: 0.1,
     });
     addR(pmSh.geo, MUS, G({ id: 'pec-minor-R', name: 'Músculo peitoral menor direito',
       desc: 'Da 3ª–5ª costelas ao processo coracoide. Divide a artéria axilar em três partes (2ª parte atrás dele); a veia e o plexo passam profundamente a ele, abaixo do coracoide.' }));
@@ -933,7 +1030,7 @@ ATLAS.define('muscles', function (ctx) {
     fasSh = sheet({ nu: 30, nv: 22, f, th: () => 0.04, out: (p) => [0, 0, 1], obst: [obWall, obSubcl, obAxV, obAxA, obScv, obPM, obClav], gap: 0.08, iters: 5, lam: 0.5,
       pin: (i, j) => j === 0, col: COL.apo, uvW: 8, tile: 8 });
     addR(fasSh.geo, FAS, G({ id: 'clavipectoral-fascia-R', name: 'Fáscia clavipeitoral direita',
-      desc: 'Lâmina profunda ao peitoral maior: envolve o subclávio e desce ao peitoral menor (membrana costocoracoide). Perfurada pela veia cefálica, artéria toracoacromial e nervo peitoral lateral; a agulha a atravessa antes de alcançar a veia.', pickTransparent: true }));
+      desc: 'Lâmina profunda ao peitoral maior: desdobra-se para envolver o subclávio e desce ao peitoral menor (membrana costocoracoide). Perfurada pela veia cefálica, artéria toracoacromial e nervo peitoral lateral. No trajeto infraclavicular a agulha a atravessa logo após o peitoral maior e, em seguida, o subclávio.', pickTransparent: true }));
     anchors.clavipectoralR = fasSh.at(0.62, 0.35, 1, 0.05);
   }
   const obFas = obSheet(fasSh, [0.1, 0.1, 1]);
@@ -986,7 +1083,7 @@ ATLAS.define('muscles', function (ctx) {
       },
       out: (p) => [0.25, 0.05, 1], obst: [obWall, obClav, obClavEnd, (p, d) => obPM(p, d + 0.12), obFas, obSubcl, obAxV, obAxA, obCorac, obHead, obLT, obGT, obHum, obCephEdge],
       gap: 0.07, iters: 4, lam: 0.5, softPasses: 6, pin: (i, j) => j === 0 || j === nv, smoothTop: 12, topMax: 1.4,
-      col: COL.mus, tendon: (u, v) => sm(0.84, 0.94, v) + (u > 0.33 ? 0.42 * (1 - sm(0.0, 0.035, v)) : 0.25 * (1 - sm(0, 0.03, v))),
+      col: COL.mus, tendon: (u, v, w) => [ramp(v, 0.89, w) + lerp(0.12, 0.3, sm(0.3, 0.36, u)) * (1 - ramp(v, 0.02, w)), band(v, 0.89, w)], // origem clavicular carnosa; esternal aponeurótica
       uvW: 24, tileU: 4.2, seed: 91, bundles: 10, grooveAmp: 0.07,
     });
     addR(pMSh.geo, MUS, G({ id: 'pec-major-R', name: 'Músculo peitoral maior direito',
@@ -1036,7 +1133,7 @@ ATLAS.define('muscles', function (ctx) {
       out: (p) => [p.x, 0, p.z - ZC], obst: [obWall], obstFinal: [obScapSerr], gap: 0.05, iters: 3, lam: 0.45, pin: (i, j) => j === 26,
       // sob a lâmina (oculto pela escápula/infraespinal) a lâmina muscular é afinada: não aflora através do osso
       mask: (p) => scap.under(p, 2.2, 0.15), thMask: 0.08, maskSmooth: 2,
-      col: COL.deep, tendon: (u, v) => 0.3 * (1 - sm(0, 0.06, v)) + 0.5 * sm(0.9, 1, v), uvW: 18, seed: 121, bundles: nsl, grooveAmp: 0.14,
+      col: COL.deep, tendon: (u, v, w) => 0.3 * (1 - ramp(v, 0.03, w)) + 0.5 * ramp(v, 0.95, w), uvW: 18, seed: 121, bundles: nsl, grooveAmp: 0.14,
     });
     addR(sSh.geo, MUS, G({ id: 'serratus-anterior-R', name: 'Músculo serrátil anterior direito',
       desc: 'Digitações das oito costelas superiores à face costal da margem medial da escápula, passando PROFUNDAMENTE à escápula; forma a parede medial da axila, lateral ao trajeto infraclavicular.' }));
@@ -1077,7 +1174,7 @@ ATLAS.define('muscles', function (ctx) {
     infSh = sheet({ nu: 20, nv: 28, f: f0,
       th: (u, v) => (v < 0.8 ? 0.3 + 1.15 * Math.pow(Math.sin(Math.PI * clamp(v / 0.8, 0, 1) * 0.94 + 0.05), 0.7) : lerp(0.55, 0.3, sm(0.8, 0.96, v))) * lerp(0.45, 1, sm(0, 0.18, u)) * lerp(0.55, 1, sm(1, 0.85, u)),
       out: cuffHint, obst: cuffObst, gap: 0.05, iters: 4, lam: 0.45, pin: (i, j) => j === 28, smoothTop: 10,
-      col: COL.deep, tendon: (u, v) => sm(0.8, 0.92, v) + 0.35 * (1 - sm(0, 0.06, v)), uvW: 9, seed: 131, bundles: 5, grooveAmp: 0.08 });
+      col: COL.deep, tendon: (u, v, w) => [ramp(v, 0.86, w) + 0.35 * (1 - ramp(v, 0.03, w)), band(v, 0.86, w)], uvW: 9, seed: 131, bundles: 5, grooveAmp: 0.08 });
     addR(infSh.geo, MUS, G({ id: 'infraspinatus-R', name: 'Músculo infraespinal direito',
       desc: 'Manguito rotador: da fossa infraespinal à faceta média do tubérculo maior; rotador lateral do braço, profundo ao deltoide e ao trapézio.' }));
   }
@@ -1093,7 +1190,7 @@ ATLAS.define('muscles', function (ctx) {
     tmSh = sheet({ nu: 10, nv: 22, f: ctrlPatch(rows),
       th: (u, v) => (v < 0.8 ? 0.4 + 1.0 * Math.pow(Math.sin(Math.PI * clamp(v / 0.8, 0, 1) * 0.94 + 0.05), 0.6) : lerp(0.55, 0.3, sm(0.8, 0.96, v))) * lerp(0.6, 1, sm(0, 0.3, u)) * lerp(0.6, 1, sm(1, 0.7, u)),
       out: cuffHint, obst: cuffObst.concat([obInfTmp]), gap: 0.05, iters: 4, lam: 0.45, pin: (i, j) => j === 22, smoothTop: 6,
-      col: COL.deep, tendon: (u, v) => sm(0.8, 0.92, v) + 0.3 * (1 - sm(0, 0.08, v)), uvW: 3, seed: 137, bundles: 2, grooveAmp: 0.06 });
+      col: COL.deep, tendon: (u, v, w) => [ramp(v, 0.86, w) + 0.3 * (1 - ramp(v, 0.04, w)), band(v, 0.86, w)], uvW: 3, seed: 137, bundles: 2, grooveAmp: 0.06 });
     addR(tmSh.geo, MUS, G({ id: 'teres-minor-R', name: 'Músculo redondo menor direito',
       desc: 'Manguito rotador: da margem lateral da escápula à faceta inferior do tubérculo maior; rotador lateral, abaixo do infraespinal.' }));
   }
@@ -1110,7 +1207,7 @@ ATLAS.define('muscles', function (ctx) {
     supSh = sheet({ nu: 12, nv: 26, f: ctrlPatch(rows),
       th: (u, v) => (v < 0.58 ? 0.35 + 1.15 * Math.pow(Math.sin(Math.PI * clamp(v / 0.58, 0, 1) * 0.85 + 0.12), 0.7) : lerp(0.9, 0.32, sm(0.58, 0.9, v))) * lerp(0.5, 1, sm(0, 0.25, u)) * lerp(0.5, 1, sm(1, 0.75, u)),
       out: cuffHint, obst: cuffObst.concat([obClav, obCorac]), gap: 0.05, iters: 4, lam: 0.45, pin: (i, j) => j === 26, smoothTop: 6,
-      col: COL.deep, tendon: (u, v) => sm(0.66, 0.85, v) + 0.35 * (1 - sm(0, 0.06, v)), uvW: 4, seed: 141, bundles: 3, grooveAmp: 0.06 });
+      col: COL.deep, tendon: (u, v, w) => [ramp(v, 0.755, w) + 0.35 * (1 - ramp(v, 0.03, w)), band(v, 0.755, w)], uvW: 4, seed: 141, bundles: 3, grooveAmp: 0.06 });
     addR(supSh.geo, MUS, G({ id: 'supraspinatus-R', name: 'Músculo supraespinal direito',
       desc: 'Manguito rotador: da fossa supraespinal, sob o acrômio e sobre a cabeça do úmero, à faceta superior do tubérculo maior; profundo ao trapézio e ao deltoide.' }));
   }
@@ -1157,9 +1254,9 @@ ATLAS.define('muscles', function (ctx) {
         // borda anterior arredondada e espessa (≥ 0,6 cm) no sulco deltopeitoral
         return belly * part * lerp(0.62, 1, sm(0, 0.12, u)) * lerp(0.42, 1, sm(1, 0.82, u));
       },
-      out: (p) => [p.x - 17.2, 0.3, p.z + 3.8], obst: [obHeadCuff, obGTCuff, obLT, obHum, obAcrom, obClav, obCorac, obSup, obInf, obTMin, obSpine, obPMaj, obCephEdge, obPM],
+      out: (p) => [p.x - 17.2, 0.3, p.z + 3.8], obst: [obHeadCuff, obGTCuff, obLT, obHum, obAcrom, obClav, obCorac, obSup, obInf, obTMin, obSpine, obPMaj, obCephDelt, obPM],
       gap: 0.06, iters: 4, lam: 0.5, pin: (i, j) => j === 0 || j === nv, smoothTop: 12, topMax: 1.35,
-      col: COL.mus, tendon: (u, v) => sm(0.88, 0.97, v) + 0.3 * (1 - sm(0, 0.05, v)) + (u > 0.68 ? 0.25 * (1 - sm(0.02, 0.1, v)) : 0),
+      col: COL.mus, tendon: (u, v, w) => [ramp(v, 0.925, w) + 0.3 * (1 - ramp(v, 0.025, w)) + 0.25 * sm(0.64, 0.72, u) * (1 - ramp(v, 0.06, w)), band(v, 0.925, w)],
       uvW: 24, seed: 101, bundles: 11, grooveAmp: 0.12,
     });
     addR(dSh.geo, MUS, G({ id: 'deltoid-R', name: 'Músculo deltoide direito',
@@ -1195,7 +1292,14 @@ ATLAS.define('muscles', function (ctx) {
       },
       out: (p) => [p.x * 0.3, 0.4, -1], obst: [obClav, obAcrom, obSpine, obSup, obInf, obScapSup, scap.obPost],
       gap: 0.12, iters: 5, lam: 0.42, pin: (i, j) => j === nv || (j === 0 && i > 8),
-      col: COL.mus, tendon: (u, v) => { const dia = Math.max(0, 1 - Math.abs(u - 0.4) / 0.085 - v / 0.13); return 0.9 * sm(0, 0.35, dia) + 0.3 * (1 - sm(0, 0.04, v)) * sm(0.25, 0.35, u) + sm(0.88, 0.97, v) * sm(0.6, 0.75, u) * 0.8; },
+      col: COL.mus, tendon: (u, v, w) => {
+        // aponeurose em losango (C6–T3): a borda é DIAGONAL na grade (losango de ~5 × 4 células), então a rampa precisa
+        // de ~2–3 células (dia ≈ 0,6) para não serrilhar
+        // para não serrilhar; aponeurose das fibras inferiores sobre o tubérculo da espinha (borda nítida, alinhada à grade)
+        const dia = Math.max(0, 1 - Math.abs(u - 0.4) / 0.085 - v / 0.13);
+        return [0.9 * sm(0.0, 0.6, dia) + 0.3 * (1 - ramp(v, 0.02, w)) * sm(0.25, 0.35, u) + ramp(v, 0.925, w) * sm(0.6, 0.75, u) * 0.8,
+          0.8 * band(v, 0.925, w) * sm(0.6, 0.75, u)];
+      },
       uvW: 30, seed: 111, bundles: 12, grooveAmp: 0.1,
     });
     addR(tSh.geo, MUS, G({ id: 'trapezius-R', name: 'Músculo trapézio direito',

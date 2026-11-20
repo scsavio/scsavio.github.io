@@ -269,7 +269,7 @@
     scaL: { pts: [[-2.1, -2.4, -4.2], [-2.35, -0.8, -4.3], [-2.45, 0.9, -3.95], [-3.3, 2.3, -3.5], [-4.1, 2.6, -3.15], [-5.0, 2.8, -2.8], [-5.9, 1.95, -2.6], [-6.6, 1.25, -2.3], [-8.0, 0.55, -1.9], [-9.8, -0.4, -1.6]],
       r: [0.5, 0.48, 0.47, 0.46, 0.45, 0.44, 0.43, 0.42, 0.41, 0.4] },
     // Jugular externa direita: superficial ao ECM, cruza-o obliquamente; drena na veia subclávia lateral ao escaleno anterior.
-    ejvR: { pts: [[5.0, 11.0, 0.15], [5.55, 7.5, 0.25], [6.05, 4.5, -0.25], [6.35, 2.6, -0.6], [6.25, 1.3, -0.62], [6.0, 0.75, -0.55]], r: [0.22, 0.24, 0.26, 0.27, 0.28, 0.28] },
+    ejvR: { pts: [[5.0, 11.0, -0.45], [5.35, 7.5, -0.7], [5.95, 4.5, -0.6], [6.35, 2.6, -0.65], [6.25, 1.3, -0.62], [6.0, 0.75, -0.55]], r: [0.22, 0.24, 0.26, 0.27, 0.28, 0.28] },
     // Cefálica direita: sulco deltopeitoral → perfura a fáscia clavipeitoral → veia axilar logo abaixo da clavícula.
     cephalicR: { pts: [[16.6, -9.0, 0.55], [15.3, -5.0, 0.85], [14.3, -2.2, 0.7], [13.4, -0.85, 0.55], [12.4, -0.2, 0.35], [11.9, -0.55, -0.25], [11.4, -0.85, -0.7]], r: [0.25, 0.27, 0.28, 0.28, 0.29, 0.3, 0.32] },
     // Vertebral direita: da face superior da 1ª parte da subclávia ao forame transverso de C6
@@ -281,10 +281,10 @@
   /* ---------------- Músculos-chave para relações ---------------- */
   LM.muscles = {
     // Escaleno anterior direito: tubérculos anteriores C3–C6 → tubérculo escalênico da 1ª costela.
-    scaleneAnt: { pts: [[3.0, 10.4, -4.4], [3.55, 7.6, -3.55], [4.3, 4.6, -2.55], [4.85, 2.0, -1.95], [5.15, 0.25, -1.75]], w: [0.45, 0.62, 0.72, 0.62, 0.5], t: [0.3, 0.38, 0.42, 0.4, 0.32],
+    scaleneAnt: { pts: [[3.0, 10.4, -4.4], [3.55, 7.6, -3.55], [4.3, 4.6, -2.55], [4.85, 2.0, -1.95], [5.15, 0.25, -1.75]], w: [0.45, 0.62, 0.72, 0.62, 0.5], t: [0.3, 0.42, 0.5, 0.48, 0.32],
       note: 'Separa veia subclávia (anterior) da artéria subclávia e do plexo (posteriores). Nervo frênico desce sobre sua face anterior.' },
     // Escaleno médio: tubérculos posteriores C2–C7 → face superior da 1ª costela, atrás do sulco arterial.
-    scaleneMid: { pts: [[3.6, 10.6, -5.6], [4.4, 7.6, -5.4], [5.4, 4.4, -4.6], [6.0, 2.0, -3.9], [6.45, 1.55, -3.75]], w: [0.6, 0.8, 0.9, 0.85, 0.7], t: [0.4, 0.5, 0.55, 0.5, 0.4] },
+    scaleneMid: { pts: [[3.6, 10.6, -5.6], [4.4, 7.6, -5.4], [5.4, 4.4, -4.6], [6.0, 2.0, -3.9], [6.45, 1.55, -3.9]], w: [0.6, 0.8, 0.9, 0.85, 0.7], t: [0.4, 0.5, 0.55, 0.5, 0.4] },
   };
 
   // Esternocleidomastóideo direito (referência p/ músculos, VJE e pele): cabeça esternal (face anterior do manúbrio),
@@ -334,7 +334,7 @@
      Espessuras médias de partes moles (didáticas) e marcos palpáveis. */
   LM.surface = {
     notchSkin: [0, 0.35, 0.75],              // pele sobre a incisura jugular (depressão)
-    sternalAngleSkin: [0, -4.6, 2.2],
+    sternalAngleSkin: [0, -4.6, 3.0],
     clavicleSkinOffset: 0.55,               // pele sobre a face anterior/superior da clavícula
     infraclavicularFatPec: 2.3,             // subcutâneo + peitoral maior abaixo da clavícula (aprox.)
     deltopectoralGroove: [[13.8, 1.0, 0.6], [14.4, -2.5, 1.3], [15.4, -7.0, 1.6]],
@@ -346,7 +346,7 @@
      veinTarget: luz da veia subclávia sob o terço medial da clavícula.
      Direção-guia: medial e discretamente cranial, rumo à incisura jugular; trajeto rente à face posterior da clavícula. */
   LM.needle = {
-    entrySkin: [10.0, 0.0, 2.44],   // ~1 cm abaixo da borda inferior da clávicula, lateral à junção dos terços medial/médio
+    entrySkin: [10.0, 0.0, 2.15],   // ~1 cm abaixo da borda inferior da clávicula, lateral à junção dos terços medial/médio
     veinTarget: [5.0, 0.5, -0.75],     // luz da veia; a agulha cruza a parede anteroinferior por volta de x≈6,3
     notchAim: [0, 0.6, 0.2],
     thumbSkin: [7.4, 0.35, 2.3],      // polegar logo abaixo da clavícula (junção dos terços)

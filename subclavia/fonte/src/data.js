@@ -1,10 +1,12 @@
 /* ==========================================================================
    data.js — conteúdo editorial do atlas (window.ATLAS_DATA), pt-BR.
-   Revisão editorial: 19/11/2026. Esquema: CONTENT_SPEC.md.
+   Revisão editorial: 19/11/2026; onda 2 de correções: 20/11/2026. Esquema: CONTENT_SPEC.md.
    Regras: números e afirmações de evidência só com fonte verificada no PubMed
    nesta revisão (PMID/DOI em `sources`); fontes do original não reacessadas estão
    marcadas como tal e não sustentam números. Rótulos usam apenas âncoras
-   canônicas (SPEC.md §4); o glossário cobre todos os ids canônicos.
+   canônicas (SPEC.md §4); o glossário cobre todos os ids canônicos e todos os
+   ids registrados pelos módulos 3D (inclusive estruturas acessórias e auxílios).
+   Números “no modelo” foram medidos na geometria v2 (src/landmarks.js) em 20/11/2026.
    ========================================================================== */
 (function () {
   'use strict';
@@ -210,7 +212,7 @@
 
   /* ---- Nervos ---- */
   bi('brachial-plexus', 'Plexo braquial direito', 'Plexo braquial esquerdo', 'Nervos',
-    'Raízes C5–T1 formam troncos entre os escalenos anterior e médio, posterossuperiores à artéria subclávia; os fascículos envolvem a artéria axilar.',
+    'Raízes C5–T1 emergem entre os escalenos anterior e médio e formam os troncos junto à borda lateral desses músculos, posterossuperiores à artéria subclávia; os fascículos envolvem a artéria axilar.',
     'Lesão direta é improvável, mas o hematoma de uma punção arterial pode causar neuropatia compressiva (Bannon et al.); parestesia exige interrupção imediata.');
   bi('phrenic', 'Nervo frênico direito', 'Nervo frênico esquerdo', 'Nervos',
     'Raízes C3–C5; desce sobre a face anterior do escaleno anterior, passa entre a artéria e a veia subclávias e entra no tórax.',
@@ -234,7 +236,7 @@
 
   /* ---- Linfáticos ---- */
   g('thoracic-duct', 'Ducto torácico', 'Linfáticos',
-    'Sobe à esquerda do esôfago, arqueia na base do pescoço e termina na confluência venosa esquerda; em revisão sistemática de 1.352 ductos, na jugular interna (≈54%), no ângulo jugulossubclávio (≈26%) ou na subclávia (≈8%) (Bellier et al.).',
+    'Sobe no mediastino posterior entre a veia ázigo e a aorta, à direita da linha média; cruza para a esquerda entre T6 e T4, segue à esquerda do esôfago, arqueia na base do pescoço e termina na confluência venosa esquerda — em revisão sistemática de 1.352 ductos, na jugular interna (≈54%), no ângulo jugulossubclávio (≈26%) ou na subclávia (≈8%) (Bellier et al.).',
     'Lesão pode causar quilotórax ou fístula quilosa — risco concentrado nos acessos à esquerda.');
   g('right-lymphatic-duct', 'Ducto linfático direito', 'Linfáticos',
     'Vaso curto que leva a linfa do quadrante superior direito do corpo à confluência venosa direita.',
@@ -271,7 +273,7 @@
     'Mais longo e horizontal; passa sob o arco aórtico.',
     'Referência de orientação na radiografia de tórax.');
   g('esophagus', 'Esôfago', 'Mediastino',
-    'Posterior à traqueia, ligeiramente à esquerda na base do pescoço; o ducto torácico sobe à sua esquerda.',
+    'Posterior à traqueia, ligeiramente à esquerda na base do pescoço. O ducto torácico sobe atrás dele, à direita, e passa à sua esquerda depois de cruzar a linha média (T6–T4).',
     'Profundo; sem relação direta com o trajeto infraclavicular.');
   g('heart', 'Coração', 'Mediastino',
     'O átrio direito recebe a veia cava superior; o coração ocupa o mediastino médio, desviado para a esquerda.',
@@ -279,7 +281,7 @@
   g('pericardium', 'Pericárdio', 'Mediastino',
     'Saco fibrosseroso que envolve o coração e a porção terminal da veia cava superior.',
     'Perfuração com tamponamento é rara e grave (0,5% no grupo por marcos de Fragou et al.).');
-  g('diaphragm', 'Diafragma', 'Mediastino',
+  g('diaphragm', 'Diafragma', 'Músculos',
     'Músculo em cúpula que separa tórax e abdome; inervado pelos frênicos.',
     'Desce na inspiração, deslocando sobretudo as bases pulmonares — o ápice pouco se move.');
   g('thymus', 'Timo (remanescente)', 'Mediastino',
@@ -296,7 +298,7 @@
   g('skin-prep', 'Área de antissepsia', 'Pele e superfície',
     'Região preparada com antisséptico antes da colocação dos campos.',
     'Clorexidina sobre toda a área exposta; os marcos precisam continuar visíveis e palpáveis após os campos (Bannon et al.).');
-  g('drape', 'Campo estéril', 'Instrumentos',
+  g('drape', 'Campo estéril', 'Pele e superfície',
     'Campo fenestrado que cobre o paciente da cabeça aos pés, deixando exposta a região da punção.',
     'Barreira estéril máxima (gorro, máscara, avental, luvas, campo amplo) reduz infecção relacionada ao cateter (Bannon et al.).');
 
@@ -317,15 +319,165 @@
     'Cateter de uma ou mais vias introduzido sobre o fio após a dilatação do trajeto.',
     'Ponta na veia cava superior distal/junção cavoatrial, confirmada por imagem antes do uso.');
 
+  /* ---------------- Estruturas acessórias registradas pelos módulos 3D ----------------
+     Fora do trajeto da punção, mas clicáveis no modelo: cada uma tem entrada própria (nome, descrição e
+     “Na punção”), para que o cartão e a busca do glossário não fiquem vazios. */
+  const FORA = 'Fora do trajeto infraclavicular; incluída para completar a anatomia do modelo.';
+  /* Artérias */
+  bi('superior-epigastric-a', 'Artéria epigástrica superior direita', 'Artéria epigástrica superior esquerda', 'Artérias',
+    'Ramo terminal medial da artéria torácica interna, no 6º espaço intercostal; desce atrás das cartilagens costais inferiores e entra na bainha do músculo reto do abdome.',
+    'Fora do trajeto; mostra a continuação da torácica interna, que desce atrás das cartilagens, lateral ao esterno.');
+  bi('musculophrenic-a', 'Artéria musculofrênica direita', 'Artéria musculofrênica esquerda', 'Artérias',
+    'Ramo terminal lateral da artéria torácica interna, no 6º espaço intercostal; acompanha a margem costal por trás das cartilagens.',
+    'Fora do trajeto; mostra a continuação da torácica interna, que desce atrás das cartilagens, lateral ao esterno.');
+  bi('inferior-thyroid-a', 'Artéria tireóidea inferior direita', 'Artéria tireóidea inferior esquerda', 'Artérias',
+    'Ramo do tronco tireocervical; sobe junto à borda medial do escaleno anterior, faz uma alça medial atrás da bainha carotídea e alcança o polo inferior da tireoide, em relação com o nervo laríngeo recorrente.',
+    'Medial e profunda ao trajeto; ilustra quantos ramos arteriais nascem junto à 1ª parte da subclávia.');
+  bi('suprascapular-a', 'Artéria supraescapular direita', 'Artéria supraescapular esquerda', 'Artérias',
+    'Ramo do tronco tireocervical (às vezes da própria subclávia); cruza à frente do escaleno anterior e do frênico, depois da 3ª parte da subclávia e do plexo, e segue atrás e paralela à clavícula até a incisura da escápula.',
+    'Corre atrás da clavícula, acima e atrás da veia: o espaço retroclavicular contém outros vasos além da subclávia.');
+  bi('transverse-cervical-a', 'Artéria cervical transversa direita', 'Artéria cervical transversa esquerda', 'Artérias',
+    'Ramo do tronco tireocervical; cruza à frente do escaleno anterior e do frênico, pouco acima da clavícula, passa sobre o plexo braquial e segue para o trapézio.',
+    'Ramo supraclavicular, fora do trajeto infraclavicular; referência da fossa supraclavicular maior.');
+  bi('thoracoacromial', 'Tronco toracoacromial direito', 'Tronco toracoacromial esquerdo', 'Artérias',
+    'Ramo curto da 2ª parte da artéria axilar, na borda superior do peitoral menor; perfura a fáscia clavipeitoral e divide-se em ramos peitoral, deltóideo, acromial e clavicular.',
+    'Perfura a fáscia clavipeitoral — o mesmo plano que a agulha atravessa —, porém mais lateralmente, junto à veia cefálica; aparece na janela ultrassonográfica infraclavicular lateral.');
+  bi('costocervical', 'Tronco costocervical direito', 'Tronco costocervical esquerdo', 'Artérias',
+    'Ramo da face posterior da subclávia — à direita, da 2ª parte, atrás do escaleno anterior; à esquerda, da 1ª parte —; arqueia para trás sobre a cúpula pleural até o colo da 1ª costela e divide-se nas artérias intercostal suprema e cervical profunda.',
+    'Profundo, sobre a cúpula pleural: mais um vaso no plano que um trajeto dirigido para trás alcançaria.');
+  bi('supreme-intercostal-a', 'Artéria intercostal suprema direita', 'Artéria intercostal suprema esquerda', 'Artérias',
+    'Ramo do tronco costocervical; desce atrás da pleura, à frente dos colos da 1ª e da 2ª costelas, e origina as artérias intercostais posteriores dos dois primeiros espaços.',
+    'Profunda e posterior, junto ao gânglio estrelado; fora do trajeto.');
+  bi('deep-cervical-a', 'Artéria cervical profunda direita', 'Artéria cervical profunda esquerda', 'Artérias',
+    'Ramo do tronco costocervical; passa para trás entre o processo transverso de C7 e o colo da 1ª costela e sobe na nuca, anastomosando-se com as artérias occipital e vertebral.',
+    'Fora do trajeto; completa os ramos da subclávia representados no modelo.');
+  g('coronary-rca', 'Artéria coronária direita', 'Artérias',
+    'Nasce do seio aórtico direito e percorre o sulco coronário direito, entre o átrio e o ventrículo direitos.', FORA);
+  g('coronary-lad', 'Ramo interventricular anterior (descendente anterior)', 'Artérias',
+    'Ramo da artéria coronária esquerda que desce no sulco interventricular anterior em direção ao ápice do coração.', FORA);
+  g('coronary-lcx', 'Ramo circunflexo', 'Artérias',
+    'Ramo da artéria coronária esquerda que contorna o sulco coronário esquerdo até a face posterior do coração.', FORA);
+  g('pulmonary-trunk', 'Tronco pulmonar', 'Artérias',
+    'Sai do ventrículo direito, à frente e à esquerda da aorta ascendente, e bifurca-se na concavidade do arco aórtico nas artérias pulmonares direita e esquerda.',
+    'Fora do trajeto; lembra o que existe além do átrio direito — a ponta do cateter deve ficar na cava, fora do coração.');
+  g('pulmonary-a-R', 'Artéria pulmonar direita', 'Artérias',
+    'Passa horizontalmente atrás da aorta ascendente e da veia cava superior, à frente do brônquio principal direito, até o hilo do pulmão direito.',
+    'Relação posterior da veia cava superior; ajuda a ler o mediastino na radiografia de controle.');
+  g('pulmonary-a-L', 'Artéria pulmonar esquerda', 'Artérias',
+    'Arqueia sobre o brônquio principal esquerdo, à frente da aorta descendente; une-se à face inferior do arco aórtico pelo ligamento arterial.', FORA);
+  g('ligamentum-arteriosum', 'Ligamento arterial', 'Artérias',
+    'Remanescente fibroso do ducto arterial fetal, entre a origem da artéria pulmonar esquerda e a face inferior do arco aórtico.',
+    'O nervo laríngeo recorrente esquerdo contorna o arco junto a ele — base da assimetria entre os recorrentes direito e esquerdo.');
+  /* Veias */
+  g('pulmonary-v-RS', 'Veia pulmonar superior direita', 'Veias',
+    'Leva sangue oxigenado do pulmão direito ao átrio esquerdo; por isso aparece em vermelho (convenção de cores do atlas). Passa atrás da veia cava superior.',
+    'Fora do trajeto; vizinha posterior da cava superior, onde fica a ponta do cateter.');
+  g('pulmonary-v-RI', 'Veia pulmonar inferior direita', 'Veias',
+    'Leva sangue oxigenado do lobo inferior direito ao átrio esquerdo; aparece em vermelho pela convenção de cores do atlas.', FORA);
+  g('pulmonary-v-LS', 'Veia pulmonar superior esquerda', 'Veias',
+    'Leva sangue oxigenado do lobo superior esquerdo ao átrio esquerdo; aparece em vermelho pela convenção de cores do atlas.', FORA);
+  g('pulmonary-v-LI', 'Veia pulmonar inferior esquerda', 'Veias',
+    'Leva sangue oxigenado do lobo inferior esquerdo ao átrio esquerdo; aparece em vermelho pela convenção de cores do atlas.', FORA);
+  g('ivc', 'Veia cava inferior (segmento terminal)', 'Veias',
+    'Atravessa o centro tendíneo do diafragma (forame da veia cava, nível de T8) e desemboca no átrio direito.',
+    'Fio-guia introduzido além do necessário pode atravessar o átrio direito em direção a ela; o fio não deve chegar ao coração.');
+  /* Mediastino */
+  g('carina', 'Carina da traqueia', 'Mediastino',
+    'Crista na bifurcação da traqueia em brônquios principais, aproximadamente no plano do ângulo do esterno (disco T4/T5).',
+    'Referência radiográfica da ponta do cateter: ponta acima da carina costuma estar fora do átrio; à direita, 74 de 163 pontas ficaram abaixo dela e só 4 de 163 em ângulo agudo com a parede (Stonelake & Bodenham).');
+  g('bronchus-RUL', 'Brônquio lobar superior direito', 'Mediastino',
+    'Nasce do brônquio principal direito acima da artéria pulmonar direita (brônquio “eparterial”) e ventila o lobo superior.', FORA);
+  g('bronchus-RI', 'Brônquio intermédio', 'Mediastino',
+    'Continuação do brônquio principal direito depois da saída do lobar superior; dá origem aos brônquios dos lobos médio e inferior.', FORA);
+  g('bronchus-RML', 'Brônquio lobar médio', 'Mediastino',
+    'Nasce da face anterior do brônquio intermédio e ventila o lobo médio, que só existe à direita.', FORA);
+  g('bronchus-RLL', 'Brônquio lobar inferior direito', 'Mediastino',
+    'Continuação do brônquio intermédio para o lobo inferior direito.', FORA);
+  g('bronchus-LUL', 'Brônquio lobar superior esquerdo', 'Mediastino',
+    'Ventila o lobo superior esquerdo, incluindo a língula.', FORA);
+  g('bronchus-LLL', 'Brônquio lobar inferior esquerdo', 'Mediastino',
+    'Continuação do brônquio principal esquerdo para o lobo inferior esquerdo.', FORA);
+  /* Músculos */
+  bi('sternohyoid', 'Músculo esterno-hióideo direito', 'Músculo esterno-hióideo esquerdo', 'Músculos',
+    'Músculo infra-hióideo fino que nasce da face posterior do manúbrio e da extremidade medial da clavícula e sobe ao osso hioide.',
+    'Com o esternotireóideo, separa a face posterior do manúbrio das veias braquiocefálicas; fica medial ao trajeto.');
+  bi('sternothyroid', 'Músculo esternotireóideo direito', 'Músculo esternotireóideo esquerdo', 'Músculos',
+    'Profundo ao esterno-hióideo; vai da face posterior do manúbrio (nível da 1ª cartilagem costal) à linha oblíqua da cartilagem tireóidea.',
+    'Encosta na face anterior das veias braquiocefálicas, atrás do manúbrio; medial ao trajeto.');
+  bi('serratus-anterior', 'Músculo serrátil anterior direito', 'Músculo serrátil anterior esquerdo', 'Músculos',
+    'Digitações das oito ou nove costelas superiores que se inserem na face costal da margem medial da escápula, passando profundamente a ela; forma a parede medial da axila.',
+    'Fora do trajeto; dá forma à parede lateral do tórax e à axila.');
+  bi('supraspinatus', 'Músculo supraespinal direito', 'Músculo supraespinal esquerdo', 'Músculos',
+    'Manguito rotador: da fossa supraespinal, sob o acrômio e sobre a articulação do ombro, ao tubérculo maior do úmero.',
+    'Fora do trajeto; integra o ombro, cuja posição muda a relação clavícula–veia.');
+  bi('infraspinatus', 'Músculo infraespinal direito', 'Músculo infraespinal esquerdo', 'Músculos',
+    'Manguito rotador: da fossa infraespinal ao tubérculo maior do úmero; rotador lateral do braço.',
+    'Fora do trajeto; integra o ombro, cuja posição muda a relação clavícula–veia.');
+  bi('teres-minor', 'Músculo redondo menor direito', 'Músculo redondo menor esquerdo', 'Músculos',
+    'Manguito rotador: da margem lateral da escápula ao tubérculo maior do úmero, abaixo do infraespinal; rotador lateral.',
+    'Fora do trajeto; integra o ombro, cuja posição muda a relação clavícula–veia.');
+  /* Linfáticos */
+  bi('supraclavicular-nodes', 'Linfonodos supraclaviculares direitos', 'Linfonodos supraclaviculares esquerdos', 'Linfáticos',
+    'Linfonodos cervicais profundos inferiores, ao longo da jugular interna e da artéria cervical transversa, na fossa supraclavicular.',
+    'Fora do trajeto infraclavicular; referência da fossa supraclavicular.',
+    'Fora do trajeto; à esquerda, junto à terminação do ducto torácico, fica o linfonodo de Virchow.');
+  /* Pele e superfície */
+  g('dermis', 'Derme', 'Pele e superfície',
+    'Camada de tecido conjuntivo denso sob a epiderme, com vasos e terminações nervosas.',
+    'Plano do botão anestésico e o primeiro a resistir à agulha; é também onde se ancoram os pontos de fixação do cateter.');
+  g('section-deep', 'Plano profundo (superfície de corte)', 'Pele e superfície',
+    'Superfície de corte didática que fecha os tecidos profundos no limite do modelo; não é estrutura anatômica.',
+    'Sem significado anatômico: indica apenas onde o modelo termina.');
+  bi('nipple', 'Papila mamária direita', 'Papila mamária esquerda', 'Pele e superfície',
+    'No homem, situa-se em geral no 4º espaço intercostal, perto da linha medioclavicular; a posição varia.',
+    'Marco de superfície variável: não serve de referência para a punção.');
+  /* Instrumentos e auxílios didáticos */
+  g('roll-interscapular', 'Coxim interescapular (rolo entre as escápulas)', 'Instrumentos',
+    'Rolo longitudinal sob a coluna torácica, entre as escápulas, que deixa os ombros caírem para trás.',
+    'Não equivale ao rolo sob o ombro: ombros retraídos distorceram a veia (Jesseph et al.) e Bannon et al. descrevem compressão da veia entre clavícula e 1ª costela com rolo interescapular. Não “abre espaço” de forma previsível.');
+  g('roll-shoulder-R', 'Coxim sob o ombro direito', 'Instrumentos',
+    'Rolo pequeno sob o ombro do lado da punção.',
+    'Posição diferente do rolo interescapular, não equivalente a ele; após qualquer coxim, reavaliar os marcos (e a janela ultrassonográfica, se disponível).');
+  g('aspirated-blood', 'Sangue aspirado (refluxo)', 'Instrumentos',
+    'Sangue que reflui para a seringa quando a ponta da agulha entra na luz de um vaso.',
+    'Refluxo escuro e não pulsátil sugere, mas não confirma, posição venosa: confirmar por método objetivo antes de dilatar (Ezaru et al.).');
+  g('guidewire-ijv', 'Trajeto anômalo do fio-guia (jugular interna)', 'Instrumentos',
+    'Fio que, na confluência direita, sobe pela jugular interna em vez de descer para a braquiocefálica e a cava.',
+    'Mau posicionamento clássico pela subclávia direita; num ECR, a ponta em J dirigida caudalmente reduziu esse desvio (Tripathi et al.). A posição final exige confirmação por imagem.');
+  g('dilator', 'Dilatador', 'Instrumentos',
+    'Dilatador rígido e calibroso introduzido sobre o fio-guia para alargar pele, tela subcutânea e parede venosa antes da passagem do cateter.',
+    'Avançar só até a profundidade em que a agulha alcançou a veia — no máximo milímetros dentro dela; à direita, a curva subclávia → cava favorece a perfuração por um dilatador introduzido fundo (Bannon et al.).');
+  g('dilator-limit', 'Limite do dilatador (parede da veia)', 'Instrumentos',
+    'Marca didática da profundidade em que a agulha alcançou a veia.',
+    'O dilatador não precisa nem deve passar mais que milímetros além dela (Bannon et al.).');
+  g('landmark-notch', 'Marcador da incisura jugular', 'Instrumentos',
+    'Anel dourado sobre a pele da incisura jugular, onde repousa a polpa do indicador esquerdo.',
+    'Referência de direção no plano frontal; não indica profundidade.');
+  g('landmark-entry', 'Marcador da região de entrada', 'Instrumentos',
+    'Anel dourado sobre a região ilustrativa de entrada do modelo, cerca de 1 cm abaixo da borda inferior da clavícula e lateral à junção dos terços medial e médio.',
+    'Região didática, não coordenada clínica: no paciente, a entrada se define pelos marcos dele (capítulo “Entrada”).');
+  g('needle-direction', 'Linha-guia de direção', 'Instrumentos',
+    'Linha tracejada sobre a pele, da entrada rumo à incisura jugular, na projeção frontal.',
+    'Mostra apenas a direção no plano frontal; a inclinação se lê pela cabeceira.');
+  g('coronal-plane', 'Plano coronal de referência', 'Instrumentos',
+    'Plano frontal translúcido que passa pelo ponto de entrada.',
+    'Referência para ler a inclinação: o conjunto agulha–seringa deve ficar o mais paralelo possível a ele, rente sob a clavícula (Bannon et al.).');
+  g('needle-angle', 'Ângulo nominal da agulha com o plano coronal', 'Instrumentos',
+    'Arco dourado que mede a inclinação da reta pele → veia do modelo em relação ao plano coronal (≈32°).',
+    'Valor geométrico do modelo, não alvo nem margem: a agulha rígida não simula a depressão dos tecidos pelo polegar nem o achatamento do conjunto depois da pele.');
+  g('thumb-vector', 'Seta do polegar (pressão suave)', 'Instrumentos',
+    'Seta que indica a direção do apoio do polegar esquerdo, para trás e para baixo, sem quantificar força.',
+    'O polegar ajuda a manter o conjunto rente sob a clavícula; não é batente, alavanca nem medida de profundidade.');
+
   /* ---------------- Cenas: estado padrão (evita “vazamento” entre capítulos) ---------------- */
-  const S = (o) => Object.assign({ phase: 0, handPose: 1, breath: 0, rollMode: 'none', wireMal: false, showPlanes: false }, o || {});
+  const S = (o) => Object.assign({ phase: 0, handPose: 1, breath: 0, rollMode: 'none', wireMal: false, showPlanes: false, fixStep: 0 }, o || {});
 
   window.ATLAS_DATA = {
     meta: {
       title: 'Punção da subclávia direita',
       subtitle: 'Atlas 3D da abordagem infraclavicular por marcos — anatomia em camadas, mão de apoio, planos da agulha, pleura, complicações e ultrassom',
       version: '2.0',
-      reviewDate: '19/11/2026',
+      reviewDate: '20/11/2026',
       disclaimer: 'Material exclusivamente educacional, para profissionais em formação e simulação supervisionada. O modelo 3D é sintético e sem escala clínica: não substitui avaliação do paciente, imagem, supervisão nem protocolos institucionais, e não constitui recomendação assistencial individualizada.',
       basedOn: 'Adaptado do documento-base “Punção da subclávia direita — guia técnico” (DOCX do autor), revisado criticamente e ampliado com literatura verificada no PubMed em 19/11/2026.',
       modelNote: 'Geometria procedural de um adulto masculino nominal (~175 cm), supino, braços aduzidos, construída para este atlas sem segmentação de exames. Cores são convenções de atlas (veias azuis, artérias vermelhas, nervos amarelos, linfáticos verdes); nervos, fáscias e pleura foram engrossados para leitura; variações anatômicas e diferenças de biotipo não estão representadas. Distâncias do modelo são nominais, não medidas.'
@@ -354,7 +506,7 @@
           'Palpar os marcos com o ombro numa posição e puncionar com ele em outra.',
           'Usar a pele deprimida pelo polegar como medida de profundidade.'
         ],
-        detail: 'A pele está translúcida para mostrar o esqueleto sob os marcos. A espessura do subcutâneo é uniforme no modelo; na prática varia muito entre pacientes e entre regiões do mesmo tórax.',
+        detail: 'A pele está translúcida para mostrar o esqueleto sob os marcos; o ângulo do esterno aparece no osso como a crista da junção manubrioesternal. O subcutâneo do modelo é o de um homem magro — cerca de 0,3 cm sobre o esterno e a clavícula, chegando a ≈1 cm no abdome —; na prática, varia muito entre pacientes e entre regiões do mesmo tórax. A região de entrada é apresentada no capítulo “Entrada”.',
         sources: [1, 11],
         quiz: {
           q: 'Para que serve, na técnica por marcos, a junção dos terços medial e médio da clavícula?',
@@ -369,8 +521,9 @@
         },
         scene: {
           view: { target: [5.5, -1.5, 1.5], radius: 45, az: -0.12, el: 0.12 },
-          layers: ['skin', 'bones', 'aids'],
-          ghost: { skin: 0.5 },
+          // sem a camada 'aids': os anéis de incisura/entrada pertencem aos capítulos da mão e da entrada
+          layers: ['skin', 'bones'],
+          ghost: { skin: 0.32 },
           state: S(),
           clip: null,
           labels: [
@@ -409,7 +562,7 @@
           'Imaginar a 1ª costela como “piso de segurança” contínuo sob todo o trajeto.',
           'Insistir medialmente: o ligamento costoclavicular, às vezes calcificado, pode bloquear a passagem (Bannon et al.).'
         ],
-        detail: 'Use “Músculos translúcidos” e gire a vista. Espessuras de fáscias e a separação entre estruturas são aproximadas; no corpo, os planos estão justapostos, sem folgas visíveis.',
+        detail: 'A cena olha o espaço de frente e um pouco pela direita, quase na horizontal, com ossos e músculos translúcidos: a clavícula vira um véu claro diante da veia, que cruza a 1ª costela à frente do escaleno anterior (destacado). Gire a vista para conferir as relações. Espessuras de fáscias e a separação entre estruturas são aproximadas; no corpo, os planos estão justapostos, sem folgas visíveis.',
         sources: [1, 2],
         quiz: {
           q: 'Qual estrutura separa a veia subclávia, anterior, da artéria subclávia e do plexo braquial, posteriores?',
@@ -423,9 +576,12 @@
           explain: 'O escaleno anterior insere-se no tubérculo da 1ª costela entre o sulco da veia (à frente) e o da artéria (atrás). O escaleno médio fica atrás da artéria e do plexo; o subclávio, acima e à frente da veia.'
         },
         scene: {
-          view: 'close',
+          // vista anterolateral quase horizontal, com a clavícula translúcida: na vista 'close' o osso opaco
+          // escondia justamente a veia sobre a 1ª costela. Com az −0,42 a 2ª parte da artéria fica atrás do
+          // escaleno destacado (rótulo “profundo”), e a veia, à frente dele
+          view: { target: [5.0, 0.4, -1.3], radius: 19.5, az: -0.42, el: -0.05 },
           layers: ['bones', 'muscle', 'vein', 'artery', 'nerve', 'pleura', 'aids'],
-          ghost: { muscle: 0.35 },
+          ghost: { muscle: 0.3, bones: 0.4 },
           state: S(),
           clip: null,
           labels: [
@@ -519,7 +675,7 @@
           'Corrigir a falta de refluxo aprofundando a agulha: além da veia só há estruturas a não atingir.',
           'Esquecer que um hematoma arterial pode comprimir o plexo mesmo sem lesão direta do nervo (Bannon et al.).'
         ],
-        detail: 'Nervos estão engrossados para leitura. O trajeto do recorrente e a posição do gânglio estrelado são esquemáticos; no modelo, o ápice da cúpula fica cerca de 2 cm acima do eixo do terço medial da clavícula (≈1 cm acima da borda superior) em projeção anterior — valor nominal didático, não medido.',
+        detail: 'Vista de cima e da frente, com veias, músculos e ossos translúcidos. Nervos estão engrossados para leitura; o trajeto do recorrente e a posição do gânglio estrelado são esquemáticos. Em projeção anterior, o ápice da cúpula do modelo fica ≈2,5 cm acima do eixo do terço medial da clavícula (≈1,6 cm acima da borda superior), dentro dos 2–3 cm acima do terço medial descritos na anatomia de referência — valor nominal do modelo, não medida de paciente.',
         sources: [1, 2, 24],
         quiz: {
           q: 'Na porção medial ao escaleno anterior, qual relação posterior da veia torna perigoso um trajeto profundo?',
@@ -533,9 +689,10 @@
           explain: 'Medialmente, a artéria arqueia mais alto e a veia passa a se apoiar na pleura apical; agulha profunda nesse nível atinge pleura e pulmão (Bannon et al.). O plexo e o escaleno médio são relações mais laterais e posteriores.'
         },
         scene: {
-          view: { target: [4.2, 1.4, -3.0], radius: 22, az: -0.55, el: 0.28 },
+          // vista superior-anterior: enquadra da cúpula à torácica interna (itaR), que ficava fora do quadro
+          view: { target: [3.6, 0.6, -3.4], radius: 26, az: -0.35, el: 0.95 },
           layers: ['bones', 'muscle', 'vein', 'artery', 'nerve', 'pleura', 'lung', 'aids'],
-          ghost: { vein: 0.35, muscle: 0.3, bones: 0.45 },
+          ghost: { vein: 0.3, muscle: 0.22, bones: 0.35 },
           state: S(),
           clip: null,
           labels: [
@@ -545,7 +702,7 @@
             ['plexusR', 'Plexo braquial'],
             ['stellateR', 'Gânglio estrelado'],
             ['itaR', 'Artéria torácica interna'],
-            ['cupulaR', 'Cúpula pleural']
+            ['cupulaR', 'Cúpula pleural (sob artéria e plexo)']
           ],
           highlight: 'phrenic-R',
           anim: null
@@ -627,7 +784,7 @@
           'Compensar uma entrada mal escolhida aprofundando a ponta às cegas.',
           'Copiar medidas de superfície entre pacientes de biotipos diferentes.'
         ],
-        detail: 'No modelo, o anel da região de entrada fica cerca de 1,5 cm abaixo da borda inferior da clavícula, porém mais lateral do que os 1–2 cm descritos por Bannon et al. (≈4 cm lateral e ≈2 cm caudal à junção dos terços). É uma posição ilustrativa, não um ponto validado: no paciente, a entrada se define pelos marcos dele.',
+        detail: 'No modelo, o anel da região de entrada fica cerca de 1 cm abaixo da borda inferior da clavícula, porém mais lateral do que os 1–2 cm descritos por Bannon et al.: ≈2–3 cm lateral e ≈1,5 cm caudal à junção dos terços (medidas na superfície do modelo). É uma posição ilustrativa, não um ponto validado: no paciente, a entrada se define pelos marcos dele. A cena se afasta para mostrar a mão de apoio, a agulha, o canhão e a seringa juntos.',
         sources: [1, 5, 11],
         quiz: {
           q: 'Por que um ponto de entrada muito próximo da clavícula é desfavorável?',
@@ -641,7 +798,8 @@
           explain: 'Bannon et al.: entrada próxima demais da clavícula dificulta a passagem sob ela; dirigir a agulha posteriormente para contornar o osso aumenta muito o risco de pneumotórax.'
         },
         scene: {
-          view: 'hand',
+          // vista ampla: mão, agulha, canhão e seringa no mesmo quadro (a vista 'hand' cortava a seringa)
+          view: { target: [10.5, 0.2, 3], radius: 42, az: -0.2, el: 0.35 },
           layers: ['skin', 'hand', 'instrument', 'drape', 'aids'],
           ghost: null,
           state: S({ phase: 1, handPose: 1 }),
@@ -668,7 +826,7 @@
         body: [
           'No <strong>plano frontal</strong> (vista anterior), a direção é medial e discretamente cranial, mirando logo acima da polpa do indicador na incisura jugular. Apontar cranialmente, afastando-se da incisura, é erro técnico recorrente (Kilbourne et al.); girar o trajeto para trás, também se afastando da incisura, encurta o caminho até a artéria atrás do escaleno (Bannon et al.).',
           'A <strong>inclinação</strong> em relação à parede torácica se lê num plano perpendicular ao coronal que contenha a agulha. Como o trajeto é sobretudo mediolateral, esse plano é quase <strong>axial</strong>: é a vista pela cabeceira desta cena — e não o perfil, que encurta o eixo da agulha e exagera a inclinação. Bannon et al. descrevem o avanço com agulha e seringa “absolutamente paralelas ao chão”, no plano coronal: levantar o conjunto da parede angula a ponta para trás e, como a veia se apoia na pleura, coloca a pleura no caminho; angular a ponta caudalmente também encurta o trajeto até ela.',
-          'Algumas descrições usam inclinação maior apenas para atravessar a pele e achatam o conjunto logo depois (o documento-base cita 20–30°); esse número descreve técnica, não é ângulo protetor. <strong>No modelo</strong>, a reta pele → veia é rígida e fica mais inclinada do que “paralela ao chão”, porque a geometria não simula a depressão dos tecidos pelo polegar nem o achatamento do conjunto depois da pele. O setor dourado de “Planos/ângulos” mede essa inclinação nominal do modelo — não é alvo nem margem.',
+          'Algumas descrições usam inclinação maior apenas para atravessar a pele e achatam o conjunto logo depois (o documento-base cita 20–30°); esse número descreve técnica, não é ângulo protetor. <strong>No modelo</strong>, a reta pele → veia é rígida e fica mais inclinada do que “paralela ao chão”, porque a geometria não simula a depressão dos tecidos pelo polegar nem o achatamento do conjunto depois da pele. O setor dourado de “Planos/ângulos” mede essa inclinação nominal do modelo (≈32°) — não é alvo nem margem.',
           'Também é erro frequente a trajetória rasa demais, que encontra o periósteo da clavícula (Kilbourne et al.). Os 3–4 cm citados no documento-base referem-se a comprimento de agulha avançado em descrições específicas — não à profundidade perpendicular pele–veia nem ao momento de mudar o ângulo. Sem refluxo, reavalie; o número não autoriza continuar avançando.'
         ],
         keyPoints: [
@@ -682,7 +840,7 @@
           'Levantar a seringa para “descer” a ponta sob a clavícula.',
           'Tratar 3–4 cm de agulha como profundidade ou como gatilho para mudar o ângulo.'
         ],
-        detail: 'Vista pela cabeceira, quase axial: o lado direito do paciente fica à esquerda da tela e a parede anterior do tórax, embaixo. O controle “Planos/ângulos” mostra o plano coronal que passa pela entrada e, em dourado, o ângulo nominal da reta do modelo — maior que o descrito por Bannon et al., porque a agulha é rígida e o modelo não simula a depressão dos tecidos pelo polegar. Também não há simulador de “X cm e depois virar”: a geometria da animação não determina profundidade real.',
+        detail: 'Vista pela cabeceira, quase axial: o lado direito do paciente fica à esquerda da tela e a parede anterior do tórax, embaixo. A câmera está no plano sagital, de modo que o ângulo da haste na tela é praticamente o ângulo com o plano coronal (≈32° no modelo); girar a vista para os lados distorce essa leitura. O controle “Planos/ângulos” mostra o plano coronal que passa pela entrada e, em dourado, o ângulo nominal da reta do modelo — maior que o descrito por Bannon et al., porque a agulha é rígida e o modelo não simula a depressão dos tecidos pelo polegar. Também não há simulador de “X cm e depois virar”: a geometria da animação não determina profundidade real.',
         sources: [1, 11],
         quiz: {
           q: 'O conjunto agulha-seringa é levantado da parede torácica para “passar” sob a clavícula. Qual o principal risco anatômico?',
@@ -696,11 +854,13 @@
           explain: 'Levantar a seringa angula a ponta para trás, mais profunda; como medialmente a veia se apoia na pleura, o trajeto até ela fica mais curto (Bannon et al.). Angular a ponta caudalmente é outro mecanismo que também encurta esse trajeto.'
         },
         scene: {
-          // vista pela cabeceira (quase axial): mostra a direção medial e a inclinação verdadeira da haste;
-          // planos desligados por padrão — o ângulo nominal do modelo é maior que o descrito (ver detail)
-          view: { target: [9, 0, 2.5], radius: 31, az: -0.25, el: 1.25 },
+          // vista pela cabeceira com az 0 e el 1,45 (máximo do arrasto): a câmera fica no plano sagital, e o
+          // ângulo da haste na tela (≈33°) coincide com o ângulo real com o plano coronal (32,4° no modelo).
+          // Com az −0,25 / el 1,25 a tela mostrava 46°, exagerando a inclinação que o capítulo critica.
+          // Planos desligados por padrão — o ângulo nominal do modelo é maior que o descrito (ver detail).
+          view: { target: [9.4, 0.3, 2.6], radius: 31, az: 0, el: 1.45 },
           layers: ['skin', 'bones', 'vein', 'instrument', 'aids'],
-          ghost: { skin: 0.3 },
+          ghost: { skin: 0.15 },
           state: S({ phase: 2, handPose: 1, showPlanes: false }),
           clip: null,
           labels: [
@@ -728,7 +888,7 @@
           'O corte parassagital da cena passa pelo espaço costoclavicular, medial à entrada, e é visto pela direita: clavícula e subclávio acima e à frente, a 1ª costela sob a veia, o escaleno anterior atrás dela e, atrás do músculo, a artéria, o plexo e a cúpula pleural — tudo o que existe além do alvo. É o triângulo costoclavicular-escalênico (clavícula à frente, 1ª costela embaixo, escaleno anterior atrás), descrito por Aiken e Minton e citado por Bannon et al.'
         ],
         keyPoints: [
-          'Sequência: pele → subcutâneo → peitoral maior → fáscia clavipeitoral/subclávio → veia.',
+          'Sequência: pele → subcutâneo → peitoral maior → fáscia clavipeitoral → subclávio → veia.',
           'Contato ósseo: parar, recuar ao plano superficial, reavaliar.',
           'Redirecionar com a ponta profunda é perigoso.',
           'Atravessar o periósteo e trajetória rasa demais estão entre os erros mais frequentes.'
@@ -737,7 +897,7 @@
           'Usar a clavícula como trilho para “descer” a ponta.',
           'Aprofundar depois do contato ósseo em vez de recuar.'
         ],
-        detail: 'Corte parassagital pelo espaço costoclavicular, visto pela direita: a parte lateral ao plano foi removida. A agulha corre sobretudo de lateral para medial e não cabe num plano parassagital; por isso aparece inteira, à frente do corte, com a ponta na luz venosa. É uma linha reta idealizada, sem deflexão do bisel, deformação de tecido nem resistência simulada.',
+        detail: 'Corte parassagital pelo espaço costoclavicular, visto pela direita: a parte lateral ao plano foi removida. A agulha corre sobretudo de lateral para medial e não cabe num plano parassagital; por isso aparece inteira, à frente do corte, com a ponta na luz venosa. É uma linha reta idealizada, sem deflexão do bisel, deformação de tecido nem resistência simulada. Medida no modelo, a reta cruza pele e subcutâneo, peitoral maior, fáscia clavipeitoral e ≈1 cm de subclávio, rente à face posteroinferior da clavícula, e alcança a parede da veia ≈3,5–4 cm após a pele — distâncias nominais de um tórax magro, não profundidades de referência.',
         sources: [1, 11],
         quiz: {
           q: 'Durante o avanço, a ponta encontra osso. Qual conduta é coerente com este atlas?',
@@ -782,21 +942,22 @@
           'Na descrição de ensino, o avanço cessa ao refluxo e o conjunto é estabilizado; a mão de apoio segura o canhão, apoiada no paciente. Perder a veia ao desconectar a seringa ou ao introduzir o fio é erro frequente (Kilbourne et al.).',
           'Cor e pulsatilidade não distinguem com segurança veia de artéria. Antes de dilatar, confirme a posição venosa por método objetivo — manometria, transdução de pressão ou ultrassom mostrando o fio na veia, entre outros, conforme o protocolo do serviço. Num programa com manometria obrigatória, não houve lesão arterial por cateter calibroso em 9.348 cateteres ao longo de 15 anos; no último ano, 4 de 28 punções arteriais só foram reconhecidas pela manometria (Ezaru et al.).',
           'O fio progride <strong>sem força</strong>, com controle contínuo da extremidade externa. Resistência exige interrupção. Arritmias surgem quando o fio alcança o coração e acompanham o comprimento introduzido: num ECR pela jugular interna direita (69 pacientes), houve arritmia durante a dilatação em 65% com 20 cm de fio × 26% com 15 cm (Lee et al.). Pela subclávia direita as distâncias até a cava são maiores (Bannon et al.), mas a lógica é a mesma: não introduzir fio além do necessário.',
-          'À direita, o fio pode subir pela <strong>jugular interna</strong> na confluência — ative “Trajeto anômalo do fio”. Girar a cabeça para o lado oposto aumenta o ângulo entre subclávia e jugular e pode favorecer esse desvio (Bannon et al.). A ausência de fio na jugular, isoladamente, não prova posição central correta.'
+          'À direita, o fio pode subir pela <strong>jugular interna</strong> na confluência — ative “Trajeto anômalo do fio”. Girar a cabeça para o lado oposto aumenta o ângulo entre subclávia e jugular e pode favorecer esse desvio (Bannon et al.). A orientação da ponta em J também pesa: num ECR com 295 pacientes, com o J voltado caudalmente o cateter chegou à cava/átrio em 97% (× 57% com o J voltado cranialmente) e foi para a jugular interna em 2% (× 40%) (Tripathi et al.). A ausência de fio na jugular, isoladamente, não prova posição central correta.'
         ],
         keyPoints: [
           'Estabilizar a agulha ao refluxo; não perder a veia na troca seringa → fio.',
           'Confirmar posição venosa por método objetivo antes de dilatar.',
           'Fio sem força; resistência ou arritmia → parar e reavaliar.',
-          'À direita, o fio pode desviar para a jugular interna.'
+          'À direita, o fio pode desviar para a jugular interna.',
+          'Ponta em J voltada caudalmente: num ECR pela subclávia direita, desvio para a jugular interna em 2% × 40% com a ponta voltada cranialmente (Tripathi et al.).'
         ],
         pitfalls: [
           'Confiar só na cor do sangue ou na ausência de pulsação.',
           'Introduzir fio longo por rotina.',
           'Girar a cabeça para o lado oposto sem considerar o desvio para a jugular.'
         ],
-        detail: 'A cena mostra a relação ponta–luz venosa e um trajeto anômalo didático do fio para a jugular interna. Não modela refluxo, compressibilidade, transfixação da parede nem a curva real da ponta em J.',
-        sources: [1, 11, 20, 22],
+        detail: 'A cena mostra a relação ponta–luz venosa, o trajeto esperado do fio até a veia cava superior e um trajeto anômalo didático para a jugular interna. O J (raio de ≈3 mm) é ilustrativo: não se modelam sua retificação dentro da agulha, o efeito da orientação da curva nem o comportamento do fio na confluência — nem refluxo, compressibilidade ou transfixação da parede.',
+        sources: [1, 11, 20, 22, 26],
         quiz: {
           q: 'Após refluxo escuro e não pulsátil, qual o passo seguinte coerente antes da dilatação?',
           options: [
@@ -809,9 +970,10 @@
           explain: 'Cor e pulsação enganam; a confirmação objetiva antes da dilatação evitou lesões arteriais por cateter calibroso numa série de 15 anos (Ezaru et al.). Avançar o fio até haver resistência é exatamente o que não se faz.'
         },
         scene: {
-          view: { target: [3.6, 1.8, -1.6], radius: 24, az: -0.32, el: 0.16 },
+          // enquadra da jugular interna à veia cava superior (a VCS ficava fora do quadro)
+          view: { target: [3.2, -1.2, -1.8], radius: 30, az: -0.3, el: 0.12 },
           layers: ['bones', 'vein', 'artery', 'instrument', 'aids'],
-          ghost: { bones: 0.4 },
+          ghost: { bones: 0.22 },
           state: S({ phase: 5, wireMal: true }),
           clip: null,
           labels: [
@@ -866,7 +1028,9 @@
         scene: {
           view: { target: [2.2, -5.2, -2.6], radius: 36, az: -0.12, el: 0.08 },
           layers: ['bones', 'vein', 'mediastinum', 'instrument', 'aids'],
-          ghost: { bones: 0.35, mediastinum: 0.5 },
+          // mediastino opaco: com o fantasma por Fresnel do motor, o coração “fantasma” sumia e a junção
+          // cavoatrial ficava sem o átrio de referência
+          ghost: { bones: 0.22 },
           state: S({ phase: 6 }),
           clip: null,
           labels: [
@@ -916,18 +1080,20 @@
           explain: 'A área da veia aumentou ao menos 14%, mas a distância à pleura mudou só centésimos de centímetro: expiração não abre margem pleural.'
         },
         scene: {
-          view: { target: [4, -8, -4], radius: 58, az: -0.35, el: 0.12 },
+          // alvo mais baixo e raio maior: o recesso costodiafragmático sai de baixo da legenda do visor
+          // e a cúpula fica abaixo da barra de vistas (visor 885 × 605)
+          view: { target: [4, -10.3, -4], radius: 66, az: -0.35, el: 0.12 },
           layers: ['bones', 'lung', 'pleura', 'vein', 'mediastinum', 'aids'],
-          ghost: { bones: 0.35 },
+          ghost: { bones: 0.2 },
           state: S({ breath: 0 }),
           clip: null,
           labels: [
-            ['cupulaR', 'Cúpula pleural'],
-            ['lungApexR', 'Ápice do pulmão D'],
+            ['cupulaR', 'Cúpula pleural (pouco se move)'],
+            ['lungBaseR', 'Base do pulmão D (move-se mais)'],
             ['horizontalFissureR', 'Fissura horizontal'],
             ['obliqueFissureR', 'Fissura oblíqua'],
             ['costophrenicR', 'Recesso costodiafragmático'],
-            ['diaphragmR', 'Diafragma'],
+            // sem rótulo próprio para o diafragma: sua âncora coincide na tela com a da base do pulmão
             ['scvR', 'Veia subclávia']
           ],
           highlight: 'pleura-R',
@@ -973,7 +1139,7 @@
         scene: {
           view: { target: [5, -3, -6], radius: 52, az: -1.15, el: 0.3 },
           layers: ['skin', 'bones', 'vein', 'aids'],
-          ghost: { skin: 0.25 },
+          ghost: { skin: 0.15 },
           state: S({ rollMode: 'interscapular' }),
           clip: null,
           labels: [
@@ -1057,7 +1223,7 @@
         keyPoints: [
           'Sombra da clavícula: a janela guiada costuma ser lateral, na veia axilar.',
           'Veia compressível; artéria pulsátil, posterior e cranial a ela — menos sobreposta quanto mais lateral a janela.',
-          'Ultrassom 2D dinâmico reduz complicações (Fragou; Lalu; Brass).',
+          'Ultrassom em tempo real: menos complicações (Fragou; Lalu — 2D dinâmico) e menos punção arterial e hematoma, com evidência de baixa qualidade (Brass).',
           'Marcar a pele ≠ guiar em tempo real.'
         ],
         pitfalls: [
@@ -1089,7 +1255,7 @@
             ['pecMinorR', 'Peitoral menor'],
             ['cephalicR', 'Veia cefálica'],
             ['coracoidR', 'Processo coracoide'],
-            ['scvLateralR', 'Borda lateral da 1ª costela']
+            ['scvLateralR', 'Transição axilar → subclávia (borda lateral da 1ª costela)']
           ],
           highlight: 'axillary-v-R',
           anim: null
@@ -1176,7 +1342,10 @@
         url: 'https://pubmed.ncbi.nlm.nih.gov/2115273/' },
       { n: 25, title: 'Practice guidelines for central venous access 2020: an updated report by the American Society of Anesthesiologists Task Force on Central Venous Access',
         detail: 'Anesthesiology. 2020;132(1):8–43. PMID 31821240; DOI 10.1097/ALN.0000000000002864. Metadados verificados; texto não reacessado — leitura recomendada, sem afirmações extraídas.',
-        url: 'https://pubmed.ncbi.nlm.nih.gov/31821240/' }
+        url: 'https://pubmed.ncbi.nlm.nih.gov/31821240/' },
+      { n: 26, title: 'Direction of the J-tip of the guidewire, in Seldinger technique, is a significant factor in misplacement of subclavian vein catheter: a randomized, controlled study',
+        detail: 'Tripathi M, Dubey PK, Ambesh SP. Anesth Analg. 2005;100(1):21–4. PMID 15616046; DOI 10.1213/01.ANE.0000139349.40278.77. Resumo verificado (20/11/2026; ECR duplo-cego, subclávia direita, 147 × 148 pacientes).',
+        url: 'https://pubmed.ncbi.nlm.nih.gov/15616046/' }
     ],
 
     /* ---------------- Medidas publicadas (com ressalvas) ---------------- */
@@ -1262,9 +1431,9 @@
       { name: 'Mau posicionamento (jugular interna, contralateral, ázigo)', structure: 'ijv-R',
         mechanism: 'Curva quase em ângulo reto da confluência direita; rotação contralateral da cabeça pode favorecer a subida para a jugular.',
         recognition: 'Imagem de controle; dificuldade de aspirar; curva de pressão inadequada.',
-        prevention: 'Fio sem força; cabeça em posição neutra; confirmar a posição da ponta por imagem.',
-        incidence: '9,3% (subclávia) × 5,3% (jugular) em estudos não randomizados.',
-        source: [1, 13] },
+        prevention: 'Fio sem força; ponta em J voltada caudalmente (Tripathi et al.); cabeça em posição neutra; confirmar a posição da ponta por imagem.',
+        incidence: '9,3% (subclávia) × 5,3% (jugular) em estudos não randomizados; para a jugular interna, 2% com o J caudal × 40% com o J cranial num ECR pela subclávia direita (Tripathi et al.).',
+        source: [1, 13, 26] },
       { name: 'Perfuração venosa / tamponamento', structure: 'pericardium',
         mechanism: 'Dilatador rígido avançado além da profundidade da veia, ou ponta de cateter dentro do coração/apoiada na parede.',
         recognition: 'Hipotensão, derrame pericárdico ou mediastinal, refluxo ausente após dilatação.',
@@ -1332,11 +1501,11 @@
     /* ---------------- Prancha (foto sintética, data/prancha.jpg) ---------------- */
     prancha: {
       title: 'Mão esquerda: indicador na incisura, polegar infraclavicular',
-      caption: 'Prancha sintética de apoio ao capítulo 05. O lado direito do paciente aparece à esquerda da imagem.',
+      caption: 'Prancha sintética de apoio ao capítulo “Mão esquerda”. O lado direito do paciente aparece à esquerda da imagem.',
       notes: [
         'Ilustração gerada sinteticamente — não é fotografia de paciente nem de procedimento real; não mostra assepsia, campos completos nem anestesia.',
         'Posições aproximadas: a polpa do indicador repousa junto à incisura jugular, na extremidade medial da clavícula; a do polegar deprime a pele abaixo da clavícula, mais lateralmente; os demais dedos ficam fletidos.',
-        'A imagem não mede força nem profundidade. Compare com a cena 3D do capítulo 05, em que a mão é articulada e pode ser animada.'
+        'A imagem não mede força nem profundidade. Compare com a cena 3D do capítulo “Mão esquerda”, em que a mão é articulada e pode ser animada.'
       ],
       annotations: [
         { n: 1, text: 'Polpa do indicador junto à incisura jugular — referência de direção.' },
@@ -1350,7 +1519,7 @@
     asymmetry: [
       { topic: 'Veia braquiocefálica', right: 'Curta e quase vertical', left: 'Longa e oblíqua; cruza a linha média à frente dos ramos do arco aórtico' },
       { topic: 'Trajeto subclávia → veia cava superior', right: 'Curva acentuada, quase em ângulo reto, ao receber a jugular interna (Bannon et al.)', left: 'Arco suave pela braquiocefálica esquerda (Bannon et al.)' },
-      { topic: 'Mau posicionamento', right: 'Mais frequente a partir da subclávia D (jugular interna, lado oposto)', left: 'Menos frequente; ponta acima da carina muitas vezes subótima — alta demais ou em ângulo agudo com a parede (Stonelake & Bodenham)' },
+      { topic: 'Mau posicionamento', right: 'Desvio para a jugular interna ou para o lado oposto na curva da confluência (Bannon et al.); ponta em ângulo agudo com a parede, rara (4/163; Stonelake & Bodenham)', left: 'Ponta acima da carina muitas vezes subótima — alta (9/43) ou em ângulo agudo com a parede (27/43); abaixo da carina, posição mais satisfatória (Stonelake & Bodenham)' },
       { topic: 'Introdutores e cateteres rígidos', right: 'A curva favorece dobra do introdutor e lesão da parede (Bannon et al.)', left: 'Trajeto considerado mais favorável por Bannon et al.' },
       { topic: 'Pele → junção cava–átrio (média fluoroscópica citada por Bannon et al.)', right: '18,4 cm', left: '21,2 cm' },
       { topic: 'Artéria subclávia', right: 'Nasce do tronco braquiocefálico, atrás da articulação esternoclavicular', left: 'Nasce diretamente do arco aórtico' },

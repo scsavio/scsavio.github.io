@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
-<meta name="description" content="Atlas 3D educacional da punção infraclavicular da veia subclávia direita por marcos anatômicos: anatomia em camadas, mão esquerda, planos da agulha, pleura e respiração.">
+<meta name="description" content="Atlas 3D educacional da punção infraclavicular da veia subclávia direita por marcos anatômicos: anatomia em camadas, mão esquerda, planos da agulha, pleura e respiração, fixação do cateter em bailarina.">
 <title>Punção da subclávia direita · Atlas 3D</title>
 <script>/* tema salvo aplicado antes do CSS (evita piscar) */try{var t=localStorage.getItem('atlas-theme');if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t);}catch(e){}</script>
 <link rel="stylesheet" href="src/app.css">
@@ -21,7 +21,7 @@
   <div class="mast-side">
     <p class="seal" id="docSeal"><strong>Modelo 3D didático e sintético.</strong><br>Sem escala clínica e sem medidas de um paciente.</p>
     <div class="mast-actions">
-      <button type="button" class="btn icon" id="btnTheme" aria-pressed="false" aria-label="Alternar tema escuro" title="Tema claro/escuro">
+      <button type="button" class="btn icon" id="btnTheme" aria-pressed="false" aria-label="Tema escuro" title="Tema escuro (alternar)">
         <svg viewBox="0 0 24 24" aria-hidden="true" class="i-moon"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z"/></svg>
         <svg viewBox="0 0 24 24" aria-hidden="true" class="i-sun"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/></svg>
       </button>
@@ -74,14 +74,14 @@
       </div>
 
       <div class="legend" id="legend">
-        <ul class="legend-keys">
-          <li><i style="--c:#2d5e9c"></i>Veia</li>
-          <li><i style="--c:#c0392f"></i>Artéria</li>
-          <li><i style="--c:#e9c64f"></i>Nervo</li>
-          <li><i style="--c:#8fbf63"></i>Linfático</li>
-          <li><i style="--c:#a8463d"></i>Músculo</li>
-          <li><i style="--c:#e2d3b1"></i>Osso</li>
-          <li><i style="--c:#e0a3a3"></i>Pulmão</li>
+        <!-- itens gerados por app.js (buildLegend) a partir de LAYERS: só as camadas visíveis aparecem -->
+        <ul class="legend-keys" id="legendKeys">
+          <li data-lg="vein"><i style="--c:#43699a"></i>Veia</li>
+          <li data-lg="artery"><i style="--c:#ba5046"></i>Artéria</li>
+          <li data-lg="nerve"><i style="--c:#d5ba5c"></i>Nervo</li>
+          <li data-lg="muscle"><i style="--c:#b34c41"></i>Músculo</li>
+          <li data-lg="bones"><i style="--c:#cfc5a9"></i>Osso</li>
+          <li data-lg="lung"><i style="--c:#deb4ab"></i>Pulmão</li>
         </ul>
         <p class="legend-hint"><span class="hint-mouse">Arraste para girar · Shift/botão direito desloca · roda aproxima · clique identifica</span><span class="hint-touch">Arraste para girar · pinça para zoom · toque identifica</span></p>
       </div>
@@ -123,6 +123,8 @@
       </div>
     </div>
 
+    <ol class="lbl-key" id="lblKey" hidden aria-label="Rótulos da cena (números no visor)"></ol>
+
     <div class="controls" id="controls">
       <details class="ctl ctl-layers" data-ctl open>
         <summary><span>Camadas</span></summary>
@@ -162,12 +164,18 @@
         <div class="ctl-body">
           <div class="stepper-head">
             <button type="button" class="btn icon play" id="seqPlay" aria-pressed="false" aria-label="Reproduzir a sequência da agulha (aproximação até a luz venosa)"><svg viewBox="0 0 24 24" aria-hidden="true" class="i-play"><path d="M8 5.5v13l10.5-6.5z"/></svg><svg viewBox="0 0 24 24" aria-hidden="true" class="i-pause"><path d="M8 5.5v13M16 5.5v13"/></svg></button>
-            <p class="stepper-now"><b id="phaseNum">0</b><span id="phaseName">Sem agulha</span></p>
+            <p class="stepper-now" id="stepperNow"><b id="phaseNum">0</b><span id="phaseName">Sem agulha</span></p>
           </div>
           <ol class="stepper" id="stepper" aria-label="Etapa da agulha"></ol>
-          <div class="ctl-line">
-            <label class="switch"><input type="checkbox" id="wireToggle"><span class="sw" aria-hidden="true"></span>Trajeto anômalo do fio (VJI)</label>
+          <!-- com o cateter posicionado (etapa 6) a linha de opções dá lugar à fixação em bailarina (mesma altura) -->
+          <div class="ctl-line needle-opts" id="needleOpts">
+            <label class="switch" title="Trajeto anômalo do fio-guia para a veia jugular interna"><input type="checkbox" id="wireToggle" aria-label="Trajeto anômalo do fio-guia para a veia jugular interna"><span class="sw" aria-hidden="true"></span>Fio na VJI</label>
             <label class="switch"><input type="checkbox" id="planesToggle"><span class="sw" aria-hidden="true"></span>Planos/ângulos</label>
+          </div>
+          <div class="fix-row" id="fixRow" hidden>
+            <button type="button" class="btn icon play small-play" id="fixPlay" aria-pressed="false" aria-label="Reproduzir a fixação em bailarina, etapa por etapa"><svg viewBox="0 0 24 24" aria-hidden="true" class="i-play"><path d="M8 5.5v13l10.5-6.5z"/></svg><svg viewBox="0 0 24 24" aria-hidden="true" class="i-pause"><path d="M8 5.5v13M16 5.5v13"/></svg></button>
+            <span class="fix-lbl" id="fixLbl">Fixação</span>
+            <ol class="fixer" id="fixStepper" aria-labelledby="fixLbl"></ol>
           </div>
         </div>
       </details>
@@ -205,7 +213,7 @@
     <p class="eyebrow">Material complementar</p>
     <h2 class="material-title">Prancha, esquemas, tabelas e referências</h2>
     <nav class="toc" aria-label="Seções do material complementar">
-      <a href="#prancha">Prancha</a><a href="#planos">Planos da agulha</a><a href="#tecidos">Tecidos atravessados</a><a href="#usg">Ultrassom</a><a href="#medidas">Medidas</a><a href="#assimetria">Assimetria D×E</a><a href="#complicacoes">Complicações</a><a href="#checklist">Checklist</a><a href="#glossario">Glossário</a><a href="#fontes">Fontes e limites</a><a href="#licencas">Licenças</a>
+      <a href="#prancha">Prancha</a><a href="#planos">Planos da agulha</a><a href="#tecidos">Tecidos atravessados</a><a href="#usg">Ultrassom</a><a href="#medidas">Medidas</a><a href="#assimetria">Assimetria D×E</a><a href="#complicacoes">Complicações</a><a href="#fixacao">Fixação em bailarina</a><a href="#checklist">Checklist</a><a href="#glossario">Glossário</a><a href="#fontes">Fontes e limites</a><a href="#licencas">Licenças</a>
     </nav>
   </div>
 
@@ -216,7 +224,7 @@
 
   <section class="sec" id="planos" aria-labelledby="h-planos">
     <div class="sec-head"><p class="eyebrow">Leitura dos planos</p><h2 id="h-planos">Direção e inclinação são grandezas diferentes</h2>
-      <p class="lede">A direção é lida no plano frontal (para onde a agulha aponta na superfície); a inclinação, no plano sagital (quanto ela se aprofunda em relação à pele). Os dois esquemas separam conceitos e não são projeções calibradas da mesma passagem.</p></div>
+      <p class="lede">A direção é lida no plano frontal (vista anterior); a inclinação, num plano quase axial que contém a agulha (vista pela cabeceira), como ângulo com o plano coronal. O corte axial segue a geometria do modelo 3D deste atlas — não traz medidas de um paciente nem um ângulo-alvo.</p></div>
     <div id="planesBody"></div>
   </section>
 
@@ -248,6 +256,11 @@
     <div class="comp-grid" id="compBody"></div>
   </section>
 
+  <section class="sec" id="fixacao" aria-labelledby="h-fix">
+    <div class="sec-head"><p class="eyebrow">Depois do cateter</p><h2 id="h-fix">Fixação em bailarina — passo a passo</h2></div>
+    <div id="fixBody"></div>
+  </section>
+
   <section class="sec" id="checklist" aria-labelledby="h-check">
     <div class="sec-head"><p class="eyebrow">Treino supervisionado</p><h2 id="h-check">Checklist do preceptor</h2></div>
     <div id="checkBody"></div>
@@ -258,7 +271,10 @@
     <div class="gloss-tools">
       <label class="search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg><input type="search" id="glossSearch" placeholder="Buscar estrutura (ex.: frênico, cúpula, subclávio)" aria-label="Buscar no glossário"></label>
       <div class="chips filters" id="glossFilters" role="group" aria-label="Filtrar por grupo"></div>
-      <label class="switch"><input type="checkbox" id="glossLeft"><span class="sw" aria-hidden="true"></span>Incluir homólogos do lado esquerdo</label>
+      <div class="ctl-line">
+        <label class="switch"><input type="checkbox" id="glossLeft"><span class="sw" aria-hidden="true"></span>Incluir homólogos do lado esquerdo</label>
+        <label class="switch"><input type="checkbox" id="glossMinor"><span class="sw" aria-hidden="true"></span>Incluir costelas 3–12 e cartilagens 3–10</label>
+      </div>
     </div>
     <p class="gloss-count" id="glossCount" aria-live="polite"></p>
     <div class="gloss-grid" id="glossBody"></div>
@@ -351,7 +367,9 @@ OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 <script src="src/modules/viscera.js"></script>
 <script src="src/modules/skin.js"></script>
 <script src="src/modules/instruments.js"></script>
+<script src="src/modules/fixation.js"></script>
 <script src="src/data.js"></script>
+<script src="src/data.fixacao.js"></script>
 <script src="src/app.js"></script>
 </body>
 </html>

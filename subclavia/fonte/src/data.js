@@ -1,6 +1,8 @@
 /* ==========================================================================
    data.js — conteúdo editorial do atlas (window.ATLAS_DATA), pt-BR.
-   Revisão editorial: 19/11/2026; ondas 2 e 3 de correções: 20/11/2026. Esquema: CONTENT_SPEC.md.
+   Revisão editorial: 19/11/2026; ondas 2, 3 e 4 de correções: 20/11/2026. Esquema: CONTENT_SPEC.md.
+   Tom (onda 4): o texto descreve e atribui (“Bannon et al. descrevem…”, “nas descrições de ensino…”), sem
+   imperativos clínicos dirigidos ao leitor; instruções de uso da interface (“Use…”, “ative…”) são mantidas.
    Regras: números e afirmações de evidência só com fonte verificada no PubMed
    nesta revisão (PMID/DOI em `sources`); fontes do original não reacessadas estão
    marcadas como tal e não sustentam números. Rótulos usam apenas âncoras
@@ -31,7 +33,7 @@
     'Marco principal da técnica: a veia subclávia passa logo atrás e abaixo do seu terço medial; ao ultrassom, a clavícula produz sombra acústica.',
     'Do lado esquerdo, o trajeto até a veia cava superior é mais longo e mais suave, e a confluência venosa recebe o ducto torácico.');
   g('manubrium', 'Manúbrio do esterno', 'Ossos',
-    'Segmento superior do esterno; sua borda superior forma a incisura jugular e articula-se com as clavículas e com as 1as cartilagens costais.',
+    'Segmento superior do esterno; sua borda superior forma a incisura jugular e articula-se com as clavículas e com as primeiras cartilagens costais.',
     'A incisura jugular é a referência de direção para a polpa do indicador esquerdo.');
   g('sternum-body', 'Corpo do esterno', 'Ossos',
     'Segmento médio do esterno, articulado às cartilagens da 2ª à 7ª costela.',
@@ -125,7 +127,7 @@
     'Marco superficial do pescoço; não participa do trajeto infraclavicular.');
   bi('cephalic-v', 'Veia cefálica direita', 'Veia cefálica esquerda', 'Veias',
     'Sobe no sulco deltopeitoral, perfura a fáscia clavipeitoral e drena na veia axilar logo abaixo da clavícula.',
-    'Marca o sulco deltopeitoral; pode aparecer na janela ultrassonográfica infraclavicular e não deve ser confundida com a veia axilar.');
+    'Marca o sulco deltopeitoral; pode aparecer na janela ultrassonográfica infraclavicular, onde é possível confundi-la com a veia axilar.');
   g('bcv-R', 'Veia braquiocefálica direita', 'Veias',
     'Curta e quase vertical, da confluência jugulossubclávia direita até a formação da veia cava superior.',
     'A mudança de direção subclávia → braquiocefálica → cava à direita ajuda a explicar maus posicionamentos e a dificuldade com introdutores rígidos (Bannon et al.).');
@@ -134,7 +136,7 @@
     'Pela esquerda, o cateter percorre esse trajeto antes de entrar na cava; ponta alta pode ficar apoiada na parede em ângulo agudo (Stonelake & Bodenham).');
   g('svc', 'Veia cava superior', 'Veias',
     'Formada pela união das braquiocefálicas atrás da 1ª cartilagem costal direita; desce à direita da aorta ascendente até o átrio direito.',
-    'A ponta do cateter deve ficar na cava distal, próximo à junção cavoatrial, fora do átrio e paralela à parede.');
+    'Posição descrita para a ponta do cateter: cava distal, próximo à junção cavoatrial, fora do átrio e paralela à parede (Bannon et al.).');
   g('azygos', 'Veia ázigo', 'Veias',
     'Sobe à direita da coluna torácica e arqueia sobre o brônquio principal direito para drenar na face posterior da veia cava superior.',
     'Destino possível de malposição da ponta do cateter; referência na leitura da radiografia.');
@@ -215,7 +217,7 @@
   /* ---- Nervos ---- */
   bi('brachial-plexus', 'Plexo braquial direito', 'Plexo braquial esquerdo', 'Nervos',
     'Raízes C5–T1 emergem entre os escalenos anterior e médio e formam os troncos junto à borda lateral desses músculos, posterossuperiores à artéria subclávia; os fascículos envolvem a artéria axilar.',
-    'Lesão direta é improvável, mas o hematoma de uma punção arterial pode causar neuropatia compressiva (Bannon et al.); parestesia exige interrupção imediata.');
+    'Lesão direta é improvável, mas o hematoma de uma punção arterial pode causar neuropatia compressiva (Bannon et al.); nas descrições de ensino, parestesia interrompe a punção de imediato.');
   bi('phrenic', 'Nervo frênico direito', 'Nervo frênico esquerdo', 'Nervos',
     'Raízes C3–C5; desce sobre a face anterior do escaleno anterior, passa entre a artéria e a veia subclávias e entra no tórax.',
     'Relação posterior da veia; lesão causa paresia diafragmática ipsilateral (1,5% no grupo por marcos de Fragou et al.).');
@@ -234,7 +236,7 @@
     'Estrutura profunda; incluída para orientação das relações posteriores.');
   bi('stellate', 'Gânglio cervicotorácico (estrelado) direito', 'Gânglio cervicotorácico (estrelado) esquerdo', 'Nervos',
     'Fusão do gânglio cervical inferior com o 1º torácico, junto ao colo da 1ª costela, atrás da artéria subclávia e da cúpula pleural.',
-    'Lembra o que existe além dos vasos: o trajeto não deve chegar a esse plano.');
+    'Lembra o que existe além dos vasos: um trajeto que chegasse a esse plano já teria passado dos vasos subclávios.');
 
   /* ---- Linfáticos ---- */
   g('thoracic-duct', 'Ducto torácico', 'Linfáticos',
@@ -282,7 +284,7 @@
     'Profundo; sem relação direta com o trajeto infraclavicular.');
   g('heart', 'Coração', 'Mediastino',
     'O átrio direito recebe a veia cava superior; o coração ocupa o mediastino médio, desviado para a esquerda.',
-    'Fio-guia que alcança átrio ou ventrículo provoca arritmias; a ponta do cateter deve ficar fora do átrio.');
+    'Fio-guia que alcança átrio ou ventrículo provoca arritmias; a posição descrita para a ponta do cateter é fora do átrio (Bannon et al.).');
   g('pericardium', 'Pericárdio', 'Mediastino',
     'Saco fibrosseroso que envolve o coração e a porção terminal da veia cava superior.',
     'Perfuração com tamponamento é rara e grave (0,5% no grupo por marcos de Fragou et al.).');
@@ -302,7 +304,7 @@
     'Espessura muito variável: principal fonte de variação da profundidade pele–veia.');
   g('skin-prep', 'Área de antissepsia', 'Pele e superfície',
     'Região preparada com antisséptico antes da colocação dos campos.',
-    'Clorexidina sobre toda a área exposta; os marcos precisam continuar visíveis e palpáveis após os campos (Bannon et al.).');
+    'Bannon et al. descrevem clorexidina sobre toda a área exposta, com os marcos ainda visíveis e palpáveis depois da colocação dos campos.');
   g('drape', 'Campo estéril', 'Pele e superfície',
     'Campo fenestrado que cobre o paciente da cabeça aos pés, deixando exposta a região da punção.',
     'Barreira estéril máxima (gorro, máscara, avental, luvas, campo amplo) reduz infecção relacionada ao cateter (Bannon et al.).');
@@ -316,13 +318,13 @@
     'Controla-se a direção (plano frontal) e a inclinação (lida pela cabeceira, em plano quase axial); a posição da ponta não é dada pelos marcos externos.');
   g('syringe', 'Seringa', 'Instrumentos',
     'Seringa acoplada à agulha para aspiração durante o avanço.',
-    'Levantar a seringa da parede angula a ponta para trás, mais profunda: o conjunto deve permanecer o mais paralelo possível ao plano coronal sob a clavícula (Bannon et al.).');
+    'Levantar a seringa da parede angula a ponta para trás, mais profunda; por isso Bannon et al. descrevem o conjunto o mais paralelo possível ao plano coronal, rente sob a clavícula.');
   g('guidewire', 'Fio-guia (ponta em J)', 'Instrumentos',
     'Fio metálico flexível introduzido pela agulha (técnica de Seldinger).',
-    'Avança sem força; resistência ou arritmia exigem parar. À direita, pode desviar para a jugular interna; num ECR pela subclávia direita, a ponta em J voltada caudalmente reduziu esse desvio (Tripathi et al.).');
+    'Na descrição de ensino, avança sem força, e resistência ou arritmia interrompem a passagem. À direita, pode desviar para a jugular interna; num ECR pela subclávia direita, a ponta em J voltada caudalmente reduziu esse desvio (Tripathi et al.).');
   g('catheter', 'Cateter venoso central (triplo lúmen)', 'Instrumentos',
     'Cateter de três vias (distal, medial e proximal) introduzido sobre o fio após a dilatação do trajeto, com marcas de comprimento em centímetros contadas a partir da ponta e canhão com asas para fixação.',
-    'Ponta na veia cava superior distal/junção cavoatrial, confirmada por imagem antes do uso. A marca junto à pele indica quanto foi introduzido — no modelo, ≈16 cm — e deve ser anotada e conferida a cada avaliação.');
+    'Ponta na veia cava superior distal/junção cavoatrial, confirmada por imagem antes do uso. A marca junto à pele indica quanto foi introduzido — no modelo, ≈16 cm —; anotada, permite reconhecer migração do cateter nas avaliações seguintes.');
 
   /* ---------------- Estruturas acessórias registradas pelos módulos 3D ----------------
      Fora do trajeto da punção, mas clicáveis no modelo: cada uma tem entrada própria (nome, descrição e
@@ -364,7 +366,7 @@
     'Ramo da artéria coronária esquerda que contorna o sulco coronário esquerdo até a face posterior do coração.', FORA);
   g('pulmonary-trunk', 'Tronco pulmonar', 'Artérias',
     'Sai do ventrículo direito, à frente e à esquerda da aorta ascendente, e bifurca-se na concavidade do arco aórtico nas artérias pulmonares direita e esquerda.',
-    'Fora do trajeto; lembra o que existe além do átrio direito — a ponta do cateter deve ficar na cava, fora do coração.');
+    'Fora do trajeto; lembra o que existe além do átrio direito — a posição descrita para a ponta do cateter é na cava, fora do coração.');
   g('pulmonary-a-R', 'Artéria pulmonar direita', 'Artérias',
     'Passa horizontalmente atrás da aorta ascendente e da veia cava superior, à frente do brônquio principal direito, até o hilo do pulmão direito.',
     'Relação posterior da veia cava superior; ajuda a ler o mediastino na radiografia de controle.');
@@ -385,7 +387,7 @@
     'Leva sangue oxigenado do lobo inferior esquerdo ao átrio esquerdo; aparece em vermelho pela convenção de cores do atlas.', FORA);
   g('ivc', 'Veia cava inferior (segmento terminal)', 'Veias',
     'Atravessa o centro tendíneo do diafragma (forame da veia cava, nível de T8) e desemboca no átrio direito.',
-    'Fio-guia introduzido além do necessário pode atravessar o átrio direito em direção a ela; o fio não deve chegar ao coração.');
+    'Fio-guia introduzido além do necessário pode atravessar o átrio direito em direção a ela; o fio que alcança o coração provoca arritmias (Lee et al.).');
   /* Mediastino */
   g('carina', 'Carina da traqueia', 'Mediastino',
     'Crista na bifurcação da traqueia em brônquios principais, aproximadamente no plano do ângulo do esterno (disco T4/T5).',
@@ -445,19 +447,19 @@
     'Não equivale ao rolo sob o ombro: ombros retraídos distorceram a veia (Jesseph et al.) e Bannon et al. descrevem compressão da veia entre clavícula e 1ª costela com rolo interescapular. Não “abre espaço” de forma previsível.');
   g('roll-shoulder-R', 'Coxim sob o ombro direito', 'Instrumentos',
     'Rolo pequeno sob o ombro do lado da punção.',
-    'Posição diferente do rolo interescapular, não equivalente a ele; após qualquer coxim, reavaliar os marcos (e a janela ultrassonográfica, se disponível).');
+    'Posição diferente do rolo interescapular, não equivalente a ele. Como a posição do ombro muda a relação clavícula–veia (Kitagawa et al.; Tan et al.), marcos palpados antes do coxim — e a janela ultrassonográfica, se disponível — podem não valer depois dele.');
   g('aspirated-blood', 'Sangue aspirado (refluxo)', 'Instrumentos',
     'Sangue que reflui para a seringa quando a ponta da agulha entra na luz de um vaso.',
-    'Refluxo escuro e não pulsátil sugere, mas não confirma, posição venosa: confirmar por método objetivo antes de dilatar (Ezaru et al.).');
+    'Refluxo escuro e não pulsátil sugere, mas não confirma, posição venosa; Ezaru et al. descrevem a confirmação por método objetivo (manometria) antes de dilatar.');
   g('guidewire-ijv', 'Fio-guia — trajeto alternativo (anômalo) para a jugular interna', 'Instrumentos',
     'Trajeto didático do fio que, na confluência direita, sobe pela jugular interna em vez de descer para a braquiocefálica e a cava.',
-    'Mau posicionamento clássico pela subclávia direita; num ECR, a ponta em J dirigida caudalmente reduziu esse desvio (Tripathi et al.). A posição final exige confirmação por imagem.');
+    'Mau posicionamento clássico pela subclávia direita; num ECR, a ponta em J dirigida caudalmente reduziu esse desvio (Tripathi et al.). A posição final só é conhecida com imagem.');
   g('dilator', 'Dilatador (sobre o fio-guia)', 'Instrumentos',
     'Dilatador rígido e calibroso introduzido sobre o fio-guia para alargar pele, tela subcutânea e parede venosa antes da passagem do cateter. No modelo, para com a ponta cerca de 2 mm além da parede anterior da veia, ≈4 cm após a pele.',
-    'Avançar só até a profundidade em que a agulha alcançou a veia — no máximo milímetros dentro dela; à direita, a curva subclávia → cava favorece a perfuração por um dilatador introduzido fundo (Bannon et al.).');
+    'Bannon et al. descrevem avançá-lo só até a profundidade em que a agulha alcançou a veia — no máximo milímetros dentro dela —, porque à direita a curva subclávia → cava favorece a perfuração por um dilatador introduzido fundo.');
   g('dilator-limit', 'Limite do dilatador (parede da veia)', 'Instrumentos',
     'Anel dourado que marca, em torno do fio, a profundidade em que a agulha alcançou a veia.',
-    'O dilatador não precisa nem deve passar mais que milímetros além dela (Bannon et al.).');
+    'Segundo Bannon et al., o dilatador não precisa passar mais que milímetros além dela.');
   g('landmark-notch', 'Marcador da incisura jugular', 'Instrumentos',
     'Anel dourado sobre a pele da incisura jugular, onde repousa a polpa do indicador esquerdo.',
     'Referência de direção no plano frontal; não indica profundidade.');
@@ -469,7 +471,7 @@
     'Mostra apenas a direção no plano frontal; a inclinação se lê pela cabeceira.');
   g('coronal-plane', 'Plano coronal de referência', 'Instrumentos',
     'Plano frontal translúcido que passa pelo ponto de entrada.',
-    'Referência para ler a inclinação: o conjunto agulha–seringa deve ficar o mais paralelo possível a ele, rente sob a clavícula (Bannon et al.).');
+    'Referência para ler a inclinação: Bannon et al. descrevem o conjunto agulha–seringa o mais paralelo possível a ele, rente sob a clavícula.');
   g('needle-angle', 'Ângulo nominal da agulha com o plano coronal', 'Instrumentos',
     'Arco dourado que mede a inclinação da reta pele → veia do modelo em relação ao plano coronal (≈30°).',
     'Valor geométrico do modelo, não alvo nem margem: a agulha rígida não simula a depressão dos tecidos pelo polegar nem o achatamento do conjunto depois da pele.');
@@ -480,7 +482,7 @@
      (que, carregado depois, prevalece se também definir esta) */
   g('tissue-forceps', 'Pinça de dissecção com dente (tipo Adson)', 'Instrumentos',
     'Pinça delicada com dentes na ponta, segura na mão não dominante como um lápis.',
-    'Na fixação, faz a contrapressão na pele junto à entrada da agulha, recebe a ponta da agulha e manipula as pontas do fio — a agulha nunca é tocada com os dedos.');
+    'Na fixação, faz a contrapressão na pele junto à entrada da agulha, recebe a ponta da agulha e manipula as pontas do fio — na técnica descrita, a agulha não é tocada com os dedos.');
   g('suture-scissors', 'Tesoura de fio', 'Instrumentos',
     'Tesoura de ponta romba usada para cortar o fio da sutura.',
     'Na bailarina, corta as pontas deixando cerca de 0,5–1 cm além do nó final, com as lâminas afastadas do cateter e das extensões — um corte rente demais solta o nó; um corte junto ao cateter pode lesá-lo.');
@@ -508,8 +510,8 @@
         title: 'Marcos de superfície: o que se palpa e o que fica oculto',
         focus: 'Marcos externos orientam a direção e a região de entrada; não localizam a veia, a ponta da agulha nem a pleura.',
         body: [
-          'Na vista anterior, o lado <strong>direito do paciente</strong> aparece à esquerda da tela. Comece pela <strong>incisura jugular</strong> — borda superior do manúbrio, entre as extremidades esternais das clavículas — e siga a <strong>clavícula</strong> lateralmente até o acrômio. Divida-a em terços: a <strong>junção dos terços medial e médio</strong> é a referência mais usada na abordagem infraclavicular, e a punção cutânea descrita fica 1–2 cm inferior e lateral a ela (Bannon et al.).',
-          'A forma em “S” da clavícula pede cuidado. Bannon et al. e o documento-base chamam o marco de “quebra” ou “curva” da clavícula e o situam na junção do terço medial com os dois terços laterais, onde a convexidade anterior medial daria lugar à concavidade lateral. Na anatomia descritiva, porém, a convexidade anterior ocupa os <em>dois terços</em> mediais, e a transição para a concavidade fica mais lateral, perto da junção dos terços médio e lateral. Por isso este atlas usa a <strong>junção dos terços medial e médio medida ao longo do osso</strong> — palpar da articulação esternoclavicular ao acrômio e dividir em três —, e não a curvatura palpada.',
+          'Na vista anterior, o lado <strong>direito do paciente</strong> aparece à esquerda da tela. A leitura dos marcos parte da <strong>incisura jugular</strong> — borda superior do manúbrio, entre as extremidades esternais das clavículas — e segue a <strong>clavícula</strong> lateralmente até o acrômio. Dividida a clavícula em terços, a <strong>junção dos terços medial e médio</strong> é a referência mais usada na abordagem infraclavicular, e a punção cutânea descrita fica 1–2 cm inferior e lateral a ela (Bannon et al.).',
+          'A forma em “S” da clavícula é fonte de confusão. Bannon et al. e o documento-base chamam o marco de “quebra” ou “curva” da clavícula e o situam na junção do terço medial com os dois terços laterais, onde a convexidade anterior medial daria lugar à concavidade lateral. Na anatomia descritiva, porém, a convexidade anterior ocupa os <em>dois terços</em> mediais, e a transição para a concavidade fica mais lateral, perto da junção dos terços médio e lateral. Por isso este atlas usa a <strong>junção dos terços medial e médio medida ao longo do osso</strong> — palpada da articulação esternoclavicular ao acrômio e dividida em três —, e não a curvatura palpada.',
           'Lateralmente, o <strong>sulco deltopeitoral</strong> (entre deltoide e parte clavicular do peitoral maior, por onde sobe a veia cefálica) leva à <strong>fossa infraclavicular</strong> e ao <strong>processo coracoide</strong>, palpável sob a borda anterior do deltoide; ali a veia ainda é axilar. Medialmente, o <strong>ângulo do esterno</strong> marca a 2ª cartilagem costal e fica aproximadamente no plano da carina. Bannon et al. o usam como marco externo para estimar o comprimento do cateter (distância da punção ao ângulo, ao longo do trajeto venoso), mas a junção cavoatrial está alguns centímetros abaixo dele. Acima da clavícula, as cabeças do esternocleidomastóideo delimitam a <strong>fossa supraclavicular menor</strong>, sobre a jugular interna e a confluência venosa.',
           'Obesidade, musculatura desenvolvida, fraturas consolidadas, cirurgias prévias, deformidades torácicas e a posição do ombro alteram a palpação. Em 86 inserções filmadas num centro de trauma, a identificação inadequada dos marcos esteve entre os seis erros técnicos mais frequentes (Kilbourne et al.).'
         ],
@@ -566,7 +568,7 @@
         focus: 'Sob a clavícula não há túnel vazio: a veia ocupa a parte anterior de um espaço estreito, encostada em músculo, osso, artéria e pleura.',
         body: [
           'A veia axilar passa a chamar-se <strong>subclávia</strong> na borda lateral da <strong>1ª costela</strong>. Daí até o ângulo venoso, ela cruza a face superior da costela, imediatamente posterior e inferior ao terço medial da clavícula e ao <strong>músculo subclávio</strong>, e anterior ao <strong>escaleno anterior</strong>. É um segmento curto, que termina atrás da articulação esternoclavicular.',
-          'Leia o espaço como um triângulo: clavícula com o subclávio à frente e acima, 1ª costela embaixo, escaleno anterior atrás. A veia ocupa a parte anterior; atrás do escaleno — com cerca de 1–1,5 cm de espessura — passam a <strong>artéria subclávia</strong> e, acima e atrás dela, os troncos do <strong>plexo braquial</strong>. Lateralmente à 1ª costela, artéria e nervos ficam diretamente atrás da veia axilar, <em>sem</em> músculo interposto (Bannon et al.).',
+          'O espaço pode ser lido como um triângulo: clavícula com o subclávio à frente e acima, 1ª costela embaixo, escaleno anterior atrás. A veia ocupa a parte anterior; atrás do escaleno — com cerca de 1–1,5 cm de espessura — passam a <strong>artéria subclávia</strong> e, acima e atrás dela, os troncos do <strong>plexo braquial</strong>. Lateralmente à 1ª costela, artéria e nervos ficam diretamente atrás da veia axilar, <em>sem</em> músculo interposto (Bannon et al.).',
           'A adventícia da veia está presa ao periósteo da clavícula, ao <strong>ligamento costoclavicular</strong> e às fáscias do subclávio e do escaleno anterior. Essas fixações mantêm a veia aberta mesmo em hipovolemia — em cadáveres, ela permanece patente quando a jugular interna e a braquiocefálica estão colapsadas —, uma vantagem relativa da via subclávia no choque (Bannon et al.).',
           'Medialmente ao escaleno e à costela, a artéria arqueia mais alto e a veia passa a se apoiar quase diretamente na <strong>pleura cervical</strong>. A 1ª costela interpõe osso apenas em parte do trajeto: não é um escudo contínuo.'
         ],
@@ -580,7 +582,7 @@
           'Imaginar a 1ª costela como “piso de segurança” contínuo sob todo o trajeto.',
           'Insistir medialmente: o ligamento costoclavicular, às vezes calcificado, pode bloquear a passagem (Bannon et al.).'
         ],
-        detail: 'A cena olha o espaço de frente e um pouco pela direita, quase na horizontal, com ossos e músculos translúcidos: a clavícula vira um véu claro diante da veia, que cruza a 1ª costela à frente do escaleno anterior (destacado). Gire a vista para conferir as relações. Espessuras de fáscias e a separação entre estruturas são aproximadas; no corpo, os planos estão justapostos, sem folgas visíveis.',
+        detail: 'A cena olha o espaço de frente e um pouco pela direita, quase na horizontal, com ossos e músculos translúcidos: a clavícula fica acima e à frente da veia, com o subclávio entre ambas; a veia cruza a 1ª costela à frente do escaleno anterior (destacado). Gire a vista para conferir as relações. Espessuras de fáscias e a separação entre estruturas são aproximadas; no corpo, os planos estão justapostos, sem folgas visíveis.',
         sources: [1, 2],
         quiz: {
           q: 'Qual estrutura separa a veia subclávia, anterior, da artéria subclávia e do plexo braquial, posteriores?',
@@ -599,7 +601,7 @@
           // escaleno destacado (rótulo “profundo”), e a veia, à frente dele
           view: { target: [5.0, 0.4, -1.3], radius: 19.5, az: -0.42, el: -0.05 },
           layers: ['bones', 'muscle', 'vein', 'artery', 'nerve', 'pleura', 'aids'],
-          ghost: { muscle: 0.3, bones: 0.4 },
+          ghost: { muscle: 0.52, bones: 0.4 },
           state: S(),
           clip: null,
           labels: [
@@ -692,7 +694,7 @@
           'Inclinação caudal ou posterior aproxima a agulha da pleura.'
         ],
         pitfalls: [
-          'Corrigir a falta de refluxo aprofundando a agulha: além da veia só há estruturas a não atingir.',
+          'Corrigir a falta de refluxo aprofundando a agulha: além da veia só há estruturas em risco.',
           'Esquecer que um hematoma arterial pode comprimir o plexo mesmo sem lesão direta do nervo (Bannon et al.).'
         ],
         detail: 'Vista de cima e da frente, com veias, músculos e ossos translúcidos. Nervos estão engrossados para leitura; o trajeto do recorrente e a posição do gânglio estrelado são esquemáticos. Em projeção anterior, o ápice da cúpula do modelo fica ≈2,4 cm acima do <em>eixo</em> do terço medial da clavícula e ≈1,5 cm acima da sua <em>borda superior</em>. A referência anatômica clássica (“2–3 cm acima do terço medial da clavícula”) é aproximada e não diz de qual nível se mede: o modelo a atinge medindo pelo eixo, não pela borda superior. São valores nominais, não medidas de paciente.',
@@ -712,7 +714,7 @@
           // vista superior-anterior: enquadra da cúpula à torácica interna (itaR), que ficava fora do quadro
           view: { target: [3.6, 0.6, -3.4], radius: 26, az: -0.35, el: 0.95 },
           layers: ['bones', 'muscle', 'vein', 'artery', 'nerve', 'pleura', 'lung', 'aids'],
-          ghost: { vein: 0.3, muscle: 0.22, bones: 0.35 },
+          ghost: { vein: 0.45, muscle: 0.22, bones: 0.35 },
           state: S(),
           clip: null,
           labels: [
@@ -737,12 +739,12 @@
         focus: 'Indicador = referência de direção na incisura. Polegar = pressão suave infraclavicular que ajuda a manter o conjunto rente sob a clavícula. Nenhum dos dois mede profundidade.',
         body: [
           'O operador fica do lado a ser puncionado (Bannon et al.). Para o destro à direita do paciente, a mão esquerda apoia-se com o punho oblíquo e confortável: a polpa do <strong>indicador</strong> identifica a incisura jugular; o <strong>polegar</strong> — que nasce do bordo radial da palma, junto ao indicador — alcança a região infraclavicular. A abertura entre os dedos varia com o tórax e com o tamanho da mão.',
-          'O indicador dá a referência medial da <strong>direção</strong>: a agulha é orientada para um ponto logo acima da sua polpa. Apontar para a incisura não informa onde está a ponta. O indicador não deve parecer penetrar a incisura nem “buscar” a ponta através do tórax.',
+          'O indicador dá a referência medial da <strong>direção</strong>: a agulha é orientada para um ponto logo acima da sua polpa. Apontar para a incisura não informa onde está a ponta. O indicador repousa sobre a incisura: não penetra nela nem “busca” a ponta através do tórax.',
           'Em Bannon et al., o polegar não dominante exerce apenas <strong>pressão suave</strong> para manter a agulha deprimida no plano coronal, rente sob a clavícula — e isso basta quando o ponto de entrada é adequado. O documento-base descreve o polegar apoiado nos tecidos infraclaviculares. Nos dois casos a pressão é suave: o polegar não é paquímetro de profundidade, batente, alavanca nem escudo da pleura.',
           'Médio, anular e mínimo ficam fletidos nas articulações metacarpofalângicas e interfalângicas, longe do instrumento. Depois do refluxo, a mão esquerda muda de função e estabiliza o canhão com apoio no paciente: deslocar a agulha para fora da veia antes ou durante a passagem do fio está entre os erros técnicos mais observados (Kilbourne et al.).'
         ],
         keyPoints: [
-          'Indicador na incisura jugular: alvo de direção — mirar logo acima da polpa.',
+          'Indicador na incisura jugular: alvo de direção — a agulha é orientada logo acima da polpa.',
           'Polegar infraclavicular: pressão suave que mantém agulha e seringa no plano coronal, rente sob a clavícula — não alavanca.',
           'Médio, anular e mínimo fletidos, fora da trajetória.',
           'Após o refluxo, a mão de apoio passa a estabilizar a agulha.'
@@ -752,7 +754,7 @@
           'Manter rigidamente a pose inicial quando ela atrapalha a estabilização da agulha.',
           'Deixar a agulha sair da veia ao desconectar a seringa para passar o fio.'
         ],
-        detail: 'Use “Animar mão” ou o controle Preparar–Apoiar: a mão se aproxima enquanto os dedos se organizam, até o contato final. A seta do polegar indica a direção da pressão suave, sem quantificar força. A partir da passagem do fio-guia, a mão sai de cena no modelo para expor canhão, fio e cateter — na prática, ela continua estabilizando o canhão. A mão é uma malha articulada contínua (WebXR generic-hand, licença MIT) com material de luva; o polegar tem duas falanges e os demais dedos, três.',
+        detail: 'Use o botão ▶ ao lado de “Mão” ou o controle Preparar–Apoiar: a mão se aproxima enquanto os dedos se organizam, até o contato final. A seta do polegar indica a direção da pressão suave, sem quantificar força. A partir da passagem do fio-guia, a mão sai de cena no modelo para expor canhão, fio e cateter — na prática, ela continua estabilizando o canhão. A mão é uma malha articulada contínua (WebXR generic-hand, licença MIT) com material de luva; o polegar tem duas falanges e os demais dedos, três.',
         sources: [1, 11],
         quiz: {
           q: 'Qual é a função da polpa do polegar esquerdo na abordagem infraclavicular por marcos?',
@@ -788,7 +790,7 @@
       {
         id: 'entrada', n: '06', short: 'Entrada',
         title: 'Ponto de entrada: referência não é coordenada',
-        focus: 'A região de entrada é definida no paciente, a partir dos marcos e, quando possível, de imagem — nunca por gabarito trazido de outro tórax.',
+        focus: 'A região de entrada é definida no paciente, a partir dos marcos e, quando possível, de imagem — não por gabarito trazido de outro tórax.',
         body: [
           'As descrições convergem sem serem idênticas. Bannon et al. situam a punção cutânea 1–2 cm inferior e lateral à junção dos terços medial e médio da clavícula; o documento-base usa cerca de 2 cm lateral e 2 cm caudal à mesma referência, descrição que atribui também a Braner et al. Uma entrada colada à clavícula dificulta passar sob ela sem angular a agulha para trás — e essa angulação posterior aumenta o risco de pneumotórax (Bannon et al.).',
           'Essas distâncias são medidas <strong>na superfície</strong>, a partir de um marco específico. Não equivalem a profundidade e não são transportáveis: tecido adiposo, musculatura, posição do ombro, deformidades e acessos prévios mudam as relações. O local de punção inadequado em relação à clavícula foi um dos erros mais comuns em 86 inserções filmadas (Kilbourne et al.).',
@@ -848,11 +850,11 @@
           'No <strong>plano frontal</strong> (vista anterior), a direção é medial e discretamente cranial, mirando logo acima da polpa do indicador na incisura jugular. Apontar cranialmente, afastando-se da incisura, é erro técnico recorrente (Kilbourne et al.); girar o trajeto para trás, também se afastando da incisura, encurta o caminho até a artéria atrás do escaleno (Bannon et al.).',
           'A <strong>inclinação</strong> em relação à parede torácica se lê num plano perpendicular ao coronal que contenha a agulha. Como o trajeto é sobretudo mediolateral, esse plano é quase <strong>axial</strong>: é a vista pela cabeceira desta cena — e não o perfil, que encurta o eixo da agulha e exagera a inclinação. Bannon et al. descrevem o avanço com agulha e seringa “absolutamente paralelas ao chão”, no plano coronal: levantar o conjunto da parede angula a ponta para trás e, como a veia se apoia na pleura, coloca a pleura no caminho; angular a ponta caudalmente também encurta o trajeto até ela.',
           'Algumas descrições usam inclinação maior apenas para atravessar a pele e achatam o conjunto logo depois (o documento-base cita 20–30°); esse número descreve técnica, não é ângulo protetor. <strong>No modelo</strong>, a reta pele → veia é rígida e fica mais inclinada do que “paralela ao chão”, porque a geometria não simula a depressão dos tecidos pelo polegar nem o achatamento do conjunto depois da pele. O setor dourado de “Planos/ângulos” mede essa inclinação nominal do modelo (≈30°) — não é alvo nem margem.',
-          'Também é erro frequente a trajetória rasa demais, que encontra o periósteo da clavícula (Kilbourne et al.). Os 3–4 cm citados no documento-base referem-se a comprimento de agulha avançado em descrições específicas — não à profundidade perpendicular pele–veia nem ao momento de mudar o ângulo. Sem refluxo, reavalie; o número não autoriza continuar avançando.'
+          'Também é erro frequente a trajetória rasa demais, que encontra o periósteo da clavícula (Kilbourne et al.). Os 3–4 cm citados no documento-base referem-se a comprimento de agulha avançado em descrições específicas — não à profundidade perpendicular pele–veia nem ao momento de mudar o ângulo. Nas descrições de ensino, a ausência de refluxo interrompe o avanço para reavaliação; o número não autoriza continuar avançando.'
         ],
         keyPoints: [
           'Plano frontal (vista anterior): direção medial, logo acima da incisura jugular.',
-          'Inclinação: lida pela cabeceira, em plano quase axial; conjunto o mais paralelo possível ao plano coronal sob a clavícula — não levantar a seringa.',
+          'Inclinação: lida pela cabeceira, em plano quase axial; conjunto o mais paralelo possível ao plano coronal sob a clavícula, sem levantar a seringa (Bannon et al.).',
           'Cranial demais e raso demais são erros frequentes; posterior ou caudal demais aproxima artéria e pleura.',
           'Ângulos e comprimentos citados não são intercambiáveis entre planos.'
         ],
@@ -902,16 +904,16 @@
       {
         id: 'tecidos', n: '08', short: 'Tecidos',
         title: 'Sob a clavícula: tecidos atravessados e contato ósseo',
-        focus: 'Contato ósseo é achado que pede interrupção e reavaliação — não passo obrigatório nem apoio para “descer” a ponta.',
+        focus: 'Contato ósseo é um achado que, nas descrições de ensino, interrompe o avanço para reavaliação — não passo obrigatório nem apoio para “descer” a ponta.',
         body: [
           'No trajeto infraclavicular a agulha atravessa, do superficial ao profundo: pele, tela subcutânea, fáscia e parte clavicular do <strong>peitoral maior</strong>, <strong>fáscia clavipeitoral</strong> e <strong>músculo subclávio</strong>, até a parede anterior da veia sobre a 1ª costela (Bannon et al. descrevem a passagem através do subclávio). A espessura total depende do biotipo e da compressão exercida pelo polegar.',
           'O documento-base apresentava “tocar a clavícula, recuar e abaixar” como sequência obrigatória. Neste atlas, o contato ósseo é um achado: atravessar o periósteo da clavícula está, inclusive, entre os erros técnicos mais observados (Kilbourne et al.). Não se ensina raspar o osso, “caminhar” sob ele com a ponta profunda nem forçar a passagem.',
           'Correções de direção com a ponta profunda movem-na como braço de alavanca e podem lesar estruturas vizinhas. A referência técnica é <strong>recuar até o plano superficial antes de redirecionar</strong>, conforme treinamento e protocolo. O atlas não fixa 3–5 mm, nem qualquer outro valor, como recuo suficiente.',
-          'O corte parassagital da cena passa pelo espaço costoclavicular, medial à entrada, e é visto pela direita: clavícula e subclávio acima e à frente, a 1ª costela sob a veia, o escaleno anterior atrás dela e, atrás do músculo, a artéria, o plexo e a cúpula pleural — tudo o que existe além do alvo. É o triângulo costoclavicular-escalênico (clavícula à frente, 1ª costela embaixo, escaleno anterior atrás), descrito por Aiken e Minton e citado por Bannon et al.'
+          'O corte parassagital da cena passa pelo espaço costoclavicular, um pouco medial ao ponto em que a agulha alcança a veia, e é visto pela direita: a clavícula acima e à frente; logo abaixo dela, o <strong>subclávio</strong> (destacado), à frente da veia — o músculo que a agulha atravessa antes da parede venosa; a 1ª costela sob a veia; o escaleno anterior atrás dela e, atrás do músculo, a artéria, o plexo e a cúpula pleural — tudo o que existe além do alvo. É o triângulo costoclavicular-escalênico (clavícula à frente, 1ª costela embaixo, escaleno anterior atrás), descrito por Aiken e Minton e citado por Bannon et al.'
         ],
         keyPoints: [
           'Sequência: pele → subcutâneo → peitoral maior → fáscia clavipeitoral → subclávio → veia.',
-          'Contato ósseo: parar, recuar ao plano superficial, reavaliar.',
+          'Contato ósseo: interrupção, recuo ao plano superficial e reavaliação.',
           'Redirecionar com a ponta profunda é perigoso.',
           'Atravessar o periósteo e trajetória rasa demais estão entre os erros mais frequentes.'
         ],
@@ -919,7 +921,7 @@
           'Usar a clavícula como trilho para “descer” a ponta.',
           'Aprofundar depois do contato ósseo em vez de recuar.'
         ],
-        detail: 'Corte parassagital pelo espaço costoclavicular, visto pela direita: a parte lateral ao plano foi removida. A agulha corre sobretudo de lateral para medial e não cabe num plano parassagital; por isso aparece inteira, à frente do corte, com a ponta na luz venosa. É uma linha reta idealizada, sem deflexão do bisel, deformação de tecido nem resistência simulada. Medida no modelo, a reta cruza pele e subcutâneo, peitoral maior, fáscia clavipeitoral e ≈1 cm de subclávio, rente à face posteroinferior da clavícula, e alcança a parede da veia ≈3,9 cm após a pele, junto à borda lateral da 1ª costela (transição axilar → subclávia) — distâncias nominais de um tórax magro, não profundidades de referência.',
+        detail: 'Corte parassagital pelo espaço costoclavicular, visto pela direita e um pouco pela frente: a parte lateral ao plano foi removida. A agulha corre sobretudo de lateral para medial e não cabe num plano parassagital; por isso aparece inteira, à frente do corte, com a ponta na luz venosa logo depois da parede, passando rente ao subclávio seccionado. Os rótulos da clavícula e do subclávio apontam para as secções nesta vista; ao girar a cena, afastam-se delas, porque marcam a parte lateral do osso e do músculo, removida pelo corte. É uma linha reta idealizada, sem deflexão do bisel, deformação de tecido nem resistência simulada. Medida no modelo, a reta cruza pele e subcutâneo, peitoral maior, fáscia clavipeitoral e ≈1 cm de subclávio, rente à face posteroinferior da clavícula, e alcança a parede da veia ≈3,9 cm após a pele, junto à borda lateral da 1ª costela (transição axilar → subclávia) — distâncias nominais de um tórax magro, não profundidades de referência.',
         sources: [1, 11],
         quiz: {
           q: 'Durante o avanço, a ponta encontra osso. Qual conduta é coerente com este atlas?',
@@ -930,23 +932,32 @@
             'Avançar mais 1 cm, porque o osso protege a pleura'
           ],
           answer: 1,
-          explain: 'Contato ósseo é achado que exige reavaliação. Redirecionar com a ponta profunda e passar pelo periósteo são erros descritos (Kilbourne et al.); angular para trás aproxima a pleura (Bannon et al.).'
+          explain: 'Contato ósseo é achado que leva à reavaliação. Redirecionar com a ponta profunda e passar pelo periósteo são erros descritos (Kilbourne et al.); angular para trás aproxima a pleura (Bannon et al.).'
         },
         scene: {
-          view: { target: [5, 0.4, -1.6], radius: 22, az: -1.57, el: 0.05 },
+          // Onda 4: corte em x = 5,5 (era 5,0). Medido em Node (tools/w2fix_data_w4sec.js): em x = 5,5 a secção
+          // ainda contém clavícula, subclávio (0,4 × 0,6 cm, colado à face inferior da clavícula e à frente da
+          // veia), veia sobre a 1ª costela, escaleno anterior atrás dela (perto da inserção), artéria, plexo e
+          // pleura; em x = 5,0 o subclávio é a ponta tendínea baixa, no nível da metade inferior da veia, e fica
+          // sob a projeção da agulha; em x ≥ 5,6 o escaleno sai da secção e, em x ≈ 6,2, a costela passa a ficar
+          // atrás da veia (não sob ela). Câmera alinhada: alvo = centro da secção do subclávio Q [5,5; 0,38; 0,575]
+          // e câmera na reta Q → âncora subclaviusR [8,95; 0,34; 1,13] (az/el calculados), de modo que o rótulo
+          // do subclávio cai sobre a secção do músculo (o zoom mantém o alinhamento; girar, não). clavicleMidR
+          // fica ≈ sobre a secção da clavícula pelo mesmo motivo. Raio 26 reduz a seringa no quadro.
+          view: { target: [5.5, 0.38, 0.575], radius: 26, az: -1.4113, el: -0.0114 },
           layers: ['skin', 'bones', 'muscle', 'vein', 'artery', 'nerve', 'pleura', 'lung', 'instrument'],
           ghost: null,
           state: S({ phase: 4, handPose: 1 }),
-          clip: { normal: [-1, 0, 0], point: [5.0, 0, 0], label: 'Corte parassagital do espaço costoclavicular' },
-          // âncoras laterais ao corte (clavicleR, subclaviusR) ficariam deslocadas da secção: o subclávio
-          // aparece pelo destaque e a clavícula, pela secção óssea
+          clip: { normal: [-1, 0, 0], point: [5.5, 0, 0], label: 'Corte parassagital do espaço costoclavicular' },
+          // 7 rótulos (limite do CONTENT_SPEC): a ponta entra no rótulo da veia; o plexo (amarelo, acima e atrás
+          // da artéria) fica citado no texto
           labels: [
-            ['scvR', 'Veia subclávia (em corte)'],
-            ['needleTip', 'Ponta na luz venosa'],
+            ['subclaviusR', 'Músculo subclávio (em corte)'],
+            ['clavicleMidR', 'Clavícula (em corte)'],
+            ['scvR', 'Veia subclávia, com a ponta na luz'],
             ['firstRibR', '1ª costela'],
             ['scaleneAntR', 'Escaleno anterior'],
             ['scaR', 'Artéria subclávia'],
-            ['plexusR', 'Plexo braquial'],
             ['cupulaR', 'Cúpula pleural']
           ],
           highlight: 'subclavius-R',
@@ -958,18 +969,18 @@
       /* ---------------------------------------------------------------- 09 */
       {
         id: 'fio', n: '09', short: 'Refluxo e fio',
-        title: 'Refluxo e fio-guia: confirmar antes de dilatar',
+        title: 'Refluxo e fio-guia: confirmação antes da dilatação',
         focus: 'Refluxo isolado — sangue escuro, sem pulsação — não basta para afirmar posição venosa antes da dilatação.',
         body: [
           'Na descrição de ensino, o avanço cessa ao refluxo e o conjunto é estabilizado. No modelo, a mão de apoio sai de cena para expor canhão e fio; na prática, ela estabiliza o canhão apoiada no paciente enquanto a seringa é desconectada e o fio introduzido. Perder a veia nessa troca é erro frequente (Kilbourne et al.).',
-          'Cor e pulsatilidade não distinguem com segurança veia de artéria. Antes de dilatar, confirme a posição venosa por método objetivo — manometria, transdução de pressão ou ultrassom mostrando o fio na veia, entre outros, conforme o protocolo do serviço. Num programa com manometria obrigatória, não houve lesão arterial por cateter calibroso em 9.348 cateteres ao longo de 15 anos; no último ano, 4 de 28 punções arteriais só foram reconhecidas pela manometria (Ezaru et al.).',
-          'O fio progride <strong>sem força</strong>, com controle contínuo da extremidade externa. Resistência exige interrupção. Arritmias surgem quando o fio alcança o coração e acompanham o comprimento introduzido: num ECR pela jugular interna direita (69 pacientes), houve arritmia durante a dilatação em 65% com 20 cm de fio × 26% com 15 cm (Lee et al.). Pela subclávia direita as distâncias até a cava são maiores (Bannon et al.), mas a lógica é a mesma: não introduzir fio além do necessário.',
+          'Cor e pulsatilidade não distinguem com segurança veia de artéria. Por isso, nas descrições revisadas, a posição venosa é confirmada por método objetivo antes de dilatar — manometria (Ezaru et al.), transdução de pressão ou ultrassom mostrando o fio na veia, entre outros, conforme o protocolo do serviço. Num programa com manometria obrigatória, não houve lesão arterial por cateter calibroso em 9.348 cateteres ao longo de 15 anos; no último ano, 4 de 28 punções arteriais só foram reconhecidas pela manometria (Ezaru et al.).',
+          'O fio progride <strong>sem força</strong>, com controle contínuo da extremidade externa; diante de resistência, a passagem é interrompida. Arritmias surgem quando o fio alcança o coração e acompanham o comprimento introduzido: num ECR pela jugular interna direita (69 pacientes), houve arritmia durante a dilatação em 65% com 20 cm de fio × 26% com 15 cm (Lee et al.). Pela subclávia direita as distâncias até a cava são maiores (Bannon et al.), mas a relação é a mesma: fio introduzido além do necessário aumenta a chance de arritmia.',
           'À direita, o fio pode subir pela <strong>jugular interna</strong> na confluência — ative “Fio na VJI” (trajeto anômalo do fio-guia). Girar a cabeça para o lado oposto aumenta o ângulo entre subclávia e jugular e pode favorecer esse desvio (Bannon et al.). A orientação da ponta em J também pesa: num ECR com 295 pacientes, com o J voltado caudalmente o cateter chegou à cava/átrio em 97% (× 57% com o J voltado cranialmente) e foi para a jugular interna em 2% (× 40%) (Tripathi et al.). Por isso, no modelo, a agulha gira antes do fio para que o bisel — e, com ele, a saída do J — fique voltado para os pés; o ensaio avaliou a orientação do J, não a do bisel. A ausência de fio na jugular, isoladamente, não prova posição central correta.'
         ],
         keyPoints: [
-          'Estabilizar a agulha ao refluxo; não perder a veia na troca seringa → fio.',
-          'Confirmar posição venosa por método objetivo antes de dilatar.',
-          'Fio sem força; resistência ou arritmia → parar e reavaliar.',
+          'Ao refluxo, a agulha é estabilizada; perder a veia na troca seringa → fio é erro frequente (Kilbourne et al.).',
+          'Posição venosa confirmada por método objetivo antes de dilatar (Ezaru et al.).',
+          'Fio sem força; resistência ou arritmia interrompem a passagem para reavaliação.',
           'À direita, o fio pode desviar para a jugular interna.',
           'Bisel e ponta em J voltados caudalmente (no modelo, o bisel gira para os pés na passagem do fio): num ECR pela subclávia direita, desvio para a jugular interna em 2% com o J caudal × 40% com o J cranial (Tripathi et al.).'
         ],
@@ -989,7 +1000,7 @@
             'Confirmar a posição venosa por método objetivo, como manometria ou ultrassom do fio na veia'
           ],
           answer: 3,
-          explain: 'Cor e pulsação enganam; a confirmação objetiva antes da dilatação evitou lesões arteriais por cateter calibroso numa série de 15 anos (Ezaru et al.). Avançar o fio até haver resistência é exatamente o que não se faz.'
+          explain: 'Cor e pulsação enganam; a confirmação objetiva antes da dilatação evitou lesões arteriais por cateter calibroso numa série de 15 anos (Ezaru et al.). Avançar o fio até haver resistência contraria a descrição de passagem sem força.'
         },
         scene: {
           // enquadra da jugular interna à veia cava superior (a VCS ficava fora do quadro)
@@ -1018,24 +1029,24 @@
       {
         id: 'cateter', n: '10', short: 'Cateter',
         title: 'Dilatador e cateter: até onde vai e onde termina a ponta',
-        focus: 'O dilatador abre o trajeto até a parede venosa — não precisa nem deve entrar fundo na veia. A posição da ponta do cateter é confirmada por imagem.',
+        focus: 'O dilatador abre o trajeto até a parede venosa — segundo Bannon et al., não precisa entrar fundo na veia. A posição da ponta do cateter é confirmada por imagem.',
         body: [
-          'Dilatadores são rígidos e calibrosos. Bannon et al. recomendam avançá-los só até a superfície da veia — no máximo a profundidade em que a agulha a acessou, nunca mais que milímetros dentro dela —, porque à direita a curva subclávia → cava favorece a perfuração da parede por um dilatador que não acompanha a curva. Siga também as instruções do dispositivo e o protocolo do serviço.',
-          'A ponta ideal fica na <strong>veia cava superior distal, próxima à junção cavoatrial</strong>, fora do átrio e paralela à parede. Na superfície, Bannon et al. medem a distância da punção ao ângulo do esterno, ao longo do trajeto venoso, para estimar quanto introduzir; como o ângulo fica aproximadamente no plano da carina e a junção cavoatrial alguns centímetros abaixo (cerca de 4 cm no modelo, valor nominal), a estimativa é grosseira. Na radiografia, o ângulo traqueobrônquico direito — segundo dados citados por Bannon et al., ao menos 2,9 cm acima da junção cavoatrial — e a <strong>carina</strong>, critério conservador: ponta acima dela costuma estar fora do átrio. Numa auditoria em UTI (Stonelake & Bodenham), 74 de 163 cateteres à direita tinham a ponta abaixo da carina, quase nenhum em ângulo agudo com a parede; à esquerda, pontas acima da carina muitas vezes ficavam altas ou em ângulo agudo, e os autores sugerem que ali a ponta abaixo da carina tende a ser mais satisfatória.',
-          'Comprimento: em medidas fluoroscópicas citadas por Bannon et al., a distância média da pele à junção cava–átrio foi de 18,4 cm pela subclávia direita (16,0 cm pela jugular interna direita; 21,2 cm pela subclávia esquerda). São médias de referência; a posição final exige confirmação por imagem.',
-          'Antes do uso: aspirar e lavar todas as vias, fixar, confirmar posição e pesquisar complicações conforme o protocolo. Na suspeita de dilatador ou cateter em artéria, <strong>não remover às cegas</strong>. Na revisão da literatura de Guilbert et al., a retirada seguida de compressão teve complicações maiores em 47% (8/17), contra 0/13 com reparo cirúrgico imediato; na série dos autores, os 5 casos tratados com compressão tiveram complicações graves, contra 0/8 com reparo aberto ou endovascular.'
+          'Dilatadores são rígidos e calibrosos. Bannon et al. recomendam avançá-los só até a superfície da veia — no máximo a profundidade em que a agulha a acessou, nunca mais que milímetros dentro dela —, porque à direita a curva subclávia → cava favorece a perfuração da parede por um dilatador que não acompanha a curva. As instruções do dispositivo e o protocolo do serviço completam essa descrição.',
+          'A posição descrita como ideal para a ponta é a <strong>veia cava superior distal, próxima à junção cavoatrial</strong>, fora do átrio e paralela à parede (Bannon et al.). Na superfície, Bannon et al. medem a distância da punção ao ângulo do esterno, ao longo do trajeto venoso, para estimar quanto introduzir; como o ângulo fica aproximadamente no plano da carina e a junção cavoatrial alguns centímetros abaixo (cerca de 4 cm no modelo, valor nominal), a estimativa é grosseira. Na radiografia, servem de referência o ângulo traqueobrônquico direito — segundo dados citados por Bannon et al., ao menos 2,9 cm acima da junção cavoatrial — e a <strong>carina</strong> (critério conservador: ponta acima dela costuma estar fora do átrio). Numa auditoria em UTI (Stonelake & Bodenham), 74 de 163 cateteres à direita tinham a ponta abaixo da carina, quase nenhum em ângulo agudo com a parede; à esquerda, pontas acima da carina muitas vezes ficavam altas ou em ângulo agudo, e os autores sugerem que ali a ponta abaixo da carina tende a ser mais satisfatória.',
+          'Comprimento: em medidas fluoroscópicas citadas por Bannon et al., a distância média da pele à junção cava–átrio foi de 18,4 cm pela subclávia direita (16,0 cm pela jugular interna direita; 21,2 cm pela subclávia esquerda). São médias de referência; a posição final só se confirma por imagem.',
+          'Antes do uso, os protocolos incluem aspirar e lavar todas as vias, fixar o cateter, confirmar a posição e pesquisar complicações. Na suspeita de dilatador ou cateter em artéria, Guilbert et al. descrevem <strong>não removê-lo às cegas</strong>: na revisão da literatura dos autores, a retirada seguida de compressão teve complicações maiores em 47% (8/17), contra 0/13 com reparo cirúrgico imediato; na série própria, os 5 casos tratados com compressão tiveram complicações graves, contra 0/8 com reparo aberto ou endovascular.'
         ],
         keyPoints: [
-          'Dilatador só até a profundidade da veia.',
+          'Dilatador só até a profundidade da veia (Bannon et al.).',
           'Ponta na cava distal/junção cavoatrial, paralela à parede, fora do átrio.',
           'Carina e ângulo traqueobrônquico direito: referências radiográficas; o ângulo do esterno, no plano da carina, só estima o comprimento.',
-          'Cateter calibroso em artéria: não retirar às cegas — acionar equipe especializada.'
+          'Cateter calibroso em artéria: a retirada às cegas teve mais complicações que o reparo especializado (Guilbert et al.).'
         ],
         pitfalls: [
           'Introduzir o dilatador em todo o comprimento “por garantia”.',
           'Dar a posição por correta só porque o cateter infunde bem.'
         ],
-        detail: 'A cena mostra o <strong>dilatador</strong> sobre o fio, com a ponta parada cerca de 2 mm além da parede anterior da veia (anel dourado = profundidade em que a agulha alcançou a veia, ≈4 cm após a pele no modelo). Em “Etapas da agulha”, escolha “Cateter” para ver o cateter posicionado: três vias (distal, medial e proximal), marcas de comprimento contadas a partir da ponta e canhão com asas. No modelo, ≈16 cm ficam introduzidos — menos que a média de 18,4 cm citada por Bannon et al., num tórax nominal magro — e a ponta para ≈1 cm acima da junção cavoatrial. O trecho intravascular tem calibre único e segue um trajeto idealizado, sem a deformação real ao contornar a confluência.',
+        detail: 'A cena mostra o <strong>dilatador</strong> sobre o fio, com a ponta parada cerca de 2 mm além da parede anterior da veia (anel dourado = profundidade em que a agulha alcançou a veia, ≈4 cm após a pele no modelo). Em “Etapas da agulha”, escolha “Cateter” para ver o cateter posicionado: três vias (distal, medial e proximal), marcas de comprimento contadas a partir da ponta e canhão com asas. No modelo, ≈16 cm ficam introduzidos — menos que a média de 18,4 cm citada por Bannon et al., num tórax nominal magro — e a ponta para a menos de 1 cm acima da junção cavoatrial (≈0,7–0,9 cm no modelo). O trecho intravascular tem calibre único e segue um trajeto idealizado, sem a deformação real ao contornar a confluência.',
         sources: [1, 19, 21],
         quiz: {
           q: 'Qual o limite de avanço do dilatador recomendado por Bannon et al.?',
@@ -1046,7 +1057,7 @@
             'O comprimento de fio-guia já introduzido'
           ],
           answer: 0,
-          explain: 'O dilatador deve criar o trajeto até a parede da veia, não avançar dentro dela; à direita, a curva para a cava torna a parede venosa vulnerável a um dilatador rígido.'
+          explain: 'Para Bannon et al., o dilatador cria o trajeto até a parede da veia, sem avançar dentro dela; à direita, a curva para a cava torna a parede venosa vulnerável a um dilatador rígido.'
         },
         scene: {
           // alvo mais à direita e acima (onda 3): o dilatador inteiro, com o canhão azul, entra no quadro junto da
@@ -1066,7 +1077,7 @@
             ['cavoatrial', 'Junção cavoatrial (alvo da ponta do cateter)'],
             ['svc', 'Veia cava superior'],
             ['carina', 'Carina (referência radiográfica)'],
-            ['sternalAngle', 'Ângulo do esterno (≈ plano da carina)']
+            ['sternalAngle', 'Plano do ângulo do esterno (≈ carina)']
           ],
           highlight: 'dilator',
           anim: null
@@ -1138,7 +1149,7 @@
           'Clavícula–veia é o intervalo entre osso e vaso. Pele–veia depende da espessura e da compressão dos tecidos e da direção em que se mede. Comprimento de agulha é medido ao longo da haste. Nenhuma delas determina, sozinha, a distância entre ponta e pleura.',
           'Os estudos diferem porque mediram coisas diferentes. Em tomografia de 7 voluntários (Kitagawa et al.), a distância clavícula–veia foi 6,8 mm com o ombro elevado, 5,0 mm neutro e 3,6 mm abaixado (tracionado caudalmente), com maior sobreposição clavícula–veia no ombro abaixado; num ensaio com 30 pacientes, o sucesso foi maior com o ombro abaixado do que elevado. Em cadáveres (Tan et al.), elevar o ombro reduziu a sobreposição, leve retração aumentou o contato veia–clavícula e protração afastou a clavícula da veia.',
           'Coxins: em ressonância e dissecção, ombros retraídos e cabeça girada distorceram a anatomia da veia (Jesseph et al.); Bannon et al. descrevem compressão da veia entre a clavícula e a 1ª costela com rolo entre as escápulas. Em duplex de 10 voluntários (veia subclávia <em>esquerda</em>), arquear os ombros produziu o menor diâmetro (0,84 cm) e o Trendelenburg com cabeça e ombros neutros, o maior (0,99 cm) (Fortune & Feustel). Rolo interescapular e pequeno rolo sob o ombro ipsilateral são posições diferentes, não equivalentes.',
-          'As recomendações não coincidem: Tan et al. sugerem ombros neutros com leve retração; Jesseph et al., cabeça e ombros neutros; Bannon et al. indicam Trendelenburg para enchimento venoso e menor risco de embolia gasosa, mas afirmam que ele não aumenta o calibre da subclávia. “Tarô”: interpretação provisória do termo do documento-base como coxim ou rolo — leia esta parte de forma condicional até o termo ser esclarecido. Após qualquer mudança de posição, reavalie os marcos e, se disponível, a janela ultrassonográfica.'
+          'As recomendações não coincidem: Tan et al. sugerem ombros neutros com leve retração; Jesseph et al., cabeça e ombros neutros; Bannon et al. indicam Trendelenburg para enchimento venoso e menor risco de embolia gasosa, mas afirmam que ele não aumenta o calibre da subclávia. O documento-base usa o termo “tarô”, aqui entendido como coxim ou rolo de apoio sob o dorso. Como cada posição muda a relação clavícula–veia, marcos palpados antes de uma mudança de posição — e a janela ultrassonográfica, se disponível — podem não valer depois dela.'
         ],
         keyPoints: [
           'Três medidas: clavícula–veia, pele–veia e comprimento da haste — nenhuma é ponta–pleura.',
@@ -1190,21 +1201,21 @@
         focus: 'Cada complicação mecânica tem uma estrutura vizinha “dona”; conhecê-la orienta prevenção, reconhecimento e escalonamento.',
         body: [
           'Comparação entre sítios: no ECR 3SITES (3.471 cateteres em UTI), a subclávia teve menos infecção de corrente sanguínea e trombose sintomática (1,5 evento por 1.000 cateter-dias, contra 3,6 na jugular e 4,6 na femoral, na comparação entre os três sítios), porém mais pneumotórax com drenagem (1,5% × 0,5% na jugular) (Parienti et al.). Numa revisão de estudos não randomizados, a via subclávia teve menos punção arterial (0,5% × 3,0%) e mais mau posicionamento (9,3% × 5,3%) que a jugular, sem diferença clara em hemo/pneumotórax (Ruesch et al.).',
-          'Por estrutura: <strong>pleura</strong> (pneumotórax, hemotórax); <strong>artéria subclávia</strong> (punção arterial, hematoma de difícil compressão sob a clavícula, pseudoaneurisma); <strong>plexo braquial</strong> e <strong>frênico</strong> (lesão direta ou por hematoma); <strong>ducto torácico</strong> (quilotórax, sobretudo à esquerda); <strong>coração e pericárdio</strong> (arritmia pelo fio, perfuração, tamponamento); confluência venosa (mau posicionamento); a própria veia (trombose, infecção). A embolia gasosa ocorre com o sistema aberto e pressão intratorácica negativa: Bannon et al. recomendam o Trendelenburg, quando tolerado, também para reduzir esse risco, e o sistema não deve ficar aberto ao ar (canhão e vias ocluídos).',
+          'Por estrutura: <strong>pleura</strong> (pneumotórax, hemotórax); <strong>artéria subclávia</strong> (punção arterial, hematoma de difícil compressão sob a clavícula, pseudoaneurisma); <strong>plexo braquial</strong> e <strong>frênico</strong> (lesão direta ou por hematoma); <strong>ducto torácico</strong> (quilotórax, sobretudo à esquerda); <strong>coração e pericárdio</strong> (arritmia pelo fio, perfuração, tamponamento); confluência venosa (mau posicionamento); a própria veia (trombose, infecção). A embolia gasosa ocorre com o sistema aberto e pressão intratorácica negativa: Bannon et al. recomendam o Trendelenburg, quando tolerado, também para reduzir esse risco; a outra medida descrita é manter o sistema fechado ao ar (canhão e vias ocluídos).',
           'As frequências variam muito com operador, população e uso de ultrassom. No grupo por marcos do ECR de Fragou et al. (pacientes ventilados), houve punção arterial em 5,4%, hemotórax em 4,4%, pneumotórax em 4,9%, lesão do plexo em 2,9%, do frênico em 1,5% e tamponamento em 0,5% — todas menores com ultrassom. Números de um centro não são estimativas universais.',
-          'Sinais de alarme exigem interrupção e avaliação: ar aspirado, piora respiratória, dor torácica, parestesia, sangue pulsátil ou suspeita arterial, resistência inesperada, arritmia. Na suspeita de dilatador ou cateter em artéria, não remover às cegas; acionar manejo especializado (Guilbert et al.).'
+          'Nas descrições de ensino, sinais de alarme interrompem o procedimento para avaliação: ar aspirado, piora respiratória, dor torácica, parestesia, sangue pulsátil ou suspeita arterial, resistência inesperada, arritmia. Na suspeita de dilatador ou cateter em artéria, Guilbert et al. descrevem não removê-lo às cegas e acionar manejo especializado.'
         ],
         keyPoints: [
           'Subclávia × jugular: menos infecção/trombose, mais pneumotórax (3SITES).',
           'Menos punção arterial, mais mau posicionamento (revisão não randomizada).',
           'Cada complicação tem uma estrutura “dona”: pleura, artéria, plexo, frênico, ducto, coração.',
-          'Sinal de alarme → parar, avaliar, escalonar.'
+          'Sinal de alarme → interrupção, avaliação e escalonamento.'
         ],
         pitfalls: [
           'Generalizar taxas de um estudo para o próprio serviço.',
           'Retirar às cegas um dilatador ou cateter calibroso em artéria.'
         ],
-        detail: 'Clique numa complicação da tabela para destacar a estrutura correspondente no modelo. A cena mostra a ponta na luz venosa e as estruturas em risco ao redor.',
+        detail: 'Use “Ver no 3D” numa complicação da tabela (aqui ou no material complementar) para destacar a estrutura correspondente no modelo. A cena mostra a ponta na luz venosa e as estruturas em risco ao redor.',
         sources: [1, 12, 13, 14, 15, 21],
         quiz: {
           q: 'No ECR 3SITES, em comparação com a jugular interna, a via subclávia associou-se a:',
@@ -1245,8 +1256,8 @@
         body: [
           'A clavícula produz sombra acústica e dificulta ver a subclávia propriamente dita. Por isso a abordagem guiada costuma ser <strong>infraclavicular e mais lateral</strong>, sobre a <strong>veia axilar</strong> antes de ela se tornar subclávia: em eixo curto, a veia é compressível e fica anterior à artéria, pulsátil e não compressível (Bannon et al.); a artéria aparece também cranial à veia, e a sobreposição entre elas diminui à medida que a janela se desloca lateralmente. Em 50 sujeitos (Galloway & Bodenham), do ponto médio da clavícula para cerca de 4 cm lateralmente, a profundidade pele–veia passou de 1,9 para 3,1 cm, o diâmetro caiu de 1,2 para 0,9 cm, a sobreposição artéria–veia diminuiu (mediana de 2/3 para nenhuma) e a distância veia–caixa torácica subiu de 1,0 para 2,0 cm.',
           'Evidência: no ECR de Fragou et al. (401 pacientes ventilados analisados, punção infraclavicular), o ultrassom em tempo real teve sucesso em 100% contra 87,5% por marcos, com menos tentativas e menos complicações. A meta-análise de Lalu et al. (10 ECR, 2.168 participantes) mostrou menos complicações com ultrassom (OR 0,53), com redução de punção arterial, pneumotórax e hematoma no subgrupo 2D dinâmico. A revisão Cochrane de Brass et al. (subclávia: 9 estudos) encontrou menos punção arterial (RR 0,21) e hematoma (RR 0,26), com evidência de baixa qualidade.',
-          'Não misture automaticamente o ponto de entrada e a trajetória da técnica por marcos com os da abordagem axilar guiada. Ver a ponta continuamente é diferente de marcar a pele após um exame: localizar a veia sem orientação em tempo real não melhorou sucesso nem complicações (Bannon et al.).',
-          'No treino supervisionado, peça ao preceptor que avalie separadamente cada item da lista de verificação abaixo. O arquivo não certifica competência nem substitui simulação com feedback.'
+          'O ponto de entrada e a trajetória da técnica por marcos não se transferem automaticamente para a abordagem axilar guiada. Ver a ponta continuamente é diferente de marcar a pele após um exame: localizar a veia sem orientação em tempo real não melhorou sucesso nem complicações (Bannon et al.).',
+          'No treino supervisionado, a lista de verificação abaixo permite ao preceptor avaliar cada item separadamente. O arquivo não certifica competência nem substitui simulação com feedback.'
         ],
         keyPoints: [
           'Sombra da clavícula: a janela guiada costuma ser lateral, na veia axilar.',
@@ -1395,7 +1406,7 @@
       { label: 'Veia axilar infraclavicular: diâmetro e relações', value: 'Diâmetro 1,2 → 0,9 cm · distância artéria–veia 0,3 → 0,8 cm · veia–caixa torácica 1,0 → 2,0 cm (medial → lateral)',
         note: 'Mesmo estudo; braço em 0°, 45° e 90° de abdução avaliados.', source: [18] },
       { label: 'Distância pele → junção cava–átrio pelo fio-guia', value: '18,4 cm (subclávia D) · 16,0 cm (jugular interna D) · 19,1 cm (jugular interna E) · 21,2 cm (subclávia E)',
-        note: 'Médias fluoroscópicas citadas em revisão; a posição da ponta sempre exige confirmação por imagem.', source: [1] },
+        note: 'Médias fluoroscópicas citadas em revisão; a posição da ponta só se confirma por imagem.', source: [1] },
       { label: 'Ângulo traqueobrônquico direito × junção cavoatrial', value: 'ao menos 2,9 cm acima da junção',
         note: 'Dado citado em revisão como base para manter a ponta extracardíaca; referência radiográfica, não medida individual.', source: [1] },
       { label: 'Artéria torácica interna × borda do esterno', value: '1,57 ± 0,30 cm (D) · 1,47 ± 0,30 cm (E); veia torácica interna ≈ 1,0 cm',
@@ -1408,20 +1419,20 @@
     complications: [
       { name: 'Pneumotórax', structure: 'pleura-R',
         mechanism: 'Ponta além do plano venoso, sobretudo com a ponta angulada para trás (seringa levantada) ou caudalmente; medialmente, a veia apoia-se na pleura apical.',
-        recognition: 'Ar aspirado, dispneia, dor torácica, tosse, queda da saturação; pode não ser imediato — reavaliar e confirmar por imagem conforme protocolo.',
-        prevention: 'Conjunto paralelo ao plano coronal sob a clavícula; entrada não colada à clavícula; recuar antes de redirecionar; ultrassom quando disponível.',
+        recognition: 'Ar aspirado, dispneia, dor torácica, tosse, queda da saturação; pode não ser imediato — a confirmação é por imagem, conforme protocolo.',
+        prevention: 'Conjunto paralelo ao plano coronal sob a clavícula e entrada afastada da clavícula (Bannon et al.); recuo ao plano superficial antes de redirecionar; ultrassom, quando disponível (Fragou et al.).',
         incidence: '1,5% com drenagem (subclávia) × 0,5% (jugular) no 3SITES; 4,9% no grupo por marcos de Fragou et al.',
         source: [1, 14, 15] },
       { name: 'Punção arterial / hematoma', structure: 'sca-R',
         mechanism: 'Trajeto dirigido para trás (atrás do escaleno) ou lateral à 1ª costela, onde a artéria fica logo atrás da veia sem músculo interposto.',
-        recognition: 'Sangue pulsátil ou vermelho-vivo — sinais não confiáveis isoladamente; confirmar por manometria/transdução ou ultrassom.',
-        prevention: 'Mirar logo acima da incisura jugular; não dirigir para trás; confirmar posição venosa antes de dilatar; ultrassom.',
+        recognition: 'Sangue pulsátil ou vermelho-vivo — sinais não confiáveis isoladamente; a confirmação descrita é por manometria (Ezaru et al.), transdução ou ultrassom.',
+        prevention: 'Direção logo acima da incisura jugular, sem trajeto dirigido para trás (Bannon et al.); confirmação venosa objetiva antes de dilatar (Ezaru et al.); ultrassom (Fragou et al.).',
         incidence: '0,5% (subclávia) × 3,0% (jugular) em estudos não randomizados; 5,4% no grupo por marcos de Fragou et al.',
         source: [1, 13, 15, 20] },
       { name: 'Canulação arterial com dilatador/cateter', structure: 'sca-R',
         mechanism: 'Dilatação após punção arterial não reconhecida.',
         recognition: 'Fluxo pulsátil pelo cateter, curva de pressão arterial, gasometria/imagem.',
-        prevention: 'Confirmação venosa objetiva antes de dilatar (nenhuma lesão em 9.348 cateteres com manometria obrigatória).',
+        prevention: 'Confirmação venosa objetiva antes de dilatar — nenhuma lesão em 9.348 cateteres com manometria obrigatória (Ezaru et al.).',
         incidence: 'Sem estimativa generalizável. Guilbert et al.: retirada com compressão → complicações maiores em 8/17 (47%) na revisão da literatura e em 5/5 na série própria; reparo imediato → nenhuma (0/13 cirúrgico na revisão; 0/8 aberto ou endovascular na série).',
         source: [20, 21] },
       { name: 'Hemotórax', structure: 'pleura-R',
@@ -1433,13 +1444,13 @@
       { name: 'Lesão do plexo braquial', structure: 'brachial-plexus-R',
         mechanism: 'Trajeto posterior e cranial. Lesão direta é improvável; o hematoma de uma punção arterial pode causar neuropatia compressiva (Bannon et al.).',
         recognition: 'Parestesia ou dor irradiada para o membro durante a punção; déficit posterior.',
-        prevention: 'Interromper imediatamente diante de parestesia; não dirigir para trás.',
+        prevention: 'Nas descrições de ensino, interrupção imediata diante de parestesia; trajeto não dirigido para trás (Bannon et al.).',
         incidence: '2,9% no grupo por marcos de Fragou et al.',
         source: [1, 15] },
       { name: 'Lesão do nervo frênico', structure: 'phrenic-R',
         mechanism: 'Agulha profunda sobre a face anterior do escaleno anterior ou medialmente, onde o frênico passa entre artéria e veia.',
         recognition: 'Elevação da hemicúpula diafragmática, dispneia, dificuldade de desmame.',
-        prevention: 'Não aprofundar além da veia; ultrassom.',
+        prevention: 'Trajeto que não ultrapassa a veia; ultrassom (Fragou et al.).',
         incidence: '1,5% no grupo por marcos de Fragou et al.',
         source: [1, 15] },
       { name: 'Quilotórax / fístula linfática', structure: 'thoracic-duct',
@@ -1450,36 +1461,36 @@
       { name: 'Embolia gasosa', structure: 'svc',
         mechanism: 'Entrada de ar pela agulha, canhão ou cateter abertos durante a inspiração (pressão intratorácica negativa).',
         recognition: 'Dispneia súbita, hipotensão, hipoxemia, alteração neurológica.',
-        prevention: 'Trendelenburg quando tolerado (Bannon et al.); canhão e vias sempre ocluídos, sem sistema aberto ao ar.',
+        prevention: 'Trendelenburg, quando tolerado (Bannon et al.); canhão e vias ocluídos, sem sistema aberto ao ar.',
         source: [1] },
       { name: 'Arritmia induzida pelo fio-guia', structure: 'heart',
         mechanism: 'Fio longo alcançando átrio ou ventrículo direitos.',
         recognition: 'Extrassístoles ou taquiarritmias no monitor durante a passagem do fio.',
-        prevention: 'Monitorização; não introduzir fio além do necessário; recuar o fio diante de arritmia.',
+        prevention: 'Monitorização; fio introduzido só o necessário (Lee et al.); recuo do fio diante de arritmia.',
         incidence: 'Via jugular interna D (ECR, 69 pacientes): arritmia durante a dilatação em 65% com 20 cm × 26% com 15 cm de fio.',
         source: [22] },
       { name: 'Mau posicionamento (jugular interna, contralateral, ázigo)', structure: 'ijv-R',
         mechanism: 'Curva quase em ângulo reto da confluência direita; rotação contralateral da cabeça pode favorecer a subida para a jugular.',
         recognition: 'Imagem de controle; dificuldade de aspirar; curva de pressão inadequada.',
-        prevention: 'Fio sem força; ponta em J voltada caudalmente (Tripathi et al.); cabeça em posição neutra; confirmar a posição da ponta por imagem.',
+        prevention: 'Fio sem força; ponta em J voltada caudalmente (Tripathi et al.); cabeça em posição neutra; posição da ponta confirmada por imagem.',
         incidence: '9,3% (subclávia) × 5,3% (jugular) em estudos não randomizados; para a jugular interna, 2% com o J caudal × 40% com o J cranial num ECR pela subclávia direita (Tripathi et al.).',
         source: [1, 13, 26] },
       { name: 'Perfuração venosa / tamponamento', structure: 'pericardium',
         mechanism: 'Dilatador rígido avançado além da profundidade da veia, ou ponta de cateter dentro do coração/apoiada na parede.',
         recognition: 'Hipotensão, derrame pericárdico ou mediastinal, refluxo ausente após dilatação.',
-        prevention: 'Dilatador só até a profundidade da veia; ponta na cava distal, paralela à parede.',
+        prevention: 'Dilatador só até a profundidade da veia; ponta na cava distal, paralela à parede (Bannon et al.).',
         incidence: 'Tamponamento em 0,5% no grupo por marcos de Fragou et al.',
         source: [1, 15, 19] },
       { name: 'Infecção e trombose relacionadas ao cateter', structure: 'scv-R',
         mechanism: 'Colonização do cateter; trauma endotelial e estase.',
         recognition: 'Febre, sinais locais, hemoculturas; edema do membro.',
-        prevention: 'Clorexidina, barreira estéril máxima, retirada assim que dispensável.',
+        prevention: 'Clorexidina e barreira estéril máxima (Bannon et al.); retirada do cateter quando deixa de ser necessário.',
         incidence: '1,5 (subclávia) × 3,6 (jugular) × 4,6 (femoral) eventos/1.000 cateter-dias no desfecho composto do 3SITES.',
         source: [1, 14] },
       { name: 'Pinch-off (cateteres de longa permanência)', structure: 'costoclavicular-lig-R',
         mechanism: 'Compressão do cateter entre clavícula e 1ª costela, mais provável com punção medial.',
         recognition: 'Dificuldade intermitente de infundir/aspirar que muda com a posição do braço; estreitamento na radiografia.',
-        prevention: 'Evitar punção muito medial em cateteres de longa permanência.',
+        prevention: 'Punção não muito medial em cateteres de longa permanência (Bannon et al.).',
         incidence: '1–5% em cateteres de longa permanência (dado citado em revisão).',
         source: [1] }
     ],
@@ -1492,8 +1503,8 @@
       { depth: 4, tissue: 'Fáscia clavipeitoral', note: 'Envolve subclávio e peitoral menor; atravessada pela veia cefálica, vasos toracoacromiais e nervo peitoral lateral.' },
       { depth: 5, tissue: 'Músculo subclávio', note: 'Logo sob a clavícula; a agulha passa através dele (Bannon et al.). O periósteo da clavícula fica acima — atravessá-lo é erro descrito.' },
       { depth: 6, tissue: 'Tecido fibroso que suspende a veia', note: 'Adventícia ligada ao periósteo, ao ligamento costoclavicular e às fáscias do subclávio e do escaleno anterior.' },
-      { depth: 7, tissue: 'Parede anterior da veia subclávia → luz', note: 'Sobre a 1ª costela, anterior ao escaleno anterior. Aqui o avanço termina.' },
-      { depth: 8, tissue: 'Além da veia (não atingir)', note: 'Sobre a costela: escaleno anterior com o frênico, artéria subclávia, plexo. Medialmente: frênico, artéria torácica interna e pleura apical.' }
+      { depth: 7, tissue: 'Parede anterior da veia subclávia → luz', note: 'Sobre a 1ª costela, anterior ao escaleno anterior. Na técnica descrita, o avanço termina aqui.' },
+      { depth: 8, tissue: 'Além da veia (estruturas em risco)', note: 'Sobre a costela: escaleno anterior com o frênico, artéria subclávia, plexo. Medialmente: frênico, artéria torácica interna e pleura apical.' }
     ],
 
     /* ---------------- Treino supervisionado: o que o preceptor avalia ---------------- */
@@ -1514,7 +1525,7 @@
 
     /* ---------------- Ultrassom esquemático (infraclavicular lateral, eixo curto) ---------------- */
     usg: {
-      caption: 'Esquema da janela infraclavicular lateral, em eixo curto sobre a veia axilar (cranial à esquerda). Do superficial ao profundo: pele e subcutâneo, peitoral maior, peitoral menor; a veia axilar (compressível) e, cranial e posterior a ela, a artéria axilar (pulsátil, não compressível), com fascículos do plexo ao redor da artéria — a sobreposição entre os vasos diminui à medida que a janela se desloca lateralmente (Galloway & Bodenham). Mais fundo, costela com sombra acústica e linha pleural. A agulha só avança com a ponta visível.',
+      caption: 'Esquema da janela infraclavicular lateral, em eixo curto sobre a veia axilar (cranial à esquerda). Do superficial ao profundo: pele e subcutâneo, peitoral maior, peitoral menor; a veia axilar (compressível) e, cranial e posterior a ela, a artéria axilar (pulsátil, não compressível), com fascículos do plexo ao redor da artéria — a sobreposição entre os vasos diminui à medida que a janela se desloca lateralmente (Galloway & Bodenham). Mais fundo, costela com sombra acústica e linha pleural. Na técnica guiada em tempo real, a agulha avança com a ponta visível na tela.',
       labels: [
         { key: 'skin', text: 'Pele e subcutâneo' },
         { key: 'pecMajor', text: 'Peitoral maior' },
@@ -1524,7 +1535,7 @@
         { key: 'plexus', text: 'Fascículos do plexo braquial' },
         { key: 'rib', text: 'Costela com sombra acústica' },
         { key: 'pleura', text: 'Linha pleural' },
-        { key: 'needle', text: 'Ponta da agulha (sempre visível)' }
+        { key: 'needle', text: 'Ponta da agulha (visível em tempo real)' }
       ]
     },
 

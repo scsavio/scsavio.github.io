@@ -1764,7 +1764,22 @@ diffuseColor.rgb *= triT.rgb;`)
     lungBaseR: lungBaseAnt,
     costophrenicR: hit((x, y, z) => pleuraF('R', x, y, z), [17, (lbMal + rfMal) / 2, malZ], [-1, 0, 0]),
     horizontalFissureR: hit(lungR, [10.4, yHor(10.4, -0.3), 8], [0, 0, -1]),
-    obliqueFissureR: hit(lungR, [17, yO('R', malZ) + oblLift('R', 13.3, malZ), malZ], [-1, 0, 0]),
+    // fissura oblíqua D no trecho ANTEROLATERAL (entre os lobos médio e inferior, abaixo da horizontal): visível de frente e
+    // separada da âncora da fissura horizontal (o ponto na linha axilar média coincidia com o encontro das duas fissuras)
+    obliqueFissureR: (() => {
+      const lat = hit(lungR, [17, yO('R', malZ) + oblLift('R', 13.3, malZ), malZ], [-1, 0, 0]);
+      // varre a face anterior (raios de frente) e escolhe o ponto cujo y coincide com o da fissura na profundidade atingida
+      let best = null;
+      for (const X of [12.0, 11.0, 9.0]) {
+        for (let y = -16.8; y <= -11; y += 0.1) {
+          const q = hit(lungR, [X, y, 8], [0, 0, -1]); if (q[2] === 8 || q[2] < -4) continue; // sem pulmão / não é a face anterolateral
+          const e = Math.abs(q[1] - (yO('R', q[2]) + oblLift('R', X, q[2])));
+          if (!best || e < best.e) best = { e, q };
+        }
+        if (best && best.e < 0.15) break;
+      }
+      return best && best.e < 0.4 ? best.q : lat;
+    })(),
     lungL: hit(lungLf, [-8.6, -6.5, 8], [0, 0, -1]),
     cardiacNotch: hit((x, y, z) => periF(x, y, z), [-3.2, -12.2, 8], [0, 0, -1]),
     trachea: [TR.pts[2][0], TR.pts[2][1], TR.pts[2][2] + TR.r],

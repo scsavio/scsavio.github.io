@@ -114,7 +114,9 @@
   /* Fixação em bailarina (notes/FIXACAO_CONTRACT.md): E.state.fixStep 0..9; a animação passa por valores k + t
      (t = progresso do movimento da etapa k+1), com pausa em cada etapa concluída. */
   const FIX_MAX = 9, FIX_MOVE_MS = 1500, FIX_PAUSE_MS = 900;
-  const FIX_SHORT = ['Sem fixação', 'Preparo', 'Ancoragem', 'Nó de ancoragem', '1º cruzamento', '2º cruzamento', '3º cruzamento + nó', 'Corte e conferência', 'Pontos nas asas', 'Curativo'];
+  /* rótulos curtos das etapas: os mesmos de api.steps do módulo 3D (src/modules/fixation.js, STEPS) — valem antes do
+     carregamento do módulo e sem o visor 3D; com o módulo carregado, fixShort() lê api.steps */
+  const FIX_SHORT = ['Sem fixação', 'Preparo', 'Ponto de ancoragem', 'Nó de ancoragem', '1º cruzamento', '2º cruzamento', '3º cruzamento e nó final', 'Corte e conferência', 'Pontos nas asas', 'Curativo'];
   /* Âncoras situadas DENTRO de uma estrutura (centro de vaso, polpa dos dedos): a parede da própria estrutura não
      conta como obstáculo na oclusão dos rótulos (senão "· profundo" aparece com a estrutura em plena vista). */
   const ANCHOR_OWNER = {
@@ -125,6 +127,9 @@
     trachea: /^trachea$/, carina: /^(trachea|bronchus-[RL])$/, esophagus: /^esophagus$/, heart: /^heart$/, lungR: /^lung-R-/, lungL: /^lung-L-/,
   };
   const HAND_ANCHORS = new Set(['indexTip', 'thumbTip', 'palm', 'thumbVector']);
+  /** Ids da fixação do cateter (módulo 'fixation'): material e passos que não fazem parte da punção — cartão e glossário
+      dizem "na fixação" em vez de "na punção". */
+  const isFixId = (id) => /^(suture-.+|needle-holder|tissue-forceps|dressing-transparent|chg-pad)$/.test(String(id || ''));
   /* Âncoras de objetos que entram e saem de cena com a etapa (mão, agulha, fio, dilatador, cateter): o rótulo só
      aparece enquanto alguma malha do dono está visível (ex.: cap. 10 → etapa "Cateter": o dilatador saiu, seus rótulos
      também). Verificado com cache curto (as trocas de objeto são animadas, ~1 s). */
@@ -378,16 +383,38 @@
     if (t.dataset.show) return showStructure(t.dataset.show, t);
   }
 
+  /** Linhas de uma tabela pertinentes ao capítulo atual (insets compactos): (1) scene.insetRows dos dados — índices ou
+      trechos do título da linha; (2) linhas com fonte própria do capítulo (exceto as fontes gerais, citadas por mais da
+      metade dos capítulos); (3) linhas cujo tema aparece no texto do capítulo; (4) as primeiras n. */
+  function chapterRows(rows, key, n) {
+    rows = arr(rows); const c = chapter(), sc = c.scene || {};
+    if (Array.isArray(sc.insetRows) && sc.insetRows.length) {
+      const pick = rows.filter((r, i) => sc.insetRows.some((q) => (typeof q === 'number' ? q === i : norm(stripTags(r[key])).indexOf(norm(q)) >= 0)));
+      if (pick.length) return pick;
+    }
+    const freq = {}; D.chapters.forEach((ch) => ch.sources.forEach((s) => (freq[s] = (freq[s] || 0) + 1)));
+    const own = c.sources.filter((s) => freq[s] <= D.chapters.length / 2);
+    if (rows.some((r) => r.source != null || r.sources != null)) {
+      const bySrc = rows.filter((r) => refNums(r.sources != null ? r.sources : r.source).some((s) => own.indexOf(s) >= 0));
+      if (bySrc.length) return bySrc;
+    } else {
+      const txt = norm(stripTags([c.title || '', c.focus || '', ...c.body, ...c.keyPoints, ...arr(sc.labels).map((l) => (Array.isArray(l) ? l[1] : l && (l.text || l.label)))].join(' ')));
+      const STOP = /^(veia|cava|superior|media|citada|juncao|direita|esquerda|direito|bannon|fluoroscopica)$/;
+      const byTxt = rows.filter((r) => norm(stripTags(r[key])).split(/[^a-z0-9]+/).some((w) => w.length >= 5 && !STOP.test(w) && txt.indexOf(w) >= 0));
+      if (byTxt.length) return byTxt.slice(0, n + 2);
+    }
+    return rows.slice(0, n);
+  }
   /* insets compactos citados pelos capítulos */
   function insetHTML(kind) {
     const map = {
       planes: ['Planos da agulha', '#planos', () => planesHTML(true)],
       layers: ['Tecidos atravessados', '#tecidos', () => `<ol class="mini-list">${D.layersTable.map((r, i) => `<li><b>${esc(r.depth != null ? r.depth : i + 1)}</b><span>${rich(r.tissue)}</span></li>`).join('')}</ol>`],
-      distances: ['Medidas publicadas', '#medidas', () => `<ul class="mini-list">${D.measurements.slice(0, 5).map((r) => `<li><span><strong>${rich(r.label)}</strong> — ${rich(r.value)}</span></li>`).join('')}</ul>`],
+      distances: ['Medidas publicadas', '#medidas', () => `<ul class="mini-list">${chapterRows(D.measurements, 'label', 5).map((r) => `<li><span><strong>${rich(r.label)}</strong> — ${rich(r.value)}</span></li>`).join('')}</ul>`],
       complications: ['Complicações por estrutura', '#complicacoes', () => `<ul class="mini-list">${D.complications.map((c) => `<li><span style="flex:1">${rich(c.name)}</span>${c.structure ? `<button type="button" class="btn small" data-show="${esc(c.structure)}">Ver no 3D</button>` : ''}</li>`).join('')}</ul>`],
       usg: ['Ultrassom esquemático', '#usg', () => `<div class="usg-wrap">${usgSVG('in')}</div>`],
       checklist: ['Checklist do treino', '#checklist', () => `<ul class="mini-list">${D.checklist.slice(0, 6).map((t, i) => `<li><b>${i + 1}</b><span>${rich(t)}</span></li>`).join('')}</ul>`],
-      asymmetry: ['Assimetria D × E', '#assimetria', () => `<ul class="mini-list">${D.asymmetry.slice(0, 5).map((r) => `<li><span><strong>${rich(r.topic)}</strong> — D: ${rich(r.right)} · E: ${rich(r.left)}</span></li>`).join('')}</ul>`],
+      asymmetry: ['Assimetria D × E', '#assimetria', () => `<ul class="mini-list">${chapterRows(D.asymmetry, 'topic', 5).map((r) => `<li><span><strong>${rich(r.topic)}</strong> — D: ${rich(r.right)} · E: ${rich(r.left)}</span></li>`).join('')}</ul>`],
       fixation: ['Fixação em bailarina — passo a passo', '#fixacao', () => fixInsetHTML()],
     };
     const k = map[kind]; if (!k) return '';
@@ -451,12 +478,14 @@
     const ptrUp = () => { if (S.ptr) { S.ptr = 0; wake(); } };
     window.addEventListener('pointerup', ptrUp, true); window.addEventListener('pointercancel', ptrUp, true);
     reportMissingModules(E);
+    labelFixStepper(); // api.steps do módulo da fixação (mesmos rótulos do painel e dos esquemas)
     renderGlossary();
     applyScene(chapter().scene, false);
     loopSync();
     // fora da tela o visor não renderiza (economia de GPU/bateria); no toque, sair da tela devolve a proteção de rolagem
+    // (um lote pode trazer várias mudanças do mesmo alvo — ex.: [fora, dentro] quando o callback atrasa: vale a ÚLTIMA)
     if (window.IntersectionObserver) new IntersectionObserver((en) => {
-      if (en[0].isIntersecting) unpause('offscreen'); else { pause('offscreen'); if (S.touchLive && !isFull()) setTouchLive(false); }
+      if (en[en.length - 1].isIntersecting) unpause('offscreen'); else { pause('offscreen'); if (S.touchLive && !isFull()) setTouchLive(false); }
     }).observe(R.viewer);
     await sleep(150); R.loader.classList.add('done');
     await sleep(500); R.loader.hidden = true;
@@ -488,13 +517,23 @@
   /** Registra atividade e retoma o laço se estiver pausado por ociosidade. */
   function wake() {
     S.actT = performance.now();
+    // salvaguarda: 'offscreen' com o visor de fato na janela (lote atrasado do IntersectionObserver) não congela o visor
+    if (pauses.has('offscreen') && viewerOnScreen()) unpause('offscreen');
     if (pauses.has('idle')) unpause('idle');
+  }
+  /** O visor cruza a janela (algum pixel visível)? */
+  function viewerOnScreen() {
+    if (!R.viewer || S.printing) return false;
+    const r = R.viewer.getBoundingClientRect();
+    return r.width > 0 && r.height > 0 && r.bottom > 0 && r.right > 0 && r.top < (window.innerHeight || 0) && r.left < (window.innerWidth || 0);
   }
   /** Pausa por ociosidade quando nada muda há IDLE_MS (chamado ao fim de cada quadro). */
   function idleCheck(now) {
     if (A.hand || A.breath || A.seq || A.wire || A.fix || S.ptr || S.printing) return;
     const quiet = now - Math.max(S.actT, S.camMoveT || 0, S.stT);
-    if (quiet > IDLE_MS * 4) { pause('idle'); return; } // salvaguarda: nada pendente prende o laço indefinidamente
+    // salvaguarda: nada pendente prende o laço indefinidamente — mas os rótulos ainda em trânsito saltam ao destino
+    // antes da pausa (senão o quadro congelado os mostra a meio caminho, p. ex. sob a barra de vistas)
+    if (quiet > IDLE_MS * 4) { snapLabels(now); pause('idle'); return; }
     if (S.occQ) return;
     if (S.labelsOn && S.labels.length) {
       if (S.occKey !== S.occWant) return; // oclusão dos rótulos ainda pendente
@@ -503,6 +542,19 @@
     if (quiet > IDLE_MS) pause('idle');
   }
 
+  /** Leva os rótulos visíveis direto à posição calculada (sem a transição suave) e os marca como assentados. */
+  function snapLabels(now) {
+    if (!S.E || !S.labelsOn || !S.labels.some((L) => L.vis && !L.settled)) return;
+    S.labels.forEach((L) => (L.init = false)); S.layoutKey = '';
+    try { updateLabels(now); } catch (e) { /* rótulos tolerantes */ }
+  }
+  /** Assinatura barata (sem medir) dos controles sobrepostos que os rótulos evitam (overlayRects): mudou → nova
+      disposição (aviso que aparece/some, cartão, selo do corte, legenda, nota empilhada, pílula de toque…). */
+  function overlaySig() {
+    const n = R.notice;
+    return [R.viewer.className.replace(/\bpick\b/, ''), n && !n.hidden ? n.textContent.length : 0, R.card && R.card.hidden, R.clipBadge && R.clipBadge.hidden, R.legendKeys && R.legendKeys.dataset.n,
+      R.tsPill && R.tsPill.className, R.touchDone && R.touchDone.hidden, R.clipBadgeText && R.clipBadgeText.textContent.length].join(',');
+  }
   function showNotice(text, ms) {
     R.notice.textContent = text; R.notice.hidden = false;
     clearTimeout(S.noticeT); S.noticeT = setTimeout(() => (R.notice.hidden = true), ms || 5000);
@@ -514,6 +566,7 @@
     sc = sc || {};
     stopAnims();
     S.hover = null; hideTooltip(); // a dica da cena anterior não sobrevive à troca
+    S.drapeAutoOff = S.drapeUser = false; // as camadas da cena nova valem como estão
     E.showOnly(Array.isArray(sc.layers) && sc.layers.length ? sc.layers : DEFAULT_LAYERS);
     // corte ANTES dos fantasmas: os materiais clonados de destaque/fantasma partem do estado de corte da cena nova
     S.clipBase = sc.clip && sc.clip.normal && sc.clip.point ? sc.clip : null;
@@ -601,7 +654,7 @@
         E.state.fixStep = k;
         A.fix = { k, move: false, t0: now - FIX_PAUSE_MS * 0.4, free: false }; // começa com uma pausa curta no estado inicial
         // a câmera acompanha as etapas (api.stepViews) até o usuário girar/aproximar o visor
-        const F0 = A.fix, mark = () => { if (A.fix === F0) F0.free = true; };
+        const F0 = A.fix, mark = () => { if (A.fix === F0) F0.free = true; }; // (teclado e botões: freeFixCam)
         R.viewer.addEventListener('pointerdown', mark, { once: true, capture: true });
         R.viewer.addEventListener('wheel', mark, { once: true, capture: true, passive: true });
       }
@@ -610,6 +663,10 @@
     syncControls();
     wake();
   }
+  /** O usuário mexeu na câmera (arrasto, roda, teclado, botões de vista/zoom): a animação da fixação deixa de levá-la
+      às vistas de cada etapa (api.stepViews). "Reiniciar cena" reaplica a cena e recomeça a animação, com a câmera
+      acompanhando de novo — é o retorno ao roteiro. */
+  function freeFixCam() { if (A.fix) A.fix.free = true; }
   /** Camadas que tornam a mão visível e situável (pele como referência quando pele e ossos estão ocultos). */
   function handLayers() {
     const L = S.E.layers;
@@ -689,9 +746,19 @@
         ch = true;
       }
     }
-    // curativo (movimento da etapa 9): o campo estéril é retirado antes — o filme se conforma à pele, não ao campo
-    if (E.state.phase === 6 && (+E.state.fixStep || 0) > 8 && E.layers.drape && E.layers.drape.visible) {
-      E.setLayer('drape', false); S.visKey++; syncControls(); showNotice('Campo estéril retirado para o curativo', 2500); ch = true;
+    // curativo (movimento da etapa 9): o campo estéril é retirado antes — o filme se conforma à pele, não ao campo.
+    // Na animação sai já na pausa após a etapa 8 (o reassentamento do cateter, ~0,5 s, não interrompe um movimento).
+    // Se foi a interface que o retirou, volta ao retornar a uma etapa ≤ 8 (o campo é mantido até o curativo).
+    const dl = E.layers.drape;
+    if (dl) {
+      const off = E.state.phase === 6 && ((+E.state.fixStep || 0) > 8 || !!(A.fix && A.fix.k >= 8 && !A.fix.move));
+      if (!off) S.drapeUser = false; // o leitor religou o campo no curativo: vale até sair dessa etapa
+      if (off && dl.visible && !S.drapeUser) {
+        E.setLayer('drape', false); S.drapeAutoOff = true; S.visKey++; syncControls(); showNotice('Campo estéril retirado para o curativo', 2500); ch = true;
+      } else if (!off && S.drapeAutoOff) {
+        S.drapeAutoOff = false;
+        if (!dl.visible) { E.setLayer('drape', true); S.visKey++; syncControls(); ch = true; }
+      }
     }
     if (ch) syncDynamic();
   }
@@ -1026,7 +1093,11 @@
     }
     const ownSig = stageOwnerSig(now);
     const key = ck + '|' + (st.phase === 6 ? fixShown() : 0) + '|' + ownSig;
-    const lk = key + '|' + W + 'x' + H;
+    const lk = key + '|' + W + 'x' + H + '|' + overlaySig();
+    // transição dos rótulos no tempo real (≈45 ms de constante): em quadros lentos (SwiftShader, máquina carregada)
+    // eles chegam ao destino em 1–2 quadros, em vez de ~15 quadros de 0,32
+    let dt = now - (S.lblT || 0); S.lblT = now; if (!(dt > 0)) dt = 16; dt = Math.min(dt, 500);
+    const kk = 1 - Math.exp(-dt / 45);
     if (lk === S.layoutKey && S.labels.every((L) => !L.vis || L.settled)) return;
     S.layoutKey = lk;
     const vis = [];
@@ -1045,7 +1116,7 @@
     const pos = layoutLabels(vis.map((L) => ({ px: L.px, py: L.py, w: L.w, h: L.h, prev: L.slot })), W, H,
       num ? { gap: 9, lift: 0, top: 4, bottom: 4, obstacles: overlayRects() } : { gap: 28, lift: 12, top: 6, bottom: 6, obstacles: overlayRects() });
     vis.forEach((L, i) => {
-      const t = pos[i]; const k = L.init && !reduced() ? 0.32 : 1;
+      const t = pos[i]; const k = L.init && !reduced() ? kk : 1;
       L.slot = { dir: t.dir, dy: t.dy };
       L.x += (t.x - L.x) * k; L.y += (t.y - L.y) * k; L.init = true;
       L.settled = Math.abs(t.x - L.x) < 0.3 && Math.abs(t.y - L.y) < 0.3;
@@ -1159,6 +1230,7 @@
     R.cardName.textContent = stripTags(g.name);
     R.cardDesc.innerHTML = rich(g.desc || 'Sem descrição no glossário.');
     R.cardRel.innerHTML = rich(g.relevance);
+    if (R.cardRelH) R.cardRelH.textContent = isFixId(id) ? 'Relevância na fixação' : 'Relevância para a punção';
     R.cardRelWrap.hidden = !g.relevance;
     const inGloss = !!D.glossary[id];
     R.cardGloss.hidden = !inGloss;
@@ -1234,11 +1306,14 @@
     R.layerChips.innerHTML = LAYERS.map((l) => `<button type="button" class="chip" data-layer="${l.id}" aria-pressed="false"><i style="--c:${l.color}" aria-hidden="true"></i>${l.label}</button>`).join('');
     R.layerChips.addEventListener('click', (e) => {
       const b = e.target.closest('[data-layer]'); const E = S.E; if (!b || !E) return;
-      const id = b.dataset.layer; E.setLayer(id, !E.layers[id].visible); S.visKey++; S.hover = null; hideTooltip(); syncControls();
+      const id = b.dataset.layer; E.setLayer(id, !E.layers[id].visible); S.visKey++; S.hover = null; hideTooltip();
+      if (id === 'drape') { S.drapeAutoOff = false; S.drapeUser = true; } // escolha do leitor prevalece (ver tickAnims)
+      syncControls();
     });
     R.viewBar.innerHTML = VIEWS.map(([k, t]) => `<button type="button" data-view="${k}" aria-pressed="false">${t}</button>`).join('');
     R.viewBar.addEventListener('click', (e) => {
       const b = e.target.closest('[data-view]'); if (!b || !S.E) return;
+      freeFixCam(); // escolher uma vista (mouse ou teclado) também solta a câmera da animação da fixação
       S.E.setView(b.dataset.view, 900); S.viewName = b.dataset.view; syncViewBar();
     });
     // 8 etapas: data-step = índice no stepper; data-phase = fase do motor (o dilatador é a fase 5 + dilator)
@@ -1250,7 +1325,8 @@
       S.visKey++; syncControls();
     });
     // fixação em bailarina (etapa 6): 0–9, rótulos curtos do módulo 3D (api.steps) ou dos dados
-    R.fixStepper.innerHTML = Array.from({ length: FIX_MAX + 1 }, (_, k) => `<li><button type="button" data-fix="${k}" aria-pressed="false" aria-label="Fixação, etapa ${k}: ${esc(fixShort(k))}" title="${k} · ${esc(fixShort(k))}"><span class="dot">${k}</span></button></li>`).join('');
+    R.fixStepper.innerHTML = Array.from({ length: FIX_MAX + 1 }, (_, k) => `<li><button type="button" data-fix="${k}" aria-pressed="false"><span class="dot">${k}</span></button></li>`).join('');
+    labelFixStepper();
     R.fixStepper.addEventListener('click', (e) => {
       const b = e.target.closest('[data-fix]'); const E = S.E; if (!b || !E) return;
       stopAnims('fix'); fixPrepare(); E.state.fixStep = +b.dataset.fix; S.visKey++; syncControls();
@@ -1297,8 +1373,8 @@
       bs[j].click(); bs[j].focus(); e.preventDefault();
     });
     R.btnSnap.addEventListener('click', snapshotPNG);
-    R.zoomIn.addEventListener('click', () => S.E && S.E.zoom(0.82));
-    R.zoomOut.addEventListener('click', () => S.E && S.E.zoom(1 / 0.82));
+    R.zoomIn.addEventListener('click', () => { if (S.E) { freeFixCam(); S.E.zoom(0.82); } });
+    R.zoomOut.addEventListener('click', () => { if (S.E) { freeFixCam(); S.E.zoom(1 / 0.82); } });
     R.sceneReset.addEventListener('click', () => applyScene(chapter().scene, true));
     R.cardClose.addEventListener('click', () => closeCard({ restore: true }));
     R.cardFocus.addEventListener('click', () => { if (S.E && S.cardId) { S.E.focus(S.cardId); S.viewName = null; syncViewBar(); } });
@@ -1332,6 +1408,10 @@
   function setRange(input, v, text) {
     input.value = v; input.style.setProperty('--fill', ((v - input.min) / (input.max - input.min)) * 100 + '%');
     if (text != null) input.setAttribute('aria-valuetext', text);
+  }
+  /** Dica e nome acessível dos botões do stepper da fixação (refeitos quando o módulo 3D carrega: api.steps). */
+  function labelFixStepper() {
+    $$('[data-fix]', R.fixStepper).forEach((b) => { const k = +b.dataset.fix, t = fixShort(k); b.setAttribute('aria-label', `Fixação, etapa ${k}: ${t}`); b.title = `${k} · ${t}`; });
   }
   /** Rótulo curto da etapa k da fixação: módulo 3D (api.steps) → dados (títulos) → padrão. */
   function fixShort(k) {
@@ -1426,6 +1506,7 @@
   /** Renderiza o visor em w×h, compõe fundo e rótulos num canvas 2D e devolve dataURL. */
   async function composeSnapshot(w, h, opt = {}) {
     const E = S.E;
+    S.snapKeys = [];
     const raw = E.snapshot(w, h);
     const img = await loadImg(raw);
     const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
@@ -1441,16 +1522,26 @@
       const fs = clamp(Math.round(w / 64), 12, 30), padX = fs * 0.6, lh = fs * 1.75;
       ctx.font = `600 ${fs}px system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif`;
       const items = [], occMeshes = visibleMeshes(false);
+      // os mesmos filtros do visor (updateLabels): rótulos da fixação só nas etapas em que a peça existe
+      // (fixAnchorRange) e rótulos de objetos de etapa só com o dono em cena (STAGE_OWNER), recalculado AGORA — na
+      // impressão a cena acabou de ser aplicada (applyScene 'print' + settleModules) e o cache de 200 ms é de outra cena
+      S.ownT = 0; stageOwnerSig(performance.now());
+      const fsh = fixShown(), ph = E.state.phase;
       for (const L of S.labels) {
-        const a = E.anchors[L.key]; const v = new E.THREE.Vector3(-a[0], a[1], a[2]).project(cam);
+        const fr = fixAnchorRange(L.key);
+        if (fr && !(ph === 6 && fsh >= fr[0] && fsh <= fr[1])) continue;
+        if (STAGE_OWNER[L.key] && S.ownShown && !S.ownShown.has(L.key)) continue;
+        const a = E.anchors[L.key]; if (!a) continue;
+        const v = new E.THREE.Vector3(-a[0], a[1], a[2]).project(cam);
         if (!(v.z < 1 && v.z > -1)) continue;
         const px = (v.x * 0.5 + 0.5) * w, py = (-v.y * 0.5 + 0.5) * h;
         if (px < 0 || px > w || py < 0 || py > h) continue;
         let occ = ''; try { occ = occludedFast(a, 0.8, occMeshes, L.key); } catch (e) { occ = ''; }
-        items.push({ px, py, w: ctx.measureText(stripTags(L.text || L.key)).width + padX * 2 + 3, h: lh, text: stripTags(L.text || L.key), occ });
+        items.push({ key: L.key, px, py, w: ctx.measureText(stripTags(L.text || L.key)).width + padX * 2 + 3, h: lh, text: stripTags(L.text || L.key), occ });
       }
       cam.aspect = a0; cam.updateProjectionMatrix();
       const pos = layoutLabels(items, w, h, { gap: fs * 2.3, lift: fs, top: fs, bottom: fs });
+      S.snapKeys = items.filter((it, i) => !pos[i].clash).map((it) => it.key); // diagnóstico (uitest: captura × visor)
       items.forEach((it, i) => {
         const p = pos[i];
         const ex = it.px < p.x ? p.x : it.px > p.x + p.w ? p.x + p.w : it.px;
@@ -1630,6 +1721,7 @@
       } else used = false;
       if (!used) return;
       e.preventDefault();
+      if (e.key !== 'Enter' && e.key !== ' ') freeFixCam(); // girar/deslocar/aproximar pelo teclado = mexer na câmera
       if (S.viewName) { S.viewName = null; syncViewBar(); }
       wake();
     });
@@ -1712,12 +1804,17 @@
      à direita, o trecho externo seguindo até o canhão (à esquerda, lateral, como na vista anterior do 3D). As etapas
      são cumulativas; os elementos da etapa atual recebem halo dourado. Por baixo do cateter = traço coberto pelo
      cateter (tracejado onde aparece); por cima = traço contínuo desenhado depois do cateter.
-     Coordenadas (viewBox 360×210, ~26 px/cm): saída E(262,112); cruzamentos em x 226/200/174; canhão até x 108. */
+     Coordenadas (viewBox 360×210, ~26 px/cm): saída E(262,112); cruzamentos em x 226/200/174; canhão até x 108.
+     Mesmo lado do módulo 3D (tools/w2fix_ui_fx3d.js projeta a geometria do módulo neste referencial): ponto e nó de
+     ancoragem ACIMA do cateter (lado lateral-cranial, +B no 3D; pegada de ~0,2 a 1 cm da saída, nó na ponta junto à
+     saída) e, nas asas, o ponto sai da pele À FRENTE da asa, rumo ao nariz do canhão (no 3D, ~0,9 cm à frente do furo). */
   const FX = {
-    exit: [262, 112], knot0: [248, 125], bite: [[257, 125], [239, 125]], // pegada paralela ao cateter, a ~3 mm dele
+    exit: [262, 112], knot0: [255, 99], bite: [[257, 99], [239, 99]], // pegada paralela ao cateter, a ~3 mm da borda dele
     cross: [226, 200, 174], half: 9, top: 104, bot: 120,
-    holes: [[81, 76], [81, 132]], wingSkin: [[81, 55], [81, 153]],
+    holes: [[81, 76], [81, 132]], wingSkin: [[104, 80], [104, 128]], wingKnot: [[90, 76], [90, 132]],
   };
+  /** Marca em cm junto à pele no esquema: a do modelo 3D (≈16,3 cm introduzidos; texto do cap. 10: "≈16 cm"). */
+  const FIX_CM = 16;
   function fixSVG(k, o = {}) {
     k = clamp(k | 0, 0, FIX_MAX);
     const id = o.id || 'fx' + k;
@@ -1739,26 +1836,27 @@
       <path d="M0 40 C 90 30 200 48 360 36 M0 182 C 120 172 230 190 360 178" style="fill:none;stroke:#e2bfa6;stroke-width:1.2"/>
       <path d="M268 112 L 356 112" style="stroke:#b48a73;stroke-width:9;stroke-linecap:round;opacity:.22"/>
       <path d="M268 112 L 352 112" style="stroke:#8c9aa3;stroke-width:1.4;stroke-dasharray:5 4"/>`;
-    // ponto de ancoragem (etapa 2+): pegada dérmica ao lado do cateter, do lado do canhão
+    // ponto de ancoragem (etapa 2+): pegada dérmica ao lado do cateter (lado de cima = lateral-cranial, como no 3D)
     if (k >= 2) {
       const [[ax, ay], [bx, by]] = FX.bite;
       under += `<path d="M${ax} ${ay} L${bx} ${by}" style="stroke:${TH};stroke-width:1.4;stroke-dasharray:2.5 2.5;opacity:.6"/>`;
       notes += `<circle cx="${ax}" cy="${ay}" r="1.8" style="fill:#7a3b2a"/><circle cx="${bx}" cy="${by}" r="1.8" style="fill:#7a3b2a"/>`;
       if (k === 2) {
-        // agulha curva saindo da pele (entra em ax, sai em bx); as duas pontas do mesmo lado, de comprimento semelhante
+        // pegada (entra em ax, sai em bx) já tracionada: as duas pontas do mesmo lado, de comprimento semelhante; a
+        // agulha curva ainda presa à ponta de bx (é separada com a tesoura antes do nó)
         over += halo(`M${ax} ${ay} L${bx} ${by}`, 8);
-        over += `<path d="M${bx} ${by} C 232 128 228 136 229 146" style="fill:none;stroke:#7d8a92;stroke-width:2.6;stroke-linecap:round"/>`;
-        over += th(`M${ax} ${ay} C 262 140 258 162 252 186`, true) + th(`M${bx} ${by} C 226 140 216 160 206 182`, true);
-        notes += lbl(206, 152, ['ponto de ancoragem:', 'pegada dérmica', 'paralela ao cateter'], 'end', true) + lead(209, 149, 236, 128);
+        over += th(`M${ax} ${ay} C 262 84 258 62 252 38`, true) + th(`M${bx} ${by} C 226 84 216 64 206 42`, true);
+        over += `<path d="M206 42 C 202 32 190 28 182 34" style="fill:none;stroke:#7d8a92;stroke-width:2.6;stroke-linecap:round"/>`;
+        notes += lbl(196, 58, ['ponto de ancoragem:', 'pegada dérmica', 'paralela ao cateter'], 'end', true) + lead(199, 80, 236, 102);
       }
     }
-    // nó de ancoragem e pontas longas (etapa 3)
+    // nó de ancoragem (sobre o furo junto à saída) e pontas longas (etapa 3), deitadas do mesmo lado
     if (k >= 3) {
       over += `<path d="M${FX.bite[0][0]} ${FX.bite[0][1]} L${FX.bite[1][0]} ${FX.bite[1][1]}" style="stroke:${TH};stroke-width:2"/>`;
       over += knot(kx, ky, k === 3);
       if (k === 3) {
-        over += th(`M${kx} ${ky} C 236 140 220 158 208 180`, true) + th(`M${kx} ${ky} C 246 148 240 170 234 192`, true);
-        notes += lbl(266, 160, 'nó de ancoragem', 'start', true) + lead(264, 153, 251, 129) + lbl(118, 200, 'pontas longas, iguais, do mesmo lado', 'start', true);
+        over += th(`M${kx} ${ky} C 244 86 224 76 194 72`, true) + th(`M${kx} ${ky} C 250 78 238 58 220 44`, true);
+        notes += lbl(270, 66, 'nó de ancoragem', 'start', true) + lead(272, 70, 260, 95) + lbl(188, 50, ['pontas longas, iguais,', 'do mesmo lado'], 'end', true);
       }
     }
     // cruzamentos: por baixo (coberto pelo cateter) → por cima (X) → nó
@@ -1767,21 +1865,22 @@
     for (let i = 0; i < nc; i++) {
       const x = FX.cross[i], cur = k === 4 + i;
       const Tp = [x + H, T], Bp = [x + H, B];
-      // a ponta que está embaixo passa por baixo para o lado de cima (e vice-versa)
-      under += thUnder(`M${fromBot[0]} ${fromBot[1]} L${Tp[0]} ${Tp[1]}`, cur);
-      if (i === 0) under += th(`M${kx} ${ky} L${Bp[0]} ${Bp[1]}`, cur, 2); // 1º: a outra ponta segue rente à pele, do mesmo lado
-      else under += thUnder(`M${fromTop[0]} ${fromTop[1]} L${Bp[0]} ${Bp[1]}`, cur);
+      // a ponta que está em cima passa por baixo para o lado de baixo (e vice-versa); no 1º cruzamento as duas saem
+      // do nó de ancoragem (em cima): uma passa por baixo do cateter, a outra segue rente à pele, do mesmo lado
+      under += thUnder(`M${fromTop[0]} ${fromTop[1]} L${Bp[0]} ${Bp[1]}`, cur);
+      if (i === 0) under += th(`M${kx} ${ky} L${Tp[0]} ${Tp[1]}`, cur, 2);
+      else under += thUnder(`M${fromBot[0]} ${fromBot[1]} L${Tp[0]} ${Tp[1]}`, cur);
       over += th(`M${Tp[0]} ${Tp[1]} L${x - H} ${B}`, cur) + th(`M${Bp[0]} ${Bp[1]} L${x - H} ${T}`, cur);
       over += knot(x, 112, cur, i === 2);
       fromTop = [x - H, T]; fromBot = [x - H, B];
       if (cur) {
-        const t = ['1º cruzamento', '2º cruzamento', '3º cruzamento + nó final'][i];
+        const t = ['1º cruzamento', '2º cruzamento', '3º cruzamento e nó final'][i];
         notes += lbl(x + 4, 76, t, 'middle', true) + lead(x, 80, x, 101);
-        notes += lbl(156, 166, 'por baixo → por cima → nó', 'start', true); // à direita das pontas livres da etapa 6
+        notes += lbl(206, 166, 'por baixo → por cima → nó', 'start', true); // à direita da ponta livre de baixo (etapa 6)
       }
     }
-    // pontas livres (etapa 6) ou cortadas (7+)
-    if (k === 6) over += th(`M${fromTop[0]} ${fromTop[1]} C 150 92 130 150 120 186`, true) + th(`M${fromBot[0]} ${fromBot[1]} C 152 140 146 170 140 194`, true);
+    // pontas livres (etapa 6: a de cima deita lateral, a de baixo para baixo e rumo à saída, como no 3D) ou cortadas (7+)
+    if (k === 6) over += th(`M${fromTop[0]} ${fromTop[1]} C 154 96 140 88 118 86`, true) + th(`M${fromBot[0]} ${fromBot[1]} C 168 142 178 166 190 192`, true);
     if (k >= 7) {
       over += th(`M${fromTop[0]} ${fromTop[1]} L${fromTop[0] - 7} ${fromTop[1] - 10}`, k === 7) + th(`M${fromBot[0]} ${fromBot[1]} L${fromBot[0] - 7} ${fromBot[1] + 10}`, k === 7);
       if (k === 7) {
@@ -1790,23 +1889,24 @@
         notes += lbl(150, 168, ['pontas de 0,5–1 cm', 'marca em cm · refluxo · lavagem'], 'start', true);
       }
     }
-    // asas do canhão (etapa 8)
+    // asas do canhão (etapa 8): do furo da asa, o ponto segue rumo ao nariz do canhão e entra na pele à frente da asa
     if (k >= 8) FX.holes.forEach(([hx, hy], i) => {
-      const [sx, sy] = FX.wingSkin[i], cur = k === 8;
-      over += th(`M${hx} ${hy} L${sx} ${sy}`, cur, 2.2) + knot(hx, hy + (i ? 6 : -6), cur);
+      const [sx, sy] = FX.wingSkin[i], [nx, ny] = FX.wingKnot[i], cur = k === 8;
+      over += th(`M${hx} ${hy} L${sx} ${sy}`, cur, 2.2) + knot(nx, ny, cur);
       notes += `<circle cx="${sx}" cy="${sy}" r="1.8" style="fill:#7a3b2a"/>`;
-      if (cur && !i) notes += lbl(102, 44, 'pontos nas asas', 'start', true) + lead(100, 42, 86, 54);
+      if (cur && !i) notes += lbl(112, 46, 'pontos nas asas', 'start', true) + lead(116, 50, 102, 74);
     });
-    // marca em cm junto à saída (referência de migração; destacada no preparo e na conferência)
+    // marca em cm junto à saída (referência de migração; destacada no preparo e na conferência). O número fica sob o
+    // cateter: o lado de cima é o do ponto de ancoragem
     const mcur = k === 1 || k === 7;
-    marks += (mcur ? `<rect x="234" y="104" width="26" height="16" rx="3" style="fill:#e2b65a;opacity:.5"/>` : '') +
+    marks += (mcur ? `<rect x="234" y="104" width="26" height="26" rx="3" style="fill:#e2b65a;opacity:.5"/>` : '') +
       `<g data-mk="marca em cm">${[238, 246, 254].map((x, i) => `<path d="M${x} ${i === 1 ? 106 : 108} L${x} 116" style="stroke:#3d4a50;stroke-width:${i === 1 ? 1.3 : 0.9}"/>`).join('')}</g>` +
-      `<text x="246" y="101" text-anchor="middle" class="fx-cm">15</text>`;
+      `<text x="246" y="127" text-anchor="middle" class="fx-cm">${FIX_CM}</text>`;
     if (k === 1) {
       // porta-agulha com a agulha curva presa no terço posterior; fio inteiro
       notes += halo('M286 52 L 330 30', 10) + `<g style="fill:none;stroke:#59656c;stroke-width:2.6;stroke-linecap:round"><path d="M290 50 L 334 28 M290 56 L 336 36"/><circle cx="340" cy="26" r="5"/><circle cx="342" cy="38" r="5"/></g>`;
       notes += `<path d="M282 60 A 12 12 0 0 1 292 44" style="fill:none;stroke:#7d8a92;stroke-width:2.4"/>` + th('M282 60 C 270 80 300 84 318 74', true, 1.8);
-      notes += lbl(280, 30, ['porta-agulha', 'e fio inteiro'], 'end', true) + lbl(198, 140, 'marca em cm', 'start', true) + lead(212, 132, 240, 118);
+      notes += lbl(280, 30, ['porta-agulha', 'e fio inteiro'], 'end', true) + lbl(172, 152, 'marca em cm', 'start', true) + lead(206, 144, 233, 126);
     }
 
     // cateter (semitransparente: o fio que passa por baixo aparece apagado), canhão, asas, extensões
@@ -1830,7 +1930,7 @@
       s += lbl(176, 156, ['curativo transparente sobre', 'saída, bailarina e asas'], 'middle', true) + lbl(272, 148, 'CHG*', 'start');
     }
     /* rótulos fixos: "saída" abaixo e à direita do orifício; "trajeto subcutâneo →" em duas linhas sobre o túnel,
-       à direita da marca em cm ("15"); "canhão e asas" embaixo, à esquerda (nada sobrepõe a marca nem o orifício) */
+       à direita do ponto de ancoragem; "canhão e asas" embaixo, à esquerda (nada sobrepõe a marca nem o orifício) */
     s += lbl(272, 132, 'saída') + lbl(354, k === 9 ? 74 : 90, ['trajeto', 'subcutâneo →'], 'end') + lbl(30, 194, 'canhão e asas', 'start') + lead(50, 186, 70, 150);
     const title = o.title === false ? '' : `<text x="12" y="20" class="fx-t">${k}. ${esc(fixShort(k))}</text>`;
     return `<svg viewBox="0 0 360 210" role="img" aria-labelledby="${id}-t" class="fx-svg"><title id="${id}-t">Esquema da fixação em bailarina, vista de cima, etapa ${k}: ${esc(fixShort(k))}</title>${s}${title}</svg>`;
@@ -1856,7 +1956,10 @@
   function fixInsetHTML() {
     const F = D.fixation; if (!F) return '';
     const k = fixCurrentK();
-    return `<p class="fx-intro">${rich(F.intro || '')}</p>
+    // a 1ª frase da introdução (o que é a "bailarina") é o 1º parágrafo do próprio capítulo: no inset ficam só as
+    // ressalvas (valores nominais; descrição de ensino, não prescrição). A seção #fixacao e a folha mostram tudo.
+    const note = (String(F.intro || '').match(/[^.!?]+[.!?]+(\s|$)/g) || []).slice(1).join('').trim();
+    return `${note ? `<p class="fx-intro">${rich(note)}</p>` : ''}
       <div class="fx-nav" role="group" aria-label="Etapa da fixação mostrada no texto">
         <button type="button" class="btn small" data-fxk="-1" aria-label="Etapa anterior da fixação">←</button>
         <p class="fx-now" id="fxNow" aria-live="polite"></p>
@@ -1899,7 +2002,7 @@
           ${st.movement ? `<h5>Movimento</h5><p>${rich(st.movement)}</p>` : ''}
           ${arr(st.cautions).length ? `<h5>Cuidados</h5><ul>${arr(st.cautions).map((c) => `<li>${rich(c)}</li>`).join('')}</ul>` : ''}
           ${st.why ? `<h5>Por quê</h5><p>${rich(st.why)}</p>` : ''}</details></li>`).join('')}</ol>
-      <p class="hint">*CHG: esponja ou gel com clorexidina, se padronizado no serviço. Esquemas sem escala, vista de cima; o canhão fica à esquerda (lateral), como na vista anterior do modelo 3D.</p>
+      <p class="hint">*CHG: esponja ou gel com clorexidina, se padronizado no serviço. Esquemas sem escala, vista de cima; o canhão fica à esquerda (lateral) e o ponto de ancoragem acima do cateter (lado lateral-cranial), como na vista anterior do modelo 3D.</p>
       <div class="fx-lists">${fixLists(F).map(([h, l]) => `<section class="fx-box"><h3>${h}</h3><ul>${arr(l).map((t) => `<li>${rich(t)}</li>`).join('')}</ul></section>`).join('')}</div>
       ${arr(F.sources).length ? `<p class="srcs">Fontes: ${refLinks(F.sources)} · <a href="#fontes">bibliografia</a></p>` : ''}`;
   }
@@ -2311,7 +2414,7 @@
     R.glossCount.textContent = (list.length === base.length ? `${base.length} estruturas` : `${list.length} de ${base.length} estruturas`) + (hiddenL ? ` · ${hiddenL} homólogos esquerdos ocultos` : '') + (hiddenM ? ` · ${hiddenM} costelas/cartilagens fora do trajeto ocultas` : '');
     R.glossBody.innerHTML = shown.length ? shown.map((g) => {
       const avail = !!(S.E && reg && reg.has(g.id));
-      return `<article class="gl" id="gl-${esc(g.id)}"><p class="gl-g"><i style="--c:${GROUP_COLORS[g.group] || 'var(--teal)'}"></i>${esc(g.group || '')}</p><h3>${rich(g.name)}</h3>${g.desc ? `<p>${rich(g.desc)}</p>` : ''}${g.relevance ? `<p class="rel"><b>Na punção:</b> ${rich(g.relevance)}</p>` : ''}
+      return `<article class="gl" id="gl-${esc(g.id)}"><p class="gl-g"><i style="--c:${GROUP_COLORS[g.group] || 'var(--teal)'}"></i>${esc(g.group || '')}</p><h3>${rich(g.name)}</h3>${g.desc ? `<p>${rich(g.desc)}</p>` : ''}${g.relevance ? `<p class="rel"><b>${isFixId(g.id) ? 'Na fixação' : 'Na punção'}:</b> ${rich(g.relevance)}</p>` : ''}
         <div class="gl-foot"><span class="gl-id">${esc(g.id)}</span>${avail ? `<button type="button" class="btn small" data-show="${esc(g.id)}" aria-label="Ver ${esc(stripTags(g.name))} no modelo 3D">Ver no 3D</button>` : ''}</div></article>`;
     }).join('') : '<p class="empty">Nenhuma estrutura encontrada.</p>';
     const rest = list.length - shown.length;
@@ -2349,7 +2452,7 @@
   /* ------------------------------------------------------------------ */
   function refs() {
     const ids = ['docTitle', 'docSubtitle', 'docSeal', 'footMeta', 'footDisclaimer', 'glossLeft', 'glossMore', 'srStatus', 'btnTheme', 'btnPrint', 'btnFull', 'chapList', 'chapBar', 'viewer', 'leaders', 'labels', 'viewBar', 'zoomIn', 'zoomOut', 'sceneReset',
-      'gizmo', 'tooltip', 'card', 'cardClose', 'cardGroup', 'cardName', 'cardDesc', 'cardRel', 'cardRelWrap', 'cardFocus', 'cardHl', 'cardGloss', 'notice', 'loader', 'loaderStep', 'loaderBar', 'nogl', 'noglMsg',
+      'gizmo', 'tooltip', 'card', 'cardClose', 'cardGroup', 'cardName', 'cardDesc', 'cardRel', 'cardRelWrap', 'cardRelH', 'cardFocus', 'cardHl', 'cardGloss', 'notice', 'loader', 'loaderStep', 'loaderBar', 'nogl', 'noglMsg',
       'clipBadge', 'clipBadgeText', 'clipBadgeOff', 'controls', 'layerChips', 'ghostToggle', 'labelsToggle', 'handPlay', 'handRange', 'handOut', 'breathPlay', 'breathRange', 'breathOut',
       'seqPlay', 'phaseNum', 'phaseName', 'stepper', 'wireToggle', 'planesToggle', 'clipToggle', 'clipRange', 'clipOut', 'rollSeg', 'btnSnap', 'painel',
       'pranchaBody', 'planesBody', 'layersBody', 'measBody', 'asymBody', 'compBody', 'usgBody', 'checkBody', 'glossSearch', 'glossFilters', 'glossCount', 'glossBody', 'sourcesBody', 'busy', 'busyText', 'printRoot',
@@ -2458,6 +2561,9 @@
     missingAnchors: () => Array.from(S.missingAnchors),
     /** Estado do laço (renderização sob demanda): {on, pauses}. */
     loop: () => ({ on: !!S.loopOn, pauses: Array.from(pauses) }),
+    /** Testes: âncoras dos rótulos à vista no visor (visíveis e com posição livre) e as desenhadas na última captura. */
+    labelsVis: () => S.labels.filter((L) => L.vis && !L.clash).map((L) => L.key),
+    snapLabels: () => (S.snapKeys || []).slice(),
     wake, setTouchLive, fixOverlays, syncControls, fixSVG,
     /** Testes: para a animação da fixação (o stepper continua sincronizado). */
     stopFix() { stopAnims('fix'); },
@@ -2472,8 +2578,9 @@
       S.labels.forEach((L) => (L.init = false));
       const t = performance.now() + 1e6; updateGizmo();
       for (let k = 0; k < 40; k++) { updateLabels(t + k * 1000); if (k > 0 && !S.occQ) break; }
-      // os instantes fictícios acima não podem vazar para o laço real (occT no futuro travaria a oclusão e a pausa 'idle')
-      S.occT = performance.now() - 1000;
+      // os instantes fictícios acima não podem vazar para o laço real (occT no futuro travaria a oclusão e a pausa 'idle';
+      // ownT no futuro congelaria o cache de "dono em cena" dos rótulos de etapa)
+      S.occT = performance.now() - 1000; S.ownT = 0; S.lblT = 0;
       return true;
     },
     resume() { unpause('still'); wake(); },

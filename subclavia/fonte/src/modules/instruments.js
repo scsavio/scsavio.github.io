@@ -809,6 +809,58 @@ ATLAS.define('instruments', async function (ctx) {
   xrayDil.castShadow = false; xrayDil.receiveShadow = false;
   setA('dilatorTip', along(S_DIL).toArray()); setA('dilatorLimit', along(sWall).toArray());
 
+  /* ======================================================================
+     6c. Sítio de punção/saída na pele (entryEff): sem ele, o tubo parecia terminar SOBRE a pele com ponta arredondada.
+         Anel fino escuro rente ao dispositivo — a elipse da secção oblíqua do dispositivo pelo plano da pele (semieixos
+         r e r / sen θ; θ ≈ 29° entre o eixo e a pele) — e, para dilatador e cateter, halo róseo discreto. Mesmo
+         desenho e cores do sítio que a fixação (fixation.js) desenha a partir de fixStep > 0: este se apaga na mesma
+         rampa (fixStep 0 → 0,3) e o dela assume, sem duplicar; sem a fixação, some com o curativo (fixStep ≥ 8,5).
+         Agulha (fases 2–5): só o anel, mais fino (punção recente); dilatador (subetapa): anel + halo; cateter (6).
+         Recebe os planos de corte (some com a pele cortada) e só aparece com a pele visível. Elevação 0,01 cm: o mapa de
+         altura da pele difere da malha em ≤ 0,007 cm aqui (medido por raio).
+     ====================================================================== */
+  const exitSite = (() => {
+    const nq = surfNormal(skinZ, entryEff.x, entryEff.y, 0.25), ed = dir.clone().negate();
+    const Xr = ed.clone().addScaledVector(nq, -ed.dot(nq)).normalize(), Yr = new THREE.Vector3().crossVectors(nq, Xr);
+    const sinA = Math.max(0.3, Math.abs(ed.dot(nq)));
+    const quat = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(Xr, Yr, nq));
+    const haloTex = (() => {
+      const cv = document.createElement('canvas'); cv.width = cv.height = 64; const g2 = cv.getContext('2d');
+      const gr = g2.createRadialGradient(32, 32, 2, 32, 32, 31); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+      g2.fillStyle = gr; g2.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(cv);
+    })();
+    const decalMat = (color, opacity, off, alphaMap) => {
+      const m = new THREE.MeshStandardMaterial({ color, roughness: 0.6, transparent: true, opacity, depthWrite: false, polygonOffset: true, polygonOffsetFactor: off, polygonOffsetUnits: off, alphaMap: alphaMap || null });
+      m.clippingPlanes = C.clipPlanes; m.userData.op0 = opacity; return m;
+    };
+    const grp = new THREE.Group(); grp.name = 'Sítio de punção/saída na pele'; layers.instrument.add(grp);
+    const kinds = {
+      needle: { r: R_OUT, halo: 0, crustOp: 0.42, info: GI({ id: 'needle', name: 'Orifício de punção da agulha na pele' }) },
+      dilator: { r: R_DIL, halo: 0.3, crustOp: 0.55, info: GI({ id: 'dilator', name: 'Orifício do dilatador na pele' }) },
+      catheter: { r: R_CATH, halo: 0.3, crustOp: 0.55, info: GI({ id: 'catheter', name: 'Sítio de saída do cateter na pele' }) },
+    };
+    for (const [key, k] of Object.entries(kinds)) {
+      const g = new THREE.Group(); g.name = 'Sítio: ' + key; g.visible = false; grp.add(g); k.grp = g; k.mats = [];
+      const place = (m, lift) => { m.position.copy(entryEff).addScaledVector(nq, lift); m.quaternion.copy(quat); m.userData.exitMark = true; m.raycast = () => {}; };
+      if (k.halo) { // halo róseo (reação local, pele perfundida), mais longo no sentido da saída
+        const mt = decalMat('#b4584c', 0.26, -3, haloTex); k.mats.push(mt);
+        const h = mesh(new THREE.CircleGeometry(k.halo, 28), mt, g, k.info, { cast: false, receive: false }); place(h, 0.01); h.scale.set(1.25, 1, 1); h.renderOrder = 2;
+      }
+      // anel escuro (crosta/fibrina e a sombra da borda do orifício) rente ao dispositivo: elipse r × r/sen θ
+      const mc = decalMat('#6a2a22', k.crustOp, -4); k.mats.push(mc);
+      const ring = mesh(new THREE.RingGeometry(k.r * 1.0, k.r * (key === 'needle' ? 1.45 : 1.22), 28), mc, g, k.info, { cast: false, receive: false });
+      place(ring, 0.012); ring.scale.set(1 / sinA, 1, 1); ring.renderOrder = 3;
+    }
+    /** pres = {needle, dilator, catheter} ∈ [0, 1] (presença do dispositivo atravessando a pele); k = esmaecimento geral. */
+    const set = (pres, k) => {
+      for (const [key, d] of Object.entries(kinds)) {
+        const f = C.clamp(pres[key] || 0, 0, 1) * k; d.grp.visible = f > 0.02;
+        if (d.grp.visible) d.mats.forEach((m) => { m.opacity = m.userData.op0 * f; });
+      }
+    };
+    return { grp, set, info: { center: entryEff.toArray().map((x) => +x.toFixed(2)), crossingDeg: +(Math.asin(sinA) * 180 / Math.PI).toFixed(1), ellipse: Object.fromEntries(Object.entries(kinds).map(([key, d]) => [key, [+d.r.toFixed(3), +(d.r / sinA).toFixed(3)]])) } };
+  })();
+
   mark('wire+cath');
   /* ======================================================================
      7. Auxílios: marcadores, vetor do polegar, linha-guia, plano coronal, ângulo
@@ -1275,9 +1327,9 @@ float gloveHeight(vec3 p, vec3 n) {
   }
 
   /* Vetor de pressão do polegar: seta dourada (posterior/inferior) AO LADO do polegar — não sobre a unha —, com a
-     ponta 2–3 mm acima da pele, e dois arcos de "depressão" na pele sob a polpa, voltados para a seta.
-     A posição é escolhida automaticamente: sem tocar a mão, visível nas vistas usuais e fora da projeção frontal da
-     agulha. Some quando a mão sai de cena (fase ≥ 5). */
+     ponta 2–3 mm acima da pele, e arcos de "depressão" na pele sob a polpa, voltados para a seta.
+     A posição é escolhida automaticamente: sem tocar a mão, junto do polegar, legível como DIREÇÃO nas vistas em que a
+     mão aparece e longe do anel de entrada. Some quando a mão sai de cena (fase ≥ 5). */
   const thumbArrow = new THREE.Group(); thumbArrow.name = 'Vetor do polegar'; aids.add(thumbArrow);
   {
     const tT = hand ? hand.tT : new THREE.Vector3(NL.thumbSkin[0], NL.thumbSkin[1], skinZ(NL.thumbSkin[0], NL.thumbSkin[1]));
@@ -1290,36 +1342,52 @@ float gloveHeight(vec3 p, vec3 n) {
       const t = C.clamp(((p.x - a.x) * abx + (p.y - a.y) * aby + (p.z - a.z) * abz) / l2, 0, 1);
       const dx = p.x - a.x - t * abx, dy = p.y - a.y - t * aby, dz = p.z - a.z - t * abz; return Math.sqrt(dx * dx + dy * dy + dz * dz);
     };
-    /* A seta não pode ficar sobre a projeção frontal da agulha (entrada → incisura): cabeça E haste projetadas (xy) a
-       ≥ 1,2 cm do segmento — senão, de frente, parece um alfinete cravado no caminho da agulha. Também deve ficar
-       visível (não encoberta pela mão) nas vistas usuais: 'hand' e frontal. Busca: lado/distância ao polegar e
-       inclinação da seta (posterior com 35–45° de componente inferior) e comprimento. */
+    /* Legibilidade: as vistas com a mão (cap. 05 = LM.views.hand; cap. 06 = az −0,2, el 0,35) olham de anterior e um
+       pouco de cranial — praticamente AO LONGO de uma seta "posterior com 35–45° de componente inferior", que então
+       aparece de ponta (tachinha). Por isso a seta é mais inclinada para caudal (55–70° a partir da direção posterior,
+       ainda entrando na pele) e exige-se ≥ 1,6 cm de comprimento projetado nessas duas vistas (≥ 1,4 na frontal).
+       A polpa do polegar fica sobre a projeção frontal da agulha (é ela que mantém a agulha rente sob a clavícula):
+       junto do polegar (≤ 2,2 cm) a seta pode cruzar essa projeção; mais longe, não (pareceria um alfinete no caminho da
+       agulha). Também fica a ≥ 2,5 cm do anel de entrada (não confundir com o ponto de punção). */
     const flat = (p) => new THREE.Vector3(p.x, p.y, 0), nA = flat(entryEff), nB = flat(v3(NL.notchAim));
     const needleClr = (head, tail) => { let m = 1e9; for (let k = 0; k <= 8; k++) m = Math.min(m, segD(flat(head.clone().lerp(tail, k / 8)), nA, nB)); return m; };
     const camDir = (v) => new THREE.Vector3(-Math.sin(v.az) * Math.cos(v.el), Math.sin(v.el), Math.cos(v.az) * Math.cos(v.el)); // anatômico
-    const views = [camDir(LM.views.hand), camDir({ az: 0, el: 0.06 })];
+    // 'hand' (cap. 05), cap. 06, frontal e oblíqua (as duas últimas, vistas livres comuns, pesam menos na oclusão)
+    const views = [camDir(LM.views.hand), camDir({ az: -0.2, el: 0.35 }), camDir({ az: 0, el: 0.06 }), camDir(LM.views.oblique)];
+    const OCC_W = [1, 1, 0.5, 0.5];
     const occluded = (p, vd) => { const far = p.clone().addScaledVector(vd, 18); for (const q of hvAll) if (segD(q, p, far) < 0.28) return true; return false; };
     const cands = [];
-    for (const tilt of [45, 35]) for (const LEN of [2.0, 2.4]) {
+    for (const tilt of [55, 60, 65, 70]) for (const LEN of [2.2, 2.4, 2.6]) {
       const tr = (tilt * Math.PI) / 180, dP = new THREE.Vector3(0, -Math.sin(tr), -Math.cos(tr));
-      // legibilidade: comprimento projetado (cm) nas vistas 'hand' e frontal (seta vista "de ponta" parece um alfinete)
-      const leg = Math.min(...views.map((vd) => LEN * Math.sqrt(Math.max(0, 1 - dP.dot(vd) ** 2))));
-      for (let deg = -180; deg < 180; deg += 15) for (const RR of [1.9, 2.3, 2.7, 3.1]) {
+      // comprimento projetado (cm) em cada vista; leg = pior das vistas com a mão
+      const legs = views.map((vd) => LEN * Math.sqrt(Math.max(0, 1 - dP.dot(vd) ** 2))), leg = Math.min(legs[0], legs[1]);
+      for (let deg = -180; deg < 180; deg += 15) for (const RR of [1.5, 1.7, 1.9, 2.1, 2.4, 2.8]) {
         const a = (deg * Math.PI) / 180, hx = tT.x + RR * Math.cos(a), hy = tT.y + RR * Math.sin(a);
         const head = new THREE.Vector3(hx, hy, skinZ(hx, hy) + 0.25), tail = head.clone().addScaledVector(dP, -LEN);
-        let clr = 1e9; for (const p of hv) clr = Math.min(clr, segD(p, head, tail) - 0.3);
-        const nclr = needleClr(head, tail);
-        const score = Math.min(clr, 0.6) + (nclr < 1.2 ? -2 - (1.2 - nclr) : 0) + 0.4 * Math.min(leg, 1.4) - (leg < 0.9 ? 1 : 0) - 0.25 * (RR - 1.9) - 0.002 * Math.abs(deg + 90) - 0.1 * Math.abs(LEN - 2.4);
-        cands.push({ head, tail, dP, tilt, LEN, leg, clr, nclr, occ: 0, deg, RR, score });
+        let skinClr = 1e9; for (let k = 2; k <= 8; k++) { const p = head.clone().lerp(tail, k / 8); skinClr = Math.min(skinClr, p.z - skinZ(p.x, p.y)); }
+        const nclr = needleClr(head, tail), dEntry = Math.hypot(hx - entryEff.x, hy - entryEff.y);
+        // nota sem a folga da mão (o termo da folga vale no máximo +0,3: limite superior para a avaliação preguiçosa)
+        let base = 0.4 * Math.min(leg, 2.0) - 0.6 * Math.max(0, RR - 1.7) - 0.02 * Math.abs(tilt - 60) - 0.1 * Math.abs(LEN - 2.4);
+        if (leg < 1.6) base -= 2 + 2 * (1.6 - leg);                            // vista de ponta numa vista com a mão
+        if (legs[2] < 1.4) base -= 1;                                          // idem na frontal
+        if (skinClr < 0.15) base -= 2;                                         // haste rente/afundada na pele
+        if (RR > 2.2 && nclr < 1.2) base -= 2 + (1.2 - nclr);                  // longe do polegar, sobre o caminho da agulha
+        if (dEntry < 2.5) base -= 1.5 + (2.5 - dEntry);                        // confundível com o anel de entrada
+        if (hy > tT.y + 0.3) base -= 0.5 * (hy - tT.y - 0.3);                  // cabeça sobre a clavícula: preferir infraclavicular
+        cands.push({ head, tail, dP, tilt, LEN, leg, legs, clr: null, nclr, dEntry, occ: 0, deg, RR, base, score: base + 0.3 });
       }
     }
-    // oclusão (cara) só para os melhores, em ordem: a penalidade só reduz a nota
+    /* Avaliação preguiçosa, em ordem decrescente do limite superior: folga da mão (≈10⁶ distâncias se feita para
+       todos) e depois oclusão (mais cara) — ambas só reduzem a nota. */
     cands.sort((p, q) => q.score - p.score);
     let best = null;
     for (const c of cands) {
       if (best && c.score <= best.score) break;
-      const mid = c.head.clone().lerp(c.tail, 0.4); views.forEach((vd, i) => { if (occluded(c.head, vd) || occluded(mid, vd)) c.occ += i === 0 ? 1 : 0.6; });
-      c.score -= c.occ; if (!best || c.score > best.score) best = c;
+      let clr = 1e9; for (const p of hv) clr = Math.min(clr, segD(p, c.head, c.tail) - 0.3);
+      c.clr = clr; c.score = c.base + 0.6 * Math.min(clr, 0.5) - (clr < 0.05 ? 3 + 4 * (0.05 - clr) : 0); // encosta na mão
+      if (best && c.score <= best.score) continue;
+      const mid = c.head.clone().lerp(c.tail, 0.4); views.forEach((vd, i) => { if (occluded(c.head, vd) || occluded(mid, vd)) c.occ += OCC_W[i]; });
+      c.score -= 1.5 * c.occ; if (!best || c.score > best.score) best = c;
     }
     const dP = best.dP;
     const { head, tail } = best;
@@ -1330,16 +1398,17 @@ float gloveHeight(vec3 p, vec3 n) {
     // "ondas" de depressão na pele, entre a polpa do polegar e a seta (arcos concêntricos que acompanham a pele)
     const n0 = surfNormal(skinZ, tT.x, tT.y), e1 = new THREE.Vector3(1, 0, 0).addScaledVector(n0, -n0.x).normalize(), e2 = new THREE.Vector3().crossVectors(n0, e1);
     const a0 = (best.deg * Math.PI) / 180;
-    // arcos concêntricos ("ondas") da polpa até a seta: ligam visualmente a seta ao polegar, mesmo a ~3 cm
-    const nArc = best.RR > 2.5 ? 3 : 2, rOut = Math.max(1.16, best.RR - 0.85);
-    Array.from({ length: nArc }, (_, i) => [0.92 + ((rOut - 0.92) * i) / (nArc - 1), 0.9 - (0.5 * i) / (nArc - 1), 0.03 - 0.003 * i, 1.25 - 0.3 * (i / (nArc - 1))]).forEach(([r, op, rt, span]) => {
+    // arcos concêntricos ("ondas") da polpa até a seta: ligam visualmente a seta ao polegar; o 1º fica logo fora da
+    // silhueta do polegar (~1 cm da polpa) e o último a ~0,45 cm da cabeça da seta
+    const nArc = best.RR > 1.9 ? 3 : 2, rOut = Math.max(1.3, best.RR - 0.45);
+    Array.from({ length: nArc }, (_, i) => [1.0 + ((rOut - 1.0) * i) / (nArc - 1), 0.9 - (0.45 * i) / (nArc - 1), 0.032 - 0.004 * i, 1.0 - 0.35 * (i / (nArc - 1))]).forEach(([r, op, rt, span]) => {
       const pts = []; for (let i = 0; i <= 40; i++) { const a = a0 + (-span + 2 * span * (i / 40)); const p = tT.clone().addScaledVector(e1, r * Math.cos(a)).addScaledVector(e2, r * Math.sin(a)); p.z = skinZ(p.x, p.y) + 0.05; pts.push(p); }
       const m = new THREE.MeshBasicMaterial({ color: '#c99a3e', transparent: true, opacity: op, depthWrite: false });
       const arc = mesh(C.sweepGeometry(pts, { r: rt, radial: 8, segments: 60, caps: 'round' }), m, thumbArrow, GI({ id: 'thumb-vector', name: 'Depressão dos tecidos sob a polpa do polegar' }), { cast: false, receive: false });
       arc.renderOrder = 2;
     });
     setA('thumbVector', tail.clone().lerp(head, 0.35).toArray());
-    thumbArrow.userData.choice = { deg: best.deg, RR: best.RR, tilt: best.tilt, len: best.LEN, legibleCm: +best.leg.toFixed(2), occluded: best.occ, clearance: +best.clr.toFixed(2), needleClearanceXY: +best.nclr.toFixed(2), head: best.head.toArray().map((x) => +x.toFixed(2)) };
+    thumbArrow.userData.choice = { deg: best.deg, RR: best.RR, tilt: best.tilt, len: best.LEN, legibleCm: +best.leg.toFixed(2), legibleByView: { hand: +best.legs[0].toFixed(2), cap06: +best.legs[1].toFixed(2), front: +best.legs[2].toFixed(2) }, occluded: best.occ, clearance: +best.clr.toFixed(2), needleClearanceXY: +best.nclr.toFixed(2), entryDist: +best.dEntry.toFixed(2), head: best.head.toArray().map((x) => +x.toFixed(2)), tail: best.tail.toArray().map((x) => +x.toFixed(2)) };
   }
   if (!hand) { setA('indexTip', NL.indexSkin); setA('thumbTip', NL.thumbSkin); setA('palm', [6, 4.5, 6]); }
 
@@ -1439,6 +1508,16 @@ float gloveHeight(vec3 p, vec3 n) {
     const showMk = surfaceOn && (state.markers === undefined || state.markers === null ? autoMk : !!state.markers);
     markers.forEach((m) => { m.visible = showMk; });
     if (+state.fixStep > 0) markers[1].visible = false; // a fixação (bailarina) ocupa o sítio de saída
+    // sítio de punção/saída: presença de cada dispositivo atravessando a pele; com fase 6 e fixStep > 0 a fixação
+    // desenha o próprio sítio (mesma rampa 0 → 0,3); sem o módulo de fixação, some com o curativo (fixStep ≥ 8,5)
+    {
+      const fixMod = ctx.engine && ctx.engine.results && ctx.engine.results.fixation, fs = +state.fixStep || 0;
+      const fixOn = Math.round(+state.phase || 0) >= 6 && fs > 0;
+      const fixK = !fixOn ? 1 : fixMod && !(fixMod.api && fixMod.api.available === false) ? 1 - C.smooth(0, 0.3, fs) : fs >= 8.5 ? 0 : 1;
+      const gh = ctx.engine && ctx.engine.ghosts ? ctx.engine.ghosts().skin : null; // pele "fantasma": marca proporcional
+      const k = layers.skin.visible ? (gh == null ? 1 : C.clamp(1.5 * gh, 0, 1)) : 0;
+      exitSite.set({ needle: cur.nd * C.smooth(sSkin, sSkin + 0.2, cur.s), dilator: C.clamp(cur.dil, 0, 1) * C.smooth(sSkin, sSkin + 0.2, cur.dS), catheter: C.smooth(0.3, 0.6, cur.cath) * fixK }, k);
+    }
     dilLimit.userData.mat.depthTest = layers.skin.visible; // com a pele visível, o anel fica sob ela (sem "flutuar")
     const instOn = layers.instrument.visible;
     // "raio X" só nas vistas anatômicas (sem pele): numa vista realista o trajeto interno não deve atravessar mão/pele
@@ -1471,7 +1550,7 @@ float gloveHeight(vec3 p, vec3 n) {
         malBend: malBend && { a: malBend.a, off: malBend.off, minRadius: malBend.minRadius, lumenMargin: malBend.lumenMargin }, mainBend: mainBend && { a: mainBend.a, off: mainBend.off, minRadius: mainBend.minRadius, lumenMargin: mainBend.lumenMargin }, routeMinRadius: (() => { const mr = (pts) => { const cv = C.curve(pts), P = []; for (let k = 0; k <= 600; k++) P.push(cv.getPointAt(k / 600)); return +minRadius(P).toFixed(2); }; return { wireNoJ: mr([tipVein, ...wireVein.pts]), catheter: mr([tipVein, ...cathRoute.pts]) }; })(), hubPlan: { deg: hubPlan.deg, d: hubPlan.d, psi: hubPlan.psi, hs: hubPlan.hs, center: hubPlan.hc.toArray().map((x) => +x.toFixed(2)), winMargin: -hubPlan.win, minRadius: hubPlan.minRadius, freeCath: hubPlan.free, score: hubPlan.score, nEval: hubPlan.nEval, window: WIN, windowSource: WIN_SOURCE }, catheter: cathReport,
         needle4: { depthFromSkin: +(sTip4 - sSkin).toFixed(2), shaftOutsideSkin: +(NEEDLE_L - (sTip4 - sSkin)).toFixed(2), pastWall: +(sTip4 - sWall).toFixed(2) },
         lumen: lumenReport, external: extReport, heartStartY: heartHit && +heartHit.y.toFixed(2), cathTip: cathTipP.toArray().map((x) => +x.toFixed(2)),
-        thumbArrow: thumbArrow.userData.choice, drapeMeshes, surface: surfKey,
+        thumbArrow: thumbArrow.userData.choice, exitMark: Object.assign({ visible: exitSite.grp.children.filter((g) => g.visible).map((g) => g.name) }, exitSite.info), drapeMeshes, surface: surfKey,
         hand: hand && Object.assign({ fingersPenRest: Object.fromEntries(['index', 'middle', 'ring', 'pinky', 'thumb'].map((f) => [f, +hand.maxPen(hand.fingerVerts[f] || [], restZ, 0, 2).toFixed(2)])) }, hand.fitInfo),
       }),
       hand,

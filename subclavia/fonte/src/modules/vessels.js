@@ -760,6 +760,48 @@ ATLAS.define('vessels', function (ctx) {
   }
 
 
+  /** Costura sombreada de uma confluência: perto da curva de interseção (vértices `cut` da malha do ramo que passam em
+      `near`), as normais do ramo e do tronco convergem para a bissetriz das duas paredes, numa faixa de largura `w` (cm)
+      de cada lado — a aresta vira um filete na iluminação (sem degrau de sombreado). A geometria não muda. */
+  function blendSeam(branchMeshes, trunkMeshes, near, w) {
+    const seam = [];
+    for (const m of branchMeshes) {
+      const g = m.geometry, cut = g.userData.cut; if (!cut) continue;
+      const P = g.attributes.position.array, N = g.attributes.normal.array;
+      for (let i = 0; i < cut.length; i++) if (cut[i] && near(P[i * 3], P[i * 3 + 1], P[i * 3 + 2])) seam.push({ p: new V3(P[i * 3], P[i * 3 + 1], P[i * 3 + 2]), n: new V3(N[i * 3], N[i * 3 + 1], N[i * 3 + 2]).normalize() });
+    }
+    if (!seam.length) return;
+    // normal do tronco no ponto da costura: a do vértice do tronco mais próximo, fora do ramo (os vértices `cut` do tronco
+    // são a borda do furo, 0,07 cm dentro do ramo); o alvo é a bissetriz das duas normais
+    for (const s of seam) {
+      let bd = 1e9, bN = null, bk = 0;
+      for (const m of trunkMeshes) {
+        const P = m.geometry.attributes.position.array, cut = m.geometry.userData.cut;
+        for (let i = 0; i < P.length / 3; i++) {
+          if (cut && cut[i]) continue;
+          const d = (P[i * 3] - s.p.x) ** 2 + (P[i * 3 + 1] - s.p.y) ** 2 + (P[i * 3 + 2] - s.p.z) ** 2;
+          if (d < bd) { bd = d; bN = m.geometry.attributes.normal.array; bk = i * 3; }
+        }
+      }
+      s.t = bN ? s.n.clone().add(new V3(bN[bk], bN[bk + 1], bN[bk + 2]).normalize()).normalize() : s.n.clone();
+    }
+    const n = new V3();
+    for (const m of branchMeshes.concat(trunkMeshes)) {
+      const g = m.geometry, P = g.attributes.position.array, N = g.attributes.normal.array;
+      let any = false;
+      for (let i = 0; i < P.length / 3; i++) {
+        const x = P[i * 3], y = P[i * 3 + 1], z = P[i * 3 + 2];
+        let bd = w * w, bs = null;
+        for (const s of seam) { const d = (s.p.x - x) ** 2 + (s.p.y - y) ** 2 + (s.p.z - z) ** 2; if (d < bd) { bd = d; bs = s; } }
+        if (!bs) continue;
+        const f = 1 - Math.sqrt(bd) / w, a = f * f * (3 - 2 * f);
+        n.set(N[i * 3], N[i * 3 + 1], N[i * 3 + 2]).multiplyScalar(1 - a).addScaledVector(bs.t, a).normalize();
+        N[i * 3] = n.x; N[i * 3 + 1] = n.y; N[i * 3 + 2] = n.z; any = true;
+      }
+      if (any) g.attributes.normal.needsUpdate = true;
+    }
+  }
+
   /** Nova geometria com os anéis [a..b] (inclusive) e polos/leques opcionais. */
   function sliceRings(src, W, a, b, poleS, poleE) {
     const sp = src.attributes.position.array, sn = src.attributes.normal.array, su = src.attributes.uv.array;
@@ -1162,8 +1204,11 @@ ATLAS.define('vessels', function (ctx) {
     // VBC/VCS quase circulares (eixo coronal = lateral → ligeiramente > 1)
     oval: [[0, 0.95], [chRT[iAx] - 0.04, 0.92], [chRT[iAx] + 0.03, 0.84], [chRT[iCorner] - 0.03, 0.88], [chRT[iCorner] + 0.02, 1.06], [tSvc, 1.1], [1, 1.1]],
     // origem da VCS mais larga, voltada para a VBC E que chega pela esquerda e pela frente; elevações discretas da parede
-    // voltadas para a VJE e a cefálica (a confluência sobe ao encontro do afluente, sem "dedo pousado")
-    bulges: [{ t: tSvc, w: 0.85, k: 0.18, dir: [-0.93, 0.12, 0.3] }, { t: tAt(chRC, 0, 6.0, 0, 0.6), w: 0.42, k: 0.13, dir: [0.41, 0.91, -0.11] },
+    // voltadas para a VJE e a cefálica (a confluência sobe ao encontro do afluente, sem "dedo pousado").
+    // A VBC E chega 0,35 cm ANTERIOR ao eixo da VCS (LM) e sua face anterior ficava rente à da VCS até x ≈ 2: a parede
+    // anterolateral esquerda da origem da VCS sobe ~0,28 cm ao encontro dela (funil da confluência) e a recebe já no
+    // ombro esquerdo da VCS (borda visível da VBC E até x ≈ 1,75, antes 2,05; centro da VCS em x = 2,45).
+    bulges: [{ t: tAt(chRC, 1, -2.1, 0.5, 1), w: 0.9, k: 0.3, dir: [-0.56, 0.05, 0.83] }, { t: tSvc, w: 0.85, k: 0.18, dir: [-0.93, 0.12, 0.3] }, { t: tAt(chRC, 0, 6.0, 0, 0.6), w: 0.42, k: 0.13, dir: [0.41, 0.91, -0.11] },
       { t: tAt(chRC, 0, 11.4, 0, 0.6), w: 0.45, k: 0.1, dir: [0.62, 0.43, 0.65] }],
     valves: [{ s: tAt(chRC, 0, 6.4) * chRlen, k: 0.035 }], noise: veinNoise(22), mat: MAT.vein,
     pieces: [
@@ -1174,10 +1219,14 @@ ATLAS.define('vessels', function (ctx) {
     ],
   });
   // ---- Canal esquerdo (desemboca no canal direito na origem da VCS)
+  //      Pontos de LM.lbcv até [1,65; −2,1; −1,95]; o último ponto de LM (centro da origem da VCS) é trocado por dois pontos
+  //      DENTRO da luz da VCS que curvam a ponta da VBC E para baixo, no sentido do fluxo: a borda inferior da VBC E
+  //      continua na parede esquerda da VCS (confluência em Y) em vez de terminar como um cilindro deitado sobre a face
+  //      anterior da VCS ("dedo pousado"). A parte interna é recortada (luz contínua nos cortes).
   const angL = mir(VV.venousAngleR);
   const cornerL = roundCorner(mir(VV.scv.pts[3]), angL, VV.lbcv.pts[1], 1.2);
-  const chLpts = mirP(axScv).concat([cornerL], VV.lbcv.pts.slice(1));
-  const chLr = axScvR.concat([0.72], VV.lbcv.r.slice(1));
+  const chLpts = mirP(axScv).concat([cornerL], VV.lbcv.pts.slice(1, -1), [[2.3, -2.6, -2.3], [2.42, -3.35, -2.45]]);
+  const chLr = axScvR.concat([0.72], VV.lbcv.r.slice(1, -1), [0.72, 0.7]);
   const chLC = C.curve(chLpts), chLT = arcParams(chLC, chLpts.length), chLlen = chLC.getLength();
   const tCornerL = chLT[iCorner];
   const channelL = build({
@@ -1248,11 +1297,16 @@ ATLAS.define('vessels', function (ctx) {
   //      menor → face anterossuperior da veia axilar. Um ponto final DENTRO da axilar (o último de LM fica na parede) dá a
   //      união oblíqua, no sentido do fluxo. Calibre de ~4,5–5 mm (r 0,22–0,25): bem menor que a axilar, para não ser
   //      confundida com ela na janela do ultrassom.
-  const cephR = VV.cephalicR.pts.concat([[11.22, -1.08, -0.92]]);
+  //      O ponto final interno é DERIVADO do eixo real da axilar (0,4 cm medial ao último ponto de LM, que fica na parede):
+  //      com a axilar de LM v2 (caudal/medial à artéria) o antigo ponto fixo [11,22; −1,08; −0,92] ficava 0,88 cm do eixo,
+  //      FORA da veia — a cefálica voltava para cima e saía da axilar como um gancho de ponta arredondada.
+  const cephLast = VV.cephalicR.pts[VV.cephalicR.pts.length - 1];
+  const cephR = VV.cephalicR.pts.concat([P3(chRC.getPointAt(tAt(chRC, 0, cephLast[0] - 0.4, 0, tCornerR)))]);
   const cephRr = [0.22, 0.225, 0.23, 0.235, 0.24, 0.245, 0.25, 0.25];
+  const CEPH = {};
   ['R', 'L'].forEach((side) => {
     const L = side === 'L';
-    build({
+    CEPH[side] = build({
       kind: 'V', pts: L ? mirP(cephR) : cephR, r: cephRr, radial: 20, density: 8, start: 'cut', end: 'round', bones: true,
       ostium: { parent: L ? channelL : channelR, at: 'end', F: 0.15, reach: 0.55 }, noise: veinNoise(L ? 29 : 28), mat: MAT.vein,
       pieces: [{ t: 1, info: GV({ id: 'cephalic-v-' + side, name: 'Veia cefálica ' + (L ? 'esquerda' : 'direita'), desc: D.ceph }) }],
@@ -1287,6 +1341,10 @@ ATLAS.define('vessels', function (ctx) {
   // ---- União das confluências (recorte das partes internas; ver trimAll)
   const tTrim0 = performance.now();
   trimAll();
+  // costuras sombreadas (ver blendSeam): VBC E → origem da VCS; cefálicas → axilares
+  blendSeam(channelL.meshes, channelR.meshes, (x, y) => x > 1.0 && y > -3.6 && y < -0.6, 0.32);
+  blendSeam(CEPH.R.meshes, channelR.meshes, (x) => x > 9, 0.2);
+  blendSeam(CEPH.L.meshes, channelL.meshes, (x) => x < -9, 0.2);
 
   /* =====================================================================
      UNIÃO COM O CORAÇÃO — a VCS termina ABERTA no óstio do átrio direito
@@ -1546,7 +1604,10 @@ ATLAS.define('vessels', function (ctx) {
         if (cv !== capVis) { capVis = cv; OSTIUM_CAPS.forEach((m) => (m.visible = cv)); }
       }
       const hl = E && typeof E.highlighted === 'function' ? E.highlighted() || '' : '';
-      const v = !!(layers.skin && layers.skin.visible) || /^ejv-/.test(hl);
+      // VJE: com o plano superficial (pele), destacada, ou na dissecção com músculos OPACOS (sobre o ECM); com músculos
+      // ocultos ou em fantasma ela ficaria solta no ar e encobriria artéria, frênico e cúpula — continua oculta
+      const ghm = E && typeof E.ghosts === 'function' ? E.ghosts() : null;
+      const v = !!(layers.skin && layers.skin.visible) || /^ejv-/.test(hl) || (!!(layers.muscle && layers.muscle.visible) && !(ghm && ghm.muscle != null));
       if (v === supVis) return;
       supVis = v; SUPERFICIAL.forEach((m) => (m.visible = v)); PATCHES.forEach((m) => (m.visible = !v));
     },

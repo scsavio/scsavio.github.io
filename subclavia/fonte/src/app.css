@@ -207,6 +207,8 @@ input[type="range"]:focus-visible::-moz-range-thumb { outline: 2px solid var(--f
   background: var(--viewer-bg);
 }
 .viewer canvas { display: block; width: 100%; height: 100%; outline: none; }
+/* foco do visor pelo teclado (setas giram o modelo): contorno interno — o visor recorta o que passa da borda */
+.viewer canvas:focus-visible { outline: 3px solid var(--focus); outline-offset: -3px; }
 .viewer.pick canvas { cursor: pointer; }
 .viewer.full, .viewer:fullscreen { height: 100vh; height: 100dvh; width: 100vw; }
 .viewer.full { position: fixed; inset: 0; z-index: 90; }

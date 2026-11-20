@@ -49,7 +49,7 @@ ATLAS.define('fixation', async function (ctx) {
   const STEPS = ['Sem fixação', 'Preparo', 'Ponto de ancoragem', 'Nó de ancoragem', '1º cruzamento', '2º cruzamento',
     '3º cruzamento e nó final', 'Corte e conferência', 'Pontos nas asas', 'Curativo'].map((short, n) => ({ n, short }));
   /* duração sugerida (ms) do movimento DE CADA ETAPA k (de fixStep k−1 até k); [0] não se usa */
-  const STEP_MS = [0, 3000, 11000, 7000, 8500, 9000, 9000, 6500, 9000, 3500];
+  const STEP_MS = [0, 3000, 11000, 7000, 8500, 9000, 9000, 8500, 9000, 3500];
 
   let ins = ctx.engine && ctx.engine.results ? ctx.engine.results.instruments : null;
   if (ins && typeof ins.then === 'function') { try { ins = await ins; } catch (_) { ins = null; } }
@@ -74,7 +74,7 @@ ATLAS.define('fixation', async function (ctx) {
   const BPOST = -142 * PI / 180, BANT = -45 * PI / 180; // pega no terço posterior / repega no corpo exteriorizado
   const TH_K = 0.62, TH_KF = 0.82;      // meia-abertura angular dos nós sobre o cateter (cruzamentos / nó final)
   const LOOSE = 0.3, LIFT = 0.22;       // laço frouxo: raio extra e elevação
-  const L_TAIL0 = 8.0, L_STUB = 0.75;   // pontas após o nó de ancoragem; coto após o corte
+  const L_TAIL0 = 8.0, L_STUB = 0.85;   // pontas após o nó de ancoragem; coto após o corte (0,5–1 cm)
   const N1 = 240, N2 = 900, RAD = 8;    // amostras dos tubos do fio (início / restante) e segmentos radiais
   const GAP = 0.033;                    // meia-abertura entre as mandíbulas (agulha presa)
   const COIL_R1 = 0.14, COIL_R2 = 0.125, COIL_X0 = 0.34, COIL_PITCH = 0.075, WRAP_R = 0.55; // espiras nas mandíbulas
@@ -123,6 +123,9 @@ ATLAS.define('fixation', async function (ctx) {
   mats.halo.clippingPlanes = C.clipPlanes;
   // sítio de saída: materiais próprios (aparecem com a fixação, sem alterar os demais capítulos com fase 6)
   mats.exitHalo = mats.halo.clone(); mats.exitHalo.clippingPlanes = C.clipPlanes;
+  // auxílios da conferência: dourado dos marcadores do atlas, sem sombra, sempre por cima do cateter
+  mats.check = new THREE.MeshBasicMaterial({ color: '#d9a640', transparent: true, opacity: 0.9, depthWrite: false, depthTest: true });
+  mats.check.clippingPlanes = C.clipPlanes;
 
   /* ======================================================================
      2. Tubo dinâmico (fio): anéis por transporte paralelo; atualiza só atributos
@@ -203,7 +206,7 @@ ATLAS.define('fixation', async function (ctx) {
      ====================================================================== */
   const infoHolder = GI({ id: 'needle-holder', name: 'Porta-agulha tipo Mayo-Hegar (~14,5 cm)', desc: 'Aço inoxidável, argolas, cremalheira e mandíbulas serrilhadas. A agulha é presa pela ponta das mandíbulas, no terço posterior do corpo, perpendicular a elas; também faz os nós instrumentais (fio enrolado 2 voltas nas mandíbulas).' });
   const infoScissors = GI({ id: 'suture-scissors', name: 'Tesoura de fio', desc: 'Separa a agulha rente ao engaste e corta as pontas deixando ~0,5–1 cm além do nó final, com a ponta afastada do cateter e as lâminas paralelas à pele.' });
-  const infoNeedle = GI({ id: 'suture-needle', name: 'Agulha curva 1/2 círculo, cortante (~2 cm)', desc: 'Montada no fio de náilon monofilamentar 3-0. Percorre o arco pela pronossupinação do punho; nunca é segura com os dedos. Na cena, a pele não se deforma: a entrada fica em ~55° com a pele (na prática, a contrapressão com a pinça everte a borda e a ponta entra perpendicular).' });
+  const infoNeedle = GI({ id: 'suture-needle', name: 'Agulha curva 1/2 círculo, cortante (~2 cm)', desc: 'Montada no fio de náilon monofilamentar 3-0. Percorre o arco pela pronossupinação do punho; nunca é segura com os dedos. Na cena, a pele não se deforma: a entrada fica em ~60° com a pele (na prática, a contrapressão com a pinça everte a borda e a ponta entra perpendicular).' });
   const infoForceps = GI({ id: 'tissue-forceps', name: 'Pinça de dissecção com dente (Adson, ~12 cm)', desc: 'Mão não dominante: contrapressão na pele ao lado da entrada da agulha, recebe a ponta da agulha na repega, passa e recolhe as pontas do fio por baixo do cateter e enrola a ponta longa nas mandíbulas do porta-agulha.' });
   const infoFinger = GI({ id: 'operator-hand', name: 'Dedo do operador estabilizando o canhão', desc: 'Durante cada nó, um dedo da mão não dominante (ou o auxiliar) apoia o canhão para que a tração dos nós não chegue ao sítio de saída.' });
   /** Porta-agulha. Local: origem = ponto de pega (agulha), +X = haste até as argolas, +Y = abertura das mandíbulas
@@ -333,6 +336,8 @@ ATLAS.define('fixation', async function (ctx) {
   const markGrp = new THREE.Group(); markGrp.name = 'Orifícios do ponto de ancoragem'; root.add(markGrp); C.reg(markGrp, infoAnchor);
   const wingGrp = new THREE.Group(); wingGrp.name = 'Pontos nas asas'; root.add(wingGrp); C.reg(wingGrp, infoWing);
   const dressGrp = new THREE.Group(); dressGrp.name = 'Curativo transparente'; root.add(dressGrp);
+  // conferência (etapa 7): anel na marca em cm rente à pele e seta da tração suave no canhão (auxílios didáticos)
+  const checkGrp = new THREE.Group(); checkGrp.name = 'Conferência da fixação'; root.add(checkGrp); checkGrp.visible = false;
 
   /* ======================================================================
      4. Layout (a partir de instruments.api.external()) — refeito a cada reassentamento
@@ -398,6 +403,20 @@ ATLAS.define('fixation', async function (ctx) {
     return Math.min(dBody, dWing);
   }
   const horiz = (v) => V3(v.x, v.y, 0).normalize();
+  const LG = 2.6; // aperto dos nós: o instrumento segura o fio a ~2,6 cm do nó (o resto da ponta deita na pele)
+  /** Tração simétrica para os lados (±side), paralela à pele no nó: elevação mínima (≥ 8°) que mantém o fio ≥ 0,12 cm
+      acima da superfície até além da pegada, a MESMA dos dois lados (força resultante sobre o cateter ≈ nula). */
+  function pullDirs(K, side, reach) {
+    const n = nrm(sZ, K.x, K.y, 0.4), Bp = side.clone().addScaledVector(n, -side.dot(n)).normalize();
+    let e = 8 * PI / 180;
+    for (const sg of [1, -1]) for (let d = 0.3; d <= reach + 0.61; d += 0.15) {
+      const q = K.clone().addScaledVector(Bp, sg * d), need = sZ(q.x, q.y) + 0.12 - q.z;
+      if (need > 0) e = Math.max(e, Math.atan2(need, d));
+    }
+    e = Math.min(e, 30 * PI / 180);
+    const c = Math.cos(e), sn = Math.sin(e);
+    return { dP: Bp.clone().multiplyScalar(c).addScaledVector(n, sn).normalize(), dN: Bp.clone().multiplyScalar(-c).addScaledVector(n, sn).normalize(), deg: +(e * 180 / PI).toFixed(1) };
+  }
   const onSurf = (x, y, dz = R_T + 0.003) => V3(x, y, sZ(x, y) + dz);
   const footOf = (p, dz = R_T + 0.003) => onSurf(p.x, p.y, dz);
   const quatFromBasis = (X, Y, Z) => new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(X, Y, Z));
@@ -477,7 +496,7 @@ ATLAS.define('fixation', async function (ctx) {
     g.exit = entry.clone();
 
     /* ---- 4b. ponto de ancoragem: pegada paralela ao cateter, do lado +B (lateral-cranial), nó no orifício junto à saída ----
-       agulha 1/2 círculo com o plano quase perpendicular à pele: corda ≈ 1,04 cm, profundidade ≈ 0,27 cm, entrada ≈ 55° */
+       agulha 1/2 círculo com o plano quase perpendicular à pele: corda ≈ 1,04 cm, profundidade ≈ 0,27 cm, entrada ≈ 60° */
     const atOff = (s, d) => { const f = foot(s), b = Bh(s); const q = f.addScaledVector(b, d); q.z = kZ(q.x, q.y); return q; };
     const P1 = atOff(S_P1, D_A);
     let sP2 = S_P1 + CHORD; for (let it = 0; it < 4; it++) { const d = P1.distanceTo(atOff(sP2, D_A)); sP2 = Math.min(g.sTip - 0.3, sP2 + (CHORD - d)); }
@@ -560,11 +579,14 @@ ATLAS.define('fixation', async function (ctx) {
       const PAfar = E2p.clone().addScaledVector(dN, 1.04 * rem('A', mA.side2));
       const PBfar = (c === 1 ? sideFront('B', 1) : E1p).clone().addScaledVector(dP, 1.04 * rem('B', mB.side2));
       const KA = ptAtLen(g.form.A[c].pts, mA.end), KB = ptAtLen(g.form.B[c].pts, mB.end);
-      const PAtight = KA.clone().addScaledVector(dP, 1.04 * rem('A', mA.end)), PBtight = KB.clone().addScaledVector(dN, 1.04 * rem('B', mB.end));
+      // aperto: tração simétrica, para os lados do cateter e paralela à pele; os instrumentos seguram o fio a LG do nó
+      // (alvo um pouco além do alcance: o trecho entre o nó e a pegada fica esticado)
+      const pd = pullDirs(K, Bk, LG);
+      const PAtight = KA.clone().addScaledVector(pd.dP, 1.04 * LG), PBtight = KB.clone().addScaledVector(pd.dN, 1.04 * LG);
       g.cx[c] = {
         s, c0, K, U: Uk, B: Bk, T: Tk, sU, rBot, E1: E1p, E2: E2p, F_A, tie,
         PAfar, PBfar, PBhold: at(1.7, 1.7, -0.5),
-        PAtight, PBtight, OVh: K.clone().addScaledVector(Uk, 1.35).addScaledVector(Tk, -0.15), OVf: K.clone().addScaledVector(Uk, 2.7),
+        PAtight, PBtight, dPull: { A: pd.dP, B: pd.dN }, pullDeg: pd.deg, OVh: K.clone().addScaledVector(Uk, 1.35).addScaledVector(Tk, -0.15), OVf: K.clone().addScaledVector(Uk, 2.7),
         Vtop: K.clone().addScaledVector(Uk, 0.3),
       };
       g.cx[c].wrap = wrapPlan(tie, sideFront('B', c));
@@ -581,12 +603,12 @@ ATLAS.define('fixation', async function (ctx) {
       // contrapressão: pontas fechadas na pele logo atrás da entrada (lado da saída), cabo para cima, longe do porta-agulha
       const cp = onSurf(P1.x - e1.x * 0.3 + Bout.x * 0.26, P1.y - e1.y * 0.3 + Bout.y * 0.26, 0.03);
       g.fCP = framePose(cp, nM.clone().multiplyScalar(0.8).addScaledVector(e1, -0.45).addScaledVector(Bout, 0.3), e1.clone().cross(nM));
-      // pinça recebendo a ponta exteriorizada: pose rígida em relação à agulha (meio do trecho exposto)
-      const npD = needlePose(an.plane, ps.thDrive), phiG = clamp(0.5 * (an.thOut - ps.thDrive), -0.16, -0.02);
-      const pg = V3(RN * Math.cos(phiG), RN * Math.sin(phiG), 0).applyQuaternion(npD.q).add(npD.p);
-      const fG = framePose(pg, nM.clone().multiplyScalar(0.75).addScaledVector(e1, 0.45).addScaledVector(Bout, -0.15), an.plane.NZ);
-      const inv = npD.q.clone().invert();
-      g.fGripLocal = { p: pg.clone().sub(npD.p).applyQuaternion(inv), q: inv.clone().multiply(fG.q) };
+      // quando a ponta sai: a pinça faz contrapressão na pele logo além do orifício de saída (P2), no prolongamento da
+      // pegada — estabiliza o tecido e ajuda a ponta a emergir SEM prender a ponta da agulha (pinçar a ponta a cega e
+      // entorta); cabo para cima e rumo ao canhão, longe do porta-agulha que repega o corpo exteriorizado
+      const cp2 = onSurf(P2.x + e1.x * 0.34 + Bout.x * 0.04, P2.y + e1.y * 0.34 + Bout.y * 0.04, 0.03);
+      const n2 = nrm(kZ, cp2.x, cp2.y, 0.25);
+      g.fCP2 = framePose(cp2, n2.clone().multiplyScalar(0.8).addScaledVector(e1, 0.5).addScaledVector(Bout, -0.2), Bout.clone().cross(n2));
       // etapa 2 → 3: agulha erguida (fim da etapa 2) e levada longe, até as pontas ficarem iguais
       const a = passPoses(ps).ant(ps.thSwOut);
       g.liftVec = nM.clone().multiplyScalar(1.5).addScaledVector(Bout, 0.4).addScaledVector(e1, -0.3);
@@ -602,9 +624,12 @@ ATLAS.define('fixation', async function (ctx) {
       g.wrapA = wrapPlan(g.tieA, P2.clone().lerp(P1, 0.5));
       const AK = g.ak.c;
       g.PAholdA = AK.clone().addScaledVector(n1, 1.6).addScaledVector(Bout, 1.7).addScaledVector(ax, 0.4);
-      const dA = LIE_P.clone().multiplyScalar(0.88).addScaledVector(n1, 0.45).normalize(), dB = V3(-0.99, 0.12, 0).normalize().multiplyScalar(0.88).addScaledVector(n1, 0.45).normalize();
-      g.PAtightA = g.ancEnd.A.clone().addScaledVector(dA, 1.04 * L_TAIL0);
-      g.PBtightA = g.ancEnd.B.clone().addScaledVector(dB, 1.04 * L_TAIL0);
+      // aperto do nó de ancoragem: pontas em sentidos opostos, na linha do ponto (A para o lado de P2, B para o oposto),
+      // paralelas à pele e com a mesma elevação; pegada a LG do nó
+      const pdA = pullDirs(AK, e1, LG);
+      g.dPullA = { A: pdA.dP, B: pdA.dN }; g.pullDegA = pdA.deg;
+      g.PAtightA = g.ancEnd.A.clone().addScaledVector(pdA.dP, 1.04 * LG);
+      g.PBtightA = g.ancEnd.B.clone().addScaledVector(pdA.dN, 1.04 * LG);
     }
     mk('poses');
 
@@ -657,6 +682,18 @@ ATLAS.define('fixation', async function (ctx) {
     { const base = hubC.clone().addScaledVector(hubY, -0.3); let h = 0.1; for (let i = 0; i < 60 && hubDist(base.clone().addScaledVector(hubN, h)) < 0.004; i++) h += 0.01;
       const X = hubY.clone().multiplyScalar(-0.5).addScaledVector(hubX, 0.6).addScaledVector(hubN, 0.45);
       g.fingerPose = framePose(base.clone().addScaledVector(hubN, h - 0.004), X.addScaledVector(hubN, -X.dot(hubN) * 0.55), hubN); }
+    // conferência: anel fino na marca em cm rente à pele (leitura do comprimento) e seta da tração suave no canhão
+    clearGroup(checkGrp);
+    { frameAt(0.07); const ring = C.mesh(new THREE.TorusGeometry(g.rC * 1.85, 0.022, 8, 40), mats.check, checkGrp, GI({ id: 'catheter', name: 'Marca em cm do cateter rente à pele (conferência)' }), { cast: false, receive: false });
+      ring.position.copy(FR.c); ring.quaternion.copy(quatFromBasis(FR.B, FR.U, FR.T)); // (B, U, T) é base dextrógira: eixo do anel = T ring.userData.exitMark = true; ring.renderOrder = 14;
+      const infoPull = GI({ id: 'operator-hand', name: 'Tração suave e breve no canhão (conferência)' }), arrow = new THREE.Group();
+      const shaft = new THREE.CylinderGeometry(0.035, 0.035, 0.75, 10); shaft.translate(0, 0.375, 0);
+      const head = new THREE.ConeGeometry(0.11, 0.3, 14); head.translate(0, 0.9, 0);
+      for (const gg of [shaft, head]) { const m = C.mesh(gg, mats.check, arrow, infoPull, { cast: false, receive: false }); m.renderOrder = 14; }
+      arrow.quaternion.setFromUnitVectors(V3(0, 1, 0), hubY.clone().negate());
+      const a0 = hubC.clone().addScaledVector(hubX, 0.95).addScaledVector(hubY, 0.25).addScaledVector(hubN, 0.6); // sobre a asa lateral
+      arrow.position.copy(a0); checkGrp.add(arrow); C.reg(arrow, infoPull);
+      checkGrp.userData.arrow = arrow; checkGrp.userData.arrow0 = a0; }
     buildWingStitches(g); mk('wingGeo');
     g.dressing = null; // refeito sob demanda
     layoutVer++;
@@ -955,6 +992,28 @@ ATLAS.define('fixation', async function (ctx) {
     return best;
   }
   function freeTail(J, tJ, L, o) {
+    // mistura (soltura de uma ponta esticada): a forma vai da configuração presa (o.blend.o) à de repouso (o), pelo
+    // comprimento de arco, sem salto
+    if (o.blend && o.blend.w > 0.001) {
+      const ob = Object.assign({}, o, { blend: null }), r1 = freeTail(J, tJ, L, o.blend.o), r2 = freeTail(J, tJ, L, ob);
+      if (o.blend.w >= 0.999) return r1;
+      const n = Math.max(r1.pts.length, r2.pts.length) / 3 + 1, a = new Float32Array(n * 3), b = new Float32Array(n * 3);
+      resample([J.x, J.y, J.z].concat(Array.from(r1.pts)), n, a); resample([J.x, J.y, J.z].concat(Array.from(r2.pts)), n, b);
+      const w = o.blend.w, pts = []; for (let i = 3; i < n * 3; i++) pts.push(lerp(b[i], a[i], w));
+      return { pts, end: lastV(pts), tEnd: endTan(pts, tJ), gi: n - 2, grip: null }; // solta: nenhum instrumento segura
+    }
+    // pegada a meio fio (aperto dos nós): o instrumento segura o fio a o.grip.Lg do início (trecho esticado até ele) e o
+    // resto da ponta sai das mandíbulas e deita na pele até o.grip.H2. o.grip.k (0..1) leva a pegada da extremidade
+    // (k = 0) à distância Lg — continuidade com a pegada na extremidade
+    if (o.grip && o.grip.k > 0.001) {
+      const Lg = lerp(L, Math.min(L, o.grip.Lg), o.grip.k);
+      if (L - Lg > 0.02) {
+        const t1 = freeTail(J, tJ, Lg, Object.assign({}, o, { grip: null }));
+        const t2 = freeTail(t1.end, t1.tEnd, L - Lg, { H: o.grip.H2, bulge: o.grip.bulge2 });
+        const pts = t1.pts.concat(t2.pts);
+        return { pts, end: t2.end, tEnd: t2.tEnd, gi: t1.pts.length / 3 - 1, grip: t1.end.clone() };
+      }
+    }
     const H = o.H;
     const a0 = Math.min(0.06, Math.max(0.01, L * 0.15));
     const ctrl0 = [J.clone(), J.clone().addScaledVector(tJ, a0)];
@@ -992,7 +1051,7 @@ ATLAS.define('fixation', async function (ctx) {
         const cab = Pa.distanceTo(Pb), mp = Pa.clone().add(Pb).multiplyScalar(0.5), d = o.bulge;
         const solve = (sl) => { const need = cab + sl; let lo = 0, hi = need + 0.5; for (let it = 0; it < 24; it++) { const m = (lo + hi) / 2; tmpW.copy(mp).addScaledVector(d, m); const l = Pa.distanceTo(tmpW) + tmpW.distanceTo(Pb); if (l < need) lo = m; else hi = m; } return (lo + hi) / 2; };
         const sl = Lt - base, s0 = Math.max(0.25, 0.12 * cab);
-        M = mp.addScaledVector(d, sl >= s0 ? solve(sl) : solve(s0) * sl / s0);
+        M = mp.addScaledVector(d, sl >= s0 ? solve(sl) : solve(s0) * (sl / s0) ** 2);
         soft = sl < s0;
       }
       const ctrl = ctrl0.slice();
@@ -1007,15 +1066,22 @@ ATLAS.define('fixation', async function (ctx) {
       const nS = Math.max(8, Math.min(900, Math.ceil((base + (M ? Lt - base : 0)) / 0.018)));
       cv.arcLengthDivisions = Math.max(200, nS * 2);           // amostragem por comprimento de arco (sem cordas longas)
       const arr = []; for (let i = 0; i <= nS; i++) push(arr, cv.getPointAt(i / nS, tmpV));
-      return { arr, M: !!M, soft };
+      return { arr, M: !!M, soft, base, cab: Pa.distanceTo(Pb) };
     };
     let soft = false;
-    let r = build(L), Lc = polyLen(r.arr), Lt = L;
-    // folga grande: corrige o comprimento (a curva passa um pouco do polígono de controle); folga pequena: aceita a
-    // diferença (sem oscilar entre esticado e frouxo)
-    for (let it = 0; it < 3 && r.M && !r.soft && Math.abs(Lc - L) > 0.004 * L; it++) { Lt -= (Lc - L); const r2 = build(Lt); if (r2.soft) break; r = r2; Lc = polyLen(r.arr); }
+    let r = build(L), Lc = polyLen(r.arr);
+    // correção do comprimento (a curva passa um pouco do polígono de controle), com peso contínuo pela folga: nula com o
+    // fio esticado, total a partir de ~1,5 × a folga de transição — sem o "estalo" na fronteira esticado ↔ frouxo
+    if (r.M && o.bulge) {
+      const sl = L - r.base, s0 = Math.max(0.25, 0.12 * r.cab), wc = ss(sl, 0, 1.5 * s0);
+      if (wc > 0.001) {
+        let Lt = L, r2 = r, Lc2 = Lc;
+        for (let it = 0; it < 3 && Math.abs(Lc2 - L) > 0.004 * L; it++) { Lt -= (Lc2 - L); r2 = build(Lt); Lc2 = polyLen(r2.arr); }
+        if (wc >= 0.999) { r = r2; Lc = Lc2; } else { r = build(lerp(L, Lt, wc)); Lc = polyLen(r.arr); }
+      }
+    }
     let arr = r.arr;
-    if (Lc > L && !r.soft) arr = truncate(arr, L);           // o desvio (abaixo) não encurta o alcance da ponta
+    if (Lc > L) arr = truncate(arr, L);                       // o desvio (abaixo) não encurta o alcance da ponta
     if (dodgeW > 0.001) { // deformação suave: pontos perto do eixo sobem (em U) até passar por cima do cateter
       const q = V3(), need = G.rhoW + 0.07; let hint = null;
       for (let j = 3; j < arr.length; j += 3) {
@@ -1027,7 +1093,7 @@ ATLAS.define('fixation', async function (ctx) {
       }
     }
     const end = lastV(arr), tEnd = endTan(arr, tJ);
-    return { pts: arr.slice(3), end, tEnd };
+    return { pts: arr.slice(3), end, tEnd, gi: arr.length / 3 - 2, grip: null };
   }
 
   /** Empurra pontos para fora do cateter (ρ ≥ ρ_w), por cima dos obstáculos (ponte e nó), para fora do canhão e acima da superfície. */
@@ -1084,9 +1150,10 @@ ATLAS.define('fixation', async function (ctx) {
       for (let i = 1; i < stub.length; i++) { const q = lifted[i].clone().lerp(stub[i], w); push(arr, q); }
       return { arr, nT, end: lastV(arr), J };
     }
-    const tl = freeTail(J, tJ, Math.max(0.05, st.len[X] - used), st.tail[X]);
+    const n0 = arr.length / 3, tl = freeTail(J, tJ, Math.max(0.05, st.len[X] - used), st.tail[X]);
     for (let j = 0; j < tl.pts.length; j++) arr.push(tl.pts[j]);
-    return { arr, nT, end: tl.end, tEnd: tl.tEnd, J, lrem: st.len[X] - used };
+    // gi: índice do ponto seguro pelo instrumento (extremidade, ou a pegada a meio fio)
+    return { arr, nT, iJ: n0 - 1, end: tl.end, tEnd: tl.tEnd, J, lrem: st.len[X] - used, gi: n0 + tl.gi, grip: tl.grip };
   }
   /** Estágio da agulha com o engaste ainda fora da pele ou dentro dela (antes de o fio sair por P2). */
   function genNeedleIn(np, onPlane, thT) {
@@ -1140,12 +1207,14 @@ ATLAS.define('fixation', async function (ctx) {
     g.liftStub = { A: info.A.lifted, B: info.B.lifted };
     g.offcut = { A: info.A.off, B: info.B.off, instA: info.A.inst, instB: info.B.inst };
     const CP = info.A.cp.clone().add(info.B.cp).multiplyScalar(0.5);
-    // tesoura: lâminas paralelas à pele e perpendiculares às pontas (puxadas para o lado +B); vem ao longo do cateter pelo
-    // lado da saída, com a ponta para o canhão mas ~0,6 cm ao lado do cateter; corta com o terço distal (≈0,45 cm da ponta)
+    // tesoura: lâminas paralelas à pele (plano B–T) e perpendiculares às pontas (quase verticais); argolas para o lado −B
+    // (passa alta sobre o cateter) e PONTAS VOLTADAS PARA FORA (+B), além do ponto de corte; corta com o terço distal
+    // (≈0,45 cm da ponta), ~0,7 cm acima do nó — a tesoura nunca fecha perto do corpo do cateter
     const Zs = U3.clone();
-    let Xs = T3.clone().multiplyScalar(-0.94).addScaledVector(B3, 0.34); Xs.addScaledVector(Zs, -Xs.dot(Zs)).normalize(); // diverge do cateter (que curva para +B rumo à saída)
-    const Ys = V3().crossVectors(Zs, Xs);
-    const q = quatFromBasis(Xs, Ys, Zs);
+    let Xs = B3.clone().negate().addScaledVector(T3, 0.12); Xs.addScaledVector(Zs, -Xs.dot(Zs)).normalize();
+    Xs.addScaledVector(Zs, 0.2).normalize(); // argolas ~11° acima do plano: o corpo da tesoura sobe ao passar sobre o cateter
+    const Ys = V3().crossVectors(Zs, Xs).normalize(), Zs2 = V3().crossVectors(Xs, Ys).normalize();
+    const q = quatFromBasis(Xs, Ys, Zs2);
     g.cut = { K, U3, B3, T3, CP, cpA: info.A.cp, cpB: info.B.cp };
     g.cut.pose = { p: CP.clone().addScaledVector(Xs, -0.45 / 0.85 * 0.85), q, X: Xs };
     g.cut.far = { p: g.cut.pose.p.clone().addScaledVector(Xs, 3.0).add(V3(0, 0, 1.4)), q };
@@ -1170,18 +1239,17 @@ ATLAS.define('fixation', async function (ctx) {
   function baseScene() {
     return { gen: 'none', st: null, nin: null, thrOp: 1,
       holder: { pose: null, op: 0, grips: null }, needle: { pose: null, op: 0 }, forceps: { pose: null, op: 0, open: 0, grips: null },
-      scissors: { pose: null, op: 0, alpha: 0.4 }, fingerOp: 0, coilOn: null, wings: [0, 0], feed: null, feedOp: 0, dress: 0, dressDrop: 0, gelOp: 0, labelOp: 0, off: null };
+      scissors: { pose: null, op: 0, alpha: 0.4 }, fingerOp: 0, fingerOff: null, markOp: 0, pullW: 0, coilOn: null, wings: [0, 0], feed: null, feedOp: 0, dress: 0, dressDrop: 0, gelOp: 0, labelOp: 0, off: null };
   }
   const opIO = (t, a, b, c, d) => ss(t, a, b) * (1 - ss(t, c, d)); // aparece em [a, b], some em [c, d]
   // cabos dos instrumentos: sobem para o lado de trabalho, nunca para a cabeça/pescoço (lado +B → lateral; −B → caudal-medial)
   const sideDir = (sg) => (sg > 0 ? LIE_P.clone() : sg < 0 ? LIE_N.clone() : LIE_P.clone().add(LIE_N).normalize());
-  const fAt = (p, sg, cx) => { const T = cx ? cx.T : G.anc.e1; return framePose(p, UPZ.clone().multiplyScalar(0.8).addScaledVector(sideDir(sg), 0.55), T); };
-  const hAt = (p, sg, cx) => framePose(p, sideDir(sg).multiplyScalar(0.78).addScaledVector(UPZ, 0.5), UPZ);
+  // dir (opcional): direção de tração — o cabo segue a linha do fio (a mão fica além da pegada)
+  const fAt = (p, sg, cx, dir) => { const T = cx ? cx.T : G.anc.e1; return framePose(p, UPZ.clone().multiplyScalar(0.8).addScaledVector(dir ? horiz(dir) : sideDir(sg), 0.55), T); };
+  const hAt = (p, sg, cx, dir) => framePose(p, (dir ? horiz(dir) : sideDir(sg)).multiplyScalar(0.78).addScaledVector(UPZ, 0.5), UPZ);
   const lifted = (p, d = 0.17) => p.clone().addScaledVector(UPZ, d);
   /** Ao soltar uma ponta esticada, o instrumento parte de onde estava (posição ajustada ao fio), não do alvo nominal. */
   function relFix(k, t, tR, hp, fp) { const r = G.rel && G.rel[k]; if (!r || t < tR) return; const w = 1 - ss(t, tR, tR + 0.08); if (hp) hp.p.addScaledVector(r.h, w); if (fp) fp.p.addScaledVector(r.f, w); }
-  /** Espiras deslizando das mandíbulas para o nó (w: 0 = nas mandíbulas, 1 = centradas no nó). */
-  const slideTo = (pp, target, w) => { if (w <= 0) return pp; const cc = pp.p.clone().addScaledVector(pp.X, COIL_X0); return withAxes({ p: pp.p.clone().addScaledVector(target.clone().sub(cc), w), q: pp.q.clone() }); };
 
   /** Etapa 1 (k = 0): porta-agulha com a agulha montada chega e para acima do ponto de entrada. */
   function sceneStep0(t) {
@@ -1203,14 +1271,13 @@ ATLAS.define('fixation', async function (ctx) {
     else if (t < 0.92) { thT = lerp(ps.thA, ps.thSwOut, ss(t, 0.74, 0.92)); r = PP.ant(thT); }
     else { thT = ps.thSwOut; const a = PP.ant(thT), e = ss(t, 0.92, 1); r = { np: movePose(a.np, g.liftVec.clone().multiplyScalar(e)), hp: movePose(a.hp, g.liftVec.clone().multiplyScalar(e)) }; }
     S.holder = { pose: withAxes(r.hp), op: 1, grips: null }; S.needle = { pose: r.np, op: 1 };
-    // pinça
-    const fN = (th) => { const np = needlePose(an.plane, th); return withAxes({ p: g.fGripLocal.p.clone().applyQuaternion(np.q).add(np.p), q: np.q.clone().multiply(g.fGripLocal.q) }); };
+    // pinça: contrapressão junto à entrada; quando a ponta sai, contrapressão logo além da saída (sem prender a ponta)
+    // enquanto o porta-agulha solta a pega posterior e repega o corpo exteriorizado; depois se afasta
     let fp;
     if (t < 0.46) fp = kfPose(t, [[0, movePose(g.fCP, UPZ.clone().multiplyScalar(2.2))], [0.14, g.fCP]]);
-    else if (t < 0.56) fp = kfPose(t, [[0.46, g.fCP], [0.56, fN(ps.thDrive), 0.45]]);
-    else if (t < 0.74) fp = fN(thT);
-    else fp = kfPose(t, [[0.74, fN(ps.thA)], [0.86, movePose(fN(ps.thA), UPZ.clone().multiplyScalar(1.8).addScaledVector(an.e1, 0.6))]]);
-    S.forceps = { pose: fp, op: opIO(t, 0, 0.1, 0.77, 0.86), open: t < 0.12 ? 0.5 : t < 0.46 ? 0 : t < 0.56 ? (t < 0.53 ? 0.14 : 0.06) : t < 0.74 ? 0.06 : 0.16, grips: null };
+    else if (t < 0.74) fp = kfPose(t, [[0.46, g.fCP], [0.55, g.fCP2, 0.5]]);
+    else fp = kfPose(t, [[0.74, g.fCP2], [0.86, movePose(g.fCP2, UPZ.clone().multiplyScalar(1.8).addScaledVector(an.e1, 0.6))]]);
+    S.forceps = { pose: fp, op: opIO(t, 0, 0.1, 0.77, 0.86), open: t < 0.12 ? 0.5 : t < 0.46 ? 0 : t < 0.53 ? 0.12 : t < 0.74 ? 0 : 0.16, grips: null };
     // fio
     const thS = thT - ARC;
     if (!onPlane || thS <= an.thOut) { S.gen = 'needleIn'; S.nin = { np: r.np, onPlane, thT }; }
@@ -1233,7 +1300,7 @@ ATLAS.define('fixation', async function (ctx) {
     };
   }
   /** Quadros-chave do porta-agulha no nó de ancoragem (etapa 3). */
-  function HKA() { const g = G; return [[0.34, movePose(g.tieA, UPZ.clone().multiplyScalar(2.5))], [0.42, g.tieA], [0.61, g.tieA], [0.69, hAt(lifted(g.HB0), -1, null), 0.3], [0.8, hAt(g.PBtightA, -1, null)], [0.88, hAt(g.PBtightA, -1, null)], [0.97, hAt(lifted(g.PBtightA, 2), -1, null)]]; }
+  function HKA() { const g = G; return [[0.34, movePose(g.tieA, UPZ.clone().multiplyScalar(2.5))], [0.42, g.tieA], [0.61, g.tieA], [0.69, hAt(lifted(g.HB0), -1, null), 0.3], [0.8, hAt(g.PBtightA, -1, null, g.dPullA.B)], [0.88, hAt(g.PBtightA, -1, null, g.dPullA.B)], [0.97, hAt(lifted(g.PBtightA, 2), -1, null, g.dPullA.B)]]; }
   /** Etapa 3 (k = 2): fio puxado até as pontas ficarem iguais, agulha separada (tesoura) e levada embora, nó instrumental
       sobre o ponto (pinça enrola A 2 voltas nas mandíbulas; o porta-agulha pega a ponta de B; tração; seminós resumidos). */
   function sceneStep2(t) {
@@ -1263,7 +1330,7 @@ ATLAS.define('fixation', async function (ctx) {
       if (t < 0.5) fp = kfPose(t, [[0.34, fAt(lifted(g.dropA, 2.2), 1, null)], [0.4, fAt(lifted(g.dropA), 1, null)], [0.47, fAt(g.PAholdA, 1, null), 0.4], [0.5, fAt(wrapCirclePt(tp, plan, plan.psi0), 1, null)]]);
       else if (t < 0.61) fp = fAt(wrapCirclePt(tp, plan, wpsi), 1, null);
       else if (t < 0.69) fp = kfPose(t, [[0.61, fAt(wrapCirclePt(tp, plan, plan.psi0 + plan.sgn * 2 * TWO_PI), 1, null)], [0.69, fAt(follow(kfPose(0.69, HKA())), 1, null)]]);
-      else fp = kfPose(t, [[0.69, fAt(follow(kfPose(0.69, HKA())), 1, null)], [0.8, fAt(g.PAtightA, 1, null)], [0.88, fAt(g.PAtightA, 1, null)], [0.97, fAt(lifted(g.PAtightA, 2), 1, null)]]);
+      else fp = kfPose(t, [[0.69, fAt(follow(kfPose(0.69, HKA())), 1, null)], [0.8, fAt(g.PAtightA, 1, null, g.dPullA.A)], [0.88, fAt(g.PAtightA, 1, null, g.dPullA.A)], [0.97, fAt(lifted(g.PAtightA, 2), 1, null, g.dPullA.A)]]);
       relFix(2, t, 0.88, null, fp);
       S.forceps = { pose: fp, op: opIO(t, 0.34, 0.38, 0.89, 0.97), open: t < 0.39 || t > 0.88 ? 0.4 : 0, grips: t >= 0.4 && t < 0.88 ? 'A' : null };
     }
@@ -1275,18 +1342,21 @@ ATLAS.define('fixation', async function (ctx) {
     // A: ponta cortada cai, a pinça a recolhe e enrola nas mandíbulas
     let HA = kfVec(t, [[T_SNIP, g.snipPt], [0.33, g.dropA], [0.38, g.dropA], [0.4, lifted(g.dropA)]]);
     if (t >= 0.4 && t < 0.88) HA = S.forceps.pose.p.clone();
-    if (t >= 0.88) HA = kfVec(t, [[0.88, g.PAtightA], [1.0, g.restEnd.A[0], 0.4]]);
-    const bA = downV(LIE_P, 0.6);
-    st.tail.A = { H: HA, bulge: t >= 0.88 ? g.restBulge.A[0] : lie.clone().lerp(bA, ss(t, 0.4, 0.48)).normalize(), slack: 'first' };
+    const bA = downV(LIE_P, 0.6), bulgeA = lie.clone().lerp(bA, ss(t, 0.4, 0.48)).normalize();
+    // aperto (0,69–0,88): a pinça passa a segurar A a LG do nó e o resto da ponta deita na pele até o repouso; ao soltar,
+    // a forma vai da presa à de repouso (sem a extremidade "voar")
+    const gripA = { k: ss(t, 0.69, 0.75), Lg: LG, H2: g.restEnd.A[0], bulge2: g.restBulge.A[0] };
+    if (t >= 0.88) st.tail.A = { H: g.restEnd.A[0], bulge: g.restBulge.A[0], blend: { w: 1 - ss(t, 0.88, 1.0), o: { H: g.PAtightA, bulge: bulgeA, slack: 'first', grip: Object.assign({}, gripA, { k: 1 }) } } };
+    else st.tail.A = { H: HA, bulge: bulgeA, slack: 'first', grip: gripA };
     const turns = 2 * ss(t, 0.5, 0.61) * (1 - ss(t, 0.7, 0.79)), cw = ss(t, 0.47, 0.5) * (1 - ss(t, 0.795, 0.83));
-    if (cw > 0.001 && S.holder.pose) { st.tail.A.coil = { pose: slideTo(S.holder.pose, ak.c, ss(t, 0.69, 0.79)), turns, psi0: plan.psi0, sgn: plan.sgn, w: cw, x0: COIL_X0 }; S.coilOn = 'A'; }
+    if (cw > 0.001 && S.holder.pose) { st.tail.A.coil = { pose: S.holder.pose, slide: { w: ss(t, 0.71, 0.79), target: ak.c }, turns, psi0: plan.psi0, sgn: plan.sgn, w: cw, x0: COIL_X0 }; S.coilOn = 'A'; }
     // B: deitada (laço de folga) até o porta-agulha pegar a ponta e tracionar
     let HB = g.HB0.clone();
     if (t >= 0.67) HB = kfVec(t, [[0.67, g.HB0], [0.69, lifted(g.HB0)]]);
     if (t >= 0.69 && t < 0.88) HB = S.holder.pose.p.clone();
-    if (t >= 0.88) HB = kfVec(t, [[0.88, g.PBtightA], [1.0, g.restEnd.B[0], 0.4]]);
-    const bB = g.bulgeB0.clone();
-    st.tail.B = { H: HB, bulge: t >= 0.88 ? g.restBulge.B[0] : bB };
+    const bB = g.bulgeB0.clone(), gripB = { k: ss(t, 0.69, 0.75), Lg: LG, H2: g.restEnd.B[0], bulge2: g.restBulge.B[0] };
+    if (t >= 0.88) st.tail.B = { H: g.restEnd.B[0], bulge: g.restBulge.B[0], blend: { w: 1 - ss(t, 0.88, 1.0), o: { H: g.PBtightA, bulge: bB, grip: Object.assign({}, gripB, { k: 1 }) } } };
+    else st.tail.B = { H: HB, bulge: bB, grip: gripB };
     st.anc = { kap: ss(t, 0.74, 0.86), front: ss(t, 0.71, 0.84) };
     S.gen = 'tied'; S.st = st;
     return S;
@@ -1304,7 +1374,7 @@ ATLAS.define('fixation', async function (ctx) {
     const hKeys = c >= 2
       ? [[0, hAt(lifted(restB0, 2.2), -1, cx)], [0.09, hAt(lifted(restB0), -1, cx)], [0.24, hAt(cx.E2, -1, cx), 0.8]]
       : [[0, hAt(lifted(cx.E2, 2.2), -1, cx)], [0.2, hAt(cx.E2, -1, cx)], [0.24, hAt(cx.E2, -1, cx)]];
-    hKeys.push([0.32, hAt(cx.E2, -1, cx)], [0.42, hAt(cx.PAfar, -1, cx), 0.3], [0.47, hAt(cx.PAfar, -1, cx)], [0.54, hAt(lifted(cx.F_A), -1, cx)], [0.61, tie, 0.4], [0.71, tie], [0.77, hAt(lifted(cx.F_A), -1, cx)], [0.82, hAt(cx.OVh, 0, cx)], [0.865, hAt(cx.PAtight, 1, cx)], [0.9, hAt(cx.PAtight, 1, cx)], [0.98, hAt(lifted(cx.PAtight, 2), 1, cx)]);
+    hKeys.push([0.32, hAt(cx.E2, -1, cx)], [0.42, hAt(cx.PAfar, -1, cx), 0.3], [0.47, hAt(cx.PAfar, -1, cx)], [0.54, hAt(lifted(cx.F_A), -1, cx)], [0.61, tie, 0.4], [0.71, tie], [0.77, hAt(lifted(cx.F_A), -1, cx)], [0.82, hAt(cx.OVh, 0, cx)], [0.865, hAt(cx.PAtight, 1, cx, cx.dPull.A)], [0.9, hAt(cx.PAtight, 1, cx, cx.dPull.A)], [0.98, hAt(lifted(cx.PAtight, 2), 1, cx, cx.dPull.A)]);
     const hp = kfPose(t, hKeys);
     // ---- pinça ----
     const wpsi = plan.psi0 + plan.sgn * 2 * TWO_PI * ss(t, 0.61, 0.7);
@@ -1316,7 +1386,7 @@ ATLAS.define('fixation', async function (ctx) {
     if (t < 0.61) fp = kfPose(t, fKeys0);
     else if (t < 0.7) fp = fAt(wrapCirclePt(tie, plan, wpsi), 1, cx);
     else if (t < 0.77) fp = kfPose(t, [[0.7, fAt(wrapCirclePt(tie, plan, plan.psi0 + plan.sgn * 2 * TWO_PI), 1, cx)], [0.77, fAt(follow(kfPose(0.77, hKeys)), 1, cx)]]);
-    else fp = kfPose(t, [[0.77, fAt(follow(kfPose(0.77, hKeys)), 1, cx)], [0.82, fAt(cx.OVf, 0, cx)], [0.865, fAt(cx.PBtight, -1, cx)], [0.9, fAt(cx.PBtight, -1, cx)], [0.98, fAt(lifted(cx.PBtight, 2), -1, cx)]]);
+    else fp = kfPose(t, [[0.77, fAt(follow(kfPose(0.77, hKeys)), 1, cx)], [0.82, fAt(cx.OVf, 0, cx)], [0.865, fAt(cx.PBtight, -1, cx, cx.dPull.B)], [0.9, fAt(cx.PBtight, -1, cx, cx.dPull.B)], [0.98, fAt(lifted(cx.PBtight, 2), -1, cx, cx.dPull.B)]]);
     const hOp = opIO(t, 0, 0.06, 0.91, 0.98), fOp = opIO(t, 0, 0.06, 0.91, 0.98);
     const hGrip = (c >= 2 && t >= 0.09 && t < 0.24) ? 'B' : (t >= 0.32 && t < 0.54) || (t >= 0.77 && t < 0.9) ? 'A' : null;
     const fGrip = (t >= 0.09 && t < 0.24) ? 'A' : (t >= (c >= 2 ? 0.32 : 0.34) && t < 0.9) ? 'B' : null;
@@ -1343,14 +1413,14 @@ ATLAS.define('fixation', async function (ctx) {
     else if (t < 0.24) HA = fp.p.clone(); else if (t < 0.32) HA = transit('A', ss(t, 0.24, 0.32));
     else if (t < 0.54) HA = hp.p.clone(); else if (t < 0.75) HA = kfVec(t, [[0.54, lifted(cx.F_A)], [0.58, cx.F_A]]);
     else if (t < 0.77) HA = kfVec(t, [[0.75, cx.F_A], [0.77, lifted(cx.F_A)]]);
-    else if (t < 0.9) HA = hp.p.clone(); else HA = kfVec(t, [[0.9, cx.PAtight], [1.0, restA1, 0.5]]);
+    else if (t < 0.9) HA = hp.p.clone(); else HA = restA1.clone();
     if (c >= 2) {
       if (t < 0.07) HB = restB0.clone(); else if (t < 0.09) HB = kfVec(t, [[0.07, restB0], [0.09, lifted(restB0)]]);
       else if (t < 0.24) HB = hp.p.clone(); else if (t < 0.32) HB = transit('B', ss(t, 0.24, 0.32));
-      else if (t < 0.9) HB = fp.p.clone(); else HB = kfVec(t, [[0.9, cx.PBtight], [1.0, restB1, 0.5]]);
+      else if (t < 0.9) HB = fp.p.clone(); else HB = restB1.clone();
     } else {
       if (t < 0.32) HB = restB0.clone(); else if (t < 0.34) HB = kfVec(t, [[0.32, restB0], [0.34, lifted(restB0)]]);
-      else if (t < 0.9) HB = fp.p.clone(); else HB = kfVec(t, [[0.9, cx.PBtight], [1.0, restB1, 0.5]]);
+      else if (t < 0.9) HB = fp.p.clone(); else HB = restB1.clone();
     }
     // direção da folga (alça deitada na pele) e pontos de passagem
     const down = (v, k = 0.55) => v.clone().multiplyScalar(Math.sqrt(1 - k * k)).addScaledVector(UPZ, -k).normalize();
@@ -1365,12 +1435,22 @@ ATLAS.define('fixation', async function (ctx) {
     // B enrolada nas mandíbulas (a folga fica entre a frente e as mandíbulas, deitada do lado +B)
     const turns = 2 * ss(t, 0.61, 0.7) * (1 - ss(t, 0.79, 0.865)), cw = ss(t, 0.56, 0.59) * (1 - ss(t, 0.87, 0.895));
     if (cw > 0.001) {
-      tb.coil = { pose: slideTo(hp, cx.K, ss(t, 0.78, 0.87)), turns, psi0: plan.psi0, sgn: plan.sgn, w: cw, x0: COIL_X0 };
+      tb.coil = { pose: hp, slide: { w: ss(t, 0.8, 0.87), target: cx.K }, turns, psi0: plan.psi0, sgn: plan.sgn, w: cw, x0: COIL_X0 };
       tb.slack = 'first';
       const sideH = hp.p.clone().sub(cx.c0).dot(cx.B); tb.top = { p: cx.Vtop, w: ss(-sideH, 0.05, 0.45) };
       S.coilOn = 'B';
     }
     if (t >= 0.5) { ta.dodge = true; tb.dodge = true; }
+    // aperto (0,77–0,9): cada instrumento passa a segurar sua ponta a LG do nó, com tração simétrica e paralela à pele; o
+    // resto da ponta sai das mandíbulas e deita na pele até a posição de repouso. Ao soltar (0,9–1), a forma vai da presa à
+    // de repouso pelo comprimento de arco (a extremidade já está deitada: nada "voa")
+    const gA = { k: ss(t, 0.77, 0.83), Lg: LG, H2: restA1, bulge2: g.restBulge.A[c] }, gB = { k: ss(t, 0.77, 0.83), Lg: LG, H2: restB1, bulge2: g.restBulge.B[c] };
+    if (t < 0.9) { if (t >= 0.77) { ta.grip = gA; tb.grip = gB; } }
+    else {
+      const w = 1 - ss(t, 0.9, 1.0);
+      ta.blend = { w, o: { H: cx.PAtight, bulge: outA2, dodge: true, grip: Object.assign({}, gA, { k: 1 }) } };
+      tb.blend = { w, o: { H: cx.PBtight, bulge: outB2, dodge: true, grip: Object.assign({}, gB, { k: 1 }) } };
+    }
     st.tail = { A: ta, B: tb };
     S.gen = 'tied'; S.st = st;
     return S;
@@ -1380,9 +1460,11 @@ ATLAS.define('fixation', async function (ctx) {
   function cutKeys() {
     const g = G, cx = g.cx[3];
     const remC = Math.min(g.len.A - g.ancLen.A - g.form.A[3].marks.end, g.len.B - g.ancLen.B - g.form.B[3].marks.end);
-    const Pc = cx.K.clone().addScaledVector(cx.B.clone().multiplyScalar(0.95).addScaledVector(cx.U, 0.3).normalize(), 1.04 * remC);
-    return { f: [[0, fAt(lifted(g.restEnd.A[3], 2.2), 1, cx)], [0.12, fAt(lifted(g.restEnd.A[3]), 1, cx)], [0.3, fAt(Pc.clone().addScaledVector(cx.T, -0.28), 1, cx), 0.3], [0.48, fAt(Pc.clone().addScaledVector(cx.T, -0.28), 1, cx)], [0.68, fAt(lifted(Pc, 2.2).addScaledVector(cx.B, 1.2), 1, cx)]],
-      h: [[0, hAt(lifted(g.restEnd.B[3], 2.2), -1, cx)], [0.12, hAt(lifted(g.restEnd.B[3]), -1, cx)], [0.3, hAt(Pc.clone().addScaledVector(cx.T, 0.3), 1, cx), 0.6], [0.48, hAt(Pc.clone().addScaledVector(cx.T, 0.3), 1, cx)], [0.68, hAt(lifted(Pc, 2.2).addScaledVector(cx.B, 1.2).addScaledVector(cx.T, 0.4), 1, cx)]] };
+    // pontas juntas, esticadas para cima e um pouco para o lado +B (~65° com a pele): a tesoura entra paralela à pele,
+    // perpendicular às pontas, com as pontas da tesoura voltadas para fora (longe do cateter)
+    const Pc = cx.K.clone().addScaledVector(cx.B.clone().multiplyScalar(0.3).addScaledVector(cx.U, 0.95).normalize(), 1.04 * remC);
+    return { f: [[0, fAt(lifted(g.restEnd.A[3], 2.2), 1, cx)], [0.12, fAt(lifted(g.restEnd.A[3]), 1, cx)], [0.3, fAt(Pc.clone().addScaledVector(cx.T, -0.45), 1, cx), 0.3], [0.48, fAt(Pc.clone().addScaledVector(cx.T, -0.45), 1, cx)], [0.68, fAt(lifted(Pc, 2.2).addScaledVector(cx.B, 1.2).addScaledVector(cx.T, -0.3), 1, cx)]],
+      h: [[0, hAt(lifted(g.restEnd.B[3], 2.2), -1, cx)], [0.12, hAt(lifted(g.restEnd.B[3]), -1, cx)], [0.3, hAt(Pc.clone().addScaledVector(cx.T, 0.45), 1, cx), 0.6], [0.48, hAt(Pc.clone().addScaledVector(cx.T, 0.45), 1, cx)], [0.68, hAt(lifted(Pc, 2.2).addScaledVector(cx.B, 1.2).addScaledVector(cx.T, 0.6), 1, cx)]] };
   }
   function sceneCutDesigned(t) { const K = cutKeys(); return { f: kfPose(t, K.f).p, h: kfPose(t, K.h).p }; }
   function sceneCut(t, forCut) {
@@ -1405,6 +1487,20 @@ ATLAS.define('fixation', async function (ctx) {
     st.tail = { A: { H: HA, bulge: g.restBulge.A[3].clone().lerp(bl, ss(t, 0.1, 0.18)).normalize(), dodge: true }, B: { H: HB, bulge: g.restBulge.B[3].clone().lerp(bl, ss(t, 0.1, 0.18)).normalize(), dodge: true } };
     if (!forCut && t >= T_CUT) { st.cut = { relax: ss(t, 0.5, 0.78) }; st.cutFixed = true; st.front = { A: fA.marks.end, B: fB.marks.end }; S.off = { A: fp.p.clone().sub(g.offcut.instA), B: hp.p.clone().sub(g.offcut.instB), op: 1 - ss(t, 0.56, 0.7) }; }
     S.gen = 'tied'; S.st = st;
+    return S;
+  }
+  /** Etapa 7 completa: corte (t ∈ [0, T_CHK]) e conferência (resto): o dedo segura o canhão e dá uma tração suave e
+      breve no sentido do canhão (seta), e o anel destaca a marca em cm rente à pele, que deve ser a anotada. */
+  const T_CHK = 0.74;
+  function sceneCutCheck(t) {
+    const S = sceneCut(Math.min(1, t / T_CHK));
+    if (t > T_CHK) {
+      const u = (t - T_CHK) / (1 - T_CHK);
+      S.fingerOp = opIO(u, 0, 0.15, 0.86, 1);
+      S.pullW = ss(u, 0.22, 0.4) * (1 - ss(u, 0.55, 0.72));           // tração breve (o canhão não se desloca)
+      S.fingerOff = G.hubY.clone().multiplyScalar(-0.04 * S.pullW);
+      S.markOp = opIO(u, 0.08, 0.22, 0.84, 0.98);
+    }
     return S;
   }
   /** Etapa 8 (k = 7): pontos nas asas (2º fio montado). */
@@ -1443,7 +1539,7 @@ ATLAS.define('fixation', async function (ctx) {
     if (k === 1) return t < T_BITE ? sceneStep1(t / T_BITE) : sceneStep2(T_SPLIT * (t - T_BITE) / (1 - T_BITE));
     if (k === 2) return sceneStep2(lerp(T_SPLIT, 1, t));
     if (k >= 3 && k <= 5) return t <= 0 ? restScene(k - 3) : sceneCross(k - 2, t);
-    if (k === 6) return t <= 0 ? restScene(3) : sceneCut(t);
+    if (k === 6) return t <= 0 ? restScene(3) : sceneCutCheck(t);
     if (k === 7) return sceneWings(t);
     if (k === 8) return sceneDress(t);
     const S = sceneDress(1); return S;
@@ -1505,6 +1601,29 @@ ATLAS.define('fixation', async function (ctx) {
     g.dropA = onSurf(Sw.x, Sw.y);
   }
 
+  /** Pose das espiras durante o deslizamento (w: 0 = nas mandíbulas, 1 = no nó): primeiro ao longo das mandíbulas até a
+      ponta delas, depois sobre a polilinha da outra ponta (rY.arr), da pegada (rY.gi) até o ponto mais próximo do nó. */
+  function coilOnStrand(hp, rY, target, w) {
+    const arr = rY.arr, n = arr.length / 3, gi = clamp(rY.gi != null ? rY.gi : n - 1, 1, n - 1);
+    let iK = gi, bd = Infinity;
+    // o nó está no trecho formado da outra ponta (até J): a busca não se perde em alças da ponta livre
+    for (let i = Math.max(0, rY.nT || 0), i1 = Math.min(gi, rY.iJ != null ? rY.iJ : gi); i <= i1; i++) { const d = (arr[i * 3] - target.x) ** 2 + (arr[i * 3 + 1] - target.y) ** 2 + (arr[i * 3 + 2] - target.z) ** 2; if (d < bd) { bd = d; iK = i; } }
+    let Ls = 0; for (let i = iK + 1; i <= gi; i++) Ls += Math.hypot(arr[i * 3] - arr[i * 3 - 3], arr[i * 3 + 1] - arr[i * 3 - 2], arr[i * 3 + 2] - arr[i * 3 - 1]);
+    const d = w * (COIL_X0 + Ls);
+    if (d <= COIL_X0 || gi <= iK) { const c = hp.p.clone().addScaledVector(hp.X, COIL_X0 - Math.min(d, COIL_X0)); return withAxes({ p: c.addScaledVector(hp.X, -COIL_X0), q: hp.q.clone() }); }
+    // anda (d − COIL_X0) a partir da pegada, rumo ao nó
+    let rem = d - COIL_X0, i = gi; const P = V3(arr[gi * 3], arr[gi * 3 + 1], arr[gi * 3 + 2]), Tn = V3();
+    while (i > iK) {
+      const ax = arr[i * 3 - 3], ay = arr[i * 3 - 2], az = arr[i * 3 - 1], l = Math.hypot(arr[i * 3] - ax, arr[i * 3 + 1] - ay, arr[i * 3 + 2] - az);
+      if (l > 1e-6) Tn.set(arr[i * 3] - ax, arr[i * 3 + 1] - ay, arr[i * 3 + 2] - az).divideScalar(l);
+      if (rem <= l) { P.set(arr[i * 3], arr[i * 3 + 1], arr[i * 3 + 2]).addScaledVector(Tn, -rem); rem = 0; break; }
+      rem -= l; i--; P.set(ax, ay, az);
+    }
+    if (Tn.lengthSq() < 0.5) Tn.copy(hp.X);
+    // eixo das espiras: das mandíbulas (X do porta-agulha) para a tangente do fio (rumo à pegada), em ~0,4 cm de percurso
+    const e = ss(d - COIL_X0, 0, 0.4), fs = framePose(P, Tn, hp.Y), q = hp.q.clone().slerp(fs.q, e), X = V3(1, 0, 0).applyQuaternion(q);
+    return withAxes({ p: P.clone().addScaledVector(X, -COIL_X0), q });
+  }
   /** Gera e assenta o fio de uma cena; reamostra nos tubos. */
   function bakeScene(S, dst) {
     const out = {};
@@ -1517,13 +1636,19 @@ ATLAS.define('fixation', async function (ctx) {
       // ordem: a ponta segura pelo porta-agulha primeiro (as espiras dependem da pose ajustada)
       const order = S.coilOn === 'A' ? ['B', 'A'] : ['A', 'B'];
       for (const X of order) {
+        // espiras deslizando das mandíbulas para o nó: correm sobre o fio REAL da outra ponta (já calculada), da pegada
+        // do porta-agulha até o nó — a topologia do nó se lê durante o deslizamento
+        const cX = st.tail && st.tail[X] && st.tail[X].coil, Y = X === 'A' ? 'B' : 'A';
+        if (cX && cX.slide && cX.slide.w > 0.001 && out[Y] && S.holder.pose) st.tail[X].coil = Object.assign({}, cX, { pose: coilOnStrand(S.holder.pose, out[Y], cX.slide.target, cX.slide.w) });
         const r = genSide(X, st);
         settle(r.arr, r.nT, { obst }); settle(r.arr, r.nT, { obst });
         r.end = lastV(r.arr);
-        out[X] = r; if (!st.cut && st.tail[X] && st.tail[X].H) S.miss = Object.assign(S.miss || {}, { [X]: +r.end.distanceTo(st.tail[X].H).toFixed(3), ['l' + X]: +(r.lrem || 0).toFixed(2) });
-        // instrumento que segura esta ponta acompanha a extremidade real (fio esticado não alcança o alvo)
-        if (S.holder.grips === X && S.holder.pose && !st.cut) { S.holder.pose.p.copy(r.end); }
-        if (S.forceps.grips === X && S.forceps.pose && !st.cut) { S.forceps.pose.p.copy(r.end); }
+        const gi = r.gi != null ? clamp(r.gi, 0, r.arr.length / 3 - 1) : r.arr.length / 3 - 1;
+        r.gripPt = V3(r.arr[gi * 3], r.arr[gi * 3 + 1], r.arr[gi * 3 + 2]); r.gi = gi;
+        out[X] = r; if (!st.cut && st.tail[X] && st.tail[X].H) S.miss = Object.assign(S.miss || {}, { [X]: +r.gripPt.distanceTo(st.tail[X].H).toFixed(3), ['l' + X]: +(r.lrem || 0).toFixed(2) });
+        // instrumento que segura esta ponta acompanha o ponto real da pegada (fio esticado não alcança o alvo)
+        if (S.holder.grips === X && S.holder.pose && !st.cut) { S.holder.pose.p.copy(r.gripPt); }
+        if (S.forceps.grips === X && S.forceps.pose && !st.cut) { S.forceps.pose.p.copy(r.gripPt); }
       }
     }
     for (const X of ['A', 'B']) {
@@ -1593,32 +1718,64 @@ ATLAS.define('fixation', async function (ctx) {
       } FEED.commit(L, null); }
     // curativo
     if (S.gelOp > 0 || S.dress > 0 || S.labelOp > 0) ensureDressing();
-    if (G.dressing) {
-      const D = G.dressing; D.film.visible = S.dress > 0.01; D.gel.visible = S.gelOp > 0.01; D.label.visible = S.labelOp > 0.01;
-      setOpacity(D.film, D.film.userData.mat, S.dress); D.film.position.set(0, 0, S.dressDrop); setOpacity(D.gel, D.gel.userData.mat, 0.5 * S.gelOp); setOpacity(D.label, D.label.userData.mat, S.labelOp); D.label.position.set(0, 0, S.dressDrop);
-    }
+    syncDressing(S);
+    // conferência (etapa 7): dedo no canhão com tração breve, seta da tração e marca em cm rente à pele
+    if (S.fingerOff && finger.visible) finger.position.add(S.fingerOff);
+    const mOp = S.markOp || 0; checkGrp.visible = mOp > 0.01;
+    if (checkGrp.visible) { mats.check.opacity = 0.9 * mOp; checkGrp.userData.arrow.position.copy(checkGrp.userData.arrow0).addScaledVector(G.hubY, -0.12 * (S.pullW || 0)); }
     debugInfo = { f, k, t, gen: S.gen };
+  }
+  /** Visibilidade/opacidade do curativo conforme a cena S (sem S: oculto). Chamado em applyF e logo após o pré-cálculo
+      do curativo em quadro parado — as malhas nunca ficam visíveis antes da etapa 9. */
+  function syncDressing(S) {
+    const D = G && G.dressing; if (!D) return;
+    const dr = S ? S.dress || 0 : 0, go = S ? S.gelOp || 0 : 0, lo = S ? S.labelOp || 0 : 0, dd = S ? S.dressDrop || 0 : 0;
+    D.film.visible = dr > 0.01; D.gel.visible = go > 0.01; D.label.visible = lo > 0.01;
+    if (D.film.visible) { setOpacity(D.film, D.film.userData.mat, dr); D.film.position.set(0, 0, dd); }
+    if (D.gel.visible) setOpacity(D.gel, D.gel.userData.mat, 0.5 * go);
+    if (D.label.visible) { setOpacity(D.label, D.label.userData.mat, lo); D.label.position.set(0, 0, dd); }
   }
 
   /* ======================================================================
      7. Curativo transparente semipermeável + gel de clorexidina + etiqueta
-        (malhas de grade conformadas por mapa de altura: pele/campo, cateter, canhão, fios FINAIS; "tenda" nas bordas)
+        (malhas de grade conformadas por mapa de altura: pele/campo, cateter, canhão, fios FINAIS; "tenda" só junto aos
+        objetos — onde não há objeto o filme adere à pele)
      ====================================================================== */
+  /** Referencial do filme (u: saída → canhão; w: perpendicular, +w lateral-cranial) e limites a partir do conteúdo:
+      saída, ponto de ancoragem, canhão (traseira) e asas, com margem. A borda cranial-medial fica sobre a clavícula,
+      antes da queda para a fossa supraclavicular (o filme não forma "vela" sobre a fossa). */
+  function dressFrame(g) {
+    const ax = horiz(g.hubC.clone().sub(g.exit)), bx = V3(-ax.y, ax.x, 0);
+    const ctr = g.exit.clone().lerp(g.hubC, 0.5).addScaledVector(ax, 0.1);
+    const uw = (p) => [(p.x - ctr.x) * ax.x + (p.y - ctr.y) * ax.y, (p.x - ctr.x) * bx.x + (p.y - ctr.y) * bx.y];
+    const pts = [g.exit, g.anc.P1, g.anc.P2, g.ak.c, g.hubC.clone().addScaledVector(g.hubY, -1.2)];
+    for (const sx of [-1.47, 1.47]) for (const sy of [-0.42, 0.72]) pts.push(g.hubC.clone().addScaledVector(g.hubX, sx).addScaledVector(g.hubY, sy)); // cantos das asas
+    let u0 = Infinity, u1 = -Infinity, w0 = Infinity, w1 = -Infinity;
+    for (const p of pts) { const [u, w] = uw(p); u0 = Math.min(u0, u); u1 = Math.max(u1, u); w0 = Math.min(w0, w); w1 = Math.max(w1, w); }
+    const r1 = (x) => Math.round(x * 10) / 10;
+    const f = { ax, bx, ctr, uw, U0: r1(u0 - 0.85), U1: r1(u1 + 0.95), W0: r1(Math.min(w0 - 0.75, -2.9)), W1: r1(w1 + 0.7) };
+    f.toXY = (u, w) => [ctr.x + ax.x * u + bx.x * w, ctr.y + ax.y * u + bx.y * w];
+    // etiqueta (2,0 × 0,9 cm) na borda caudal-medial do filme, entre a saída e o canhão (área livre); âncora do rótulo
+    // "Curativo transparente" na borda reforçada, ao lado da etiqueta
+    f.lab = { u0: r1(f.U0 + 1.75), w0: r1(f.W0 + 0.25), du: 2.0, dw: 0.9 };
+    f.anchorUW = [f.lab.u0 + f.lab.du + 0.55, f.W0 + 0.16];
+    const cu = (f.U0 + f.U1) / 2, cw = (f.W0 + f.W1) / 2, [cx, cy] = f.toXY(cu, cw);
+    f.center = V3(cx, cy, sZ(cx, cy) + 0.25);
+    return f;
+  }
   function ensureDressing() {
     if (G.dressing) return;
     const tD0 = performance.now(), dp = {}; const dmk = (k) => { dp[k] = Math.round(performance.now() - tD0); };
-    const g = G;
-    const exit = g.exit, hubC = g.hubC;
-    const ax = horiz(hubC.clone().sub(exit)), bx = V3(-ax.y, ax.x, 0);
-    const ctr = exit.clone().lerp(hubC, 0.5).addScaledVector(ax, 0.1);
-    const U0 = -3.4, U1 = 3.6, W0 = -3.0, W1 = 3.0, HS = 0.1;
-    const nu = Math.round((U1 - U0) / HS) + 1, nw = Math.round((W1 - W0) / HS) + 1;
-    const Hh = new Float32Array(nu * nw), base = new Float32Array(nu * nw);
-    const toXY = (u, w) => [ctr.x + ax.x * u + bx.x * w, ctr.y + ax.y * u + bx.y * w];
+    const g = G, F = dressFrame(g);
+    const exit = g.exit, { ax, bx, ctr, U0, U1, W0, W1 } = F, HS = 0.1;
+    const nu = Math.round((U1 - U0) / HS) + 1, nw = Math.round((W1 - W0) / HS) + 1, NC = nu * nw;
+    const skinB = new Float32Array(NC), obj = new Float32Array(NC).fill(-1e9);
+    const toXY = F.toXY;
     // apoio: máximo da superfície na vizinhança da célula (a corda do filme entre vértices não pode afundar na pele convexa)
     const hs2 = HS * 0.55;
-    for (let j = 0; j < nw; j++) for (let i = 0; i < nu; i++) { const [x, y] = toXY(U0 + i * HS, W0 + j * HS); base[j * nu + i] = Math.max(sZ(x, y), sZ(x + hs2, y), sZ(x - hs2, y), sZ(x, y + hs2), sZ(x, y - hs2)) + 0.016; }
-    // rasteriza objetos (vértices em coordenadas anatômicas): malhas do cateter (instruments), fios FINAIS, pontos das asas
+    for (let j = 0; j < nw; j++) for (let i = 0; i < nu; i++) { const [x, y] = toXY(U0 + i * HS, W0 + j * HS); skinB[j * nu + i] = Math.max(sZ(x, y), sZ(x + hs2, y), sZ(x - hs2, y), sZ(x, y + hs2), sZ(x, y - hs2)) + 0.016; }
+    // rasteriza objetos (vértices em coordenadas anatômicas) num campo separado: malhas do cateter (instruments), fios
+    // FINAIS, pontos das asas
     ctx.world.updateMatrixWorld(true);
     const W2A = new THREE.Matrix4().copy(ctx.world.matrixWorld).invert(), M = new THREE.Matrix4(), v = V3();
     const stamp = (x, y, z, r) => {
@@ -1627,7 +1784,7 @@ ATLAS.define('fixation', async function (ctx) {
       for (let jj = cj - rr; jj <= cj + rr; jj++) for (let ii = ci - rr; ii <= ci + rr; ii++) {
         if (ii < 0 || jj < 0 || ii >= nu || jj >= nw) continue;
         const d = Math.hypot(U0 + ii * HS - du, W0 + jj * HS - dw); if (d > r) continue;
-        const z2 = z + Math.sqrt(r * r - d * d) * 0.6 + 0.02; const kk = jj * nu + ii; if (z2 > base[kk]) base[kk] = z2;
+        const z2 = z + Math.sqrt(r * r - d * d) * 0.6 + 0.02; const kk = jj * nu + ii; if (z2 > obj[kk]) obj[kk] = z2;
       }
     };
     const meshes = [];
@@ -1650,17 +1807,24 @@ ATLAS.define('fixation', async function (ctx) {
       for (const key of ['A1', 'B1', 'A2', 'B2']) { const a = tmp[key]; if (!(tmp[key + 'L'] > 0)) continue; for (let i = 0; i < a.length / 3; i += 2) stamp(a[i * 3], a[i * 3 + 1], a[i * 3 + 2], R_T + 0.03); } }
     for (const w of g.wings) for (const m of (w.meshes || [])) { const pa = m.geometry.attributes.position; for (let i = 0; i < pa.count; i += 3) { v.fromBufferAttribute(pa, i); stamp(v.x, v.y, v.z, 0.03); } }
     dmk('raster');
-    // tenda: o filme não acompanha quedas abruptas (dilatação parabólica) e é levemente suavizado
-    const R = 6, kq = 1.7;
+    // tenda: o filme não acompanha as quedas abruptas junto aos OBJETOS (dilatação parabólica só do campo dos objetos);
+    // a pele entra só com o máximo da vizinhança. Suavização 3×3; longe dos objetos o filme adere (≤ 0,05 cm do apoio)
+    const R = 6, kq = 1.7, objD = obj.slice();
     for (let j = 0; j < nw; j++) for (let i = 0; i < nu; i++) {
-      let m = base[j * nu + i];
+      const z0 = obj[j * nu + i]; if (z0 < -1e8) continue;
       for (let jj = Math.max(0, j - R); jj <= Math.min(nw - 1, j + R); jj++) for (let ii = Math.max(0, i - R); ii <= Math.min(nu - 1, i + R); ii++) {
-        const d2 = ((ii - i) * HS) ** 2 + ((jj - j) * HS) ** 2; const z = base[jj * nu + ii] - kq * d2; if (z > m) m = z;
+        const z = z0 - kq * (((ii - i) * HS) ** 2 + ((jj - j) * HS) ** 2), kk = jj * nu + ii; if (z > objD[kk]) objD[kk] = z;
       }
-      Hh[j * nu + i] = m;
     }
+    const Hh = new Float32Array(NC); for (let k = 0; k < NC; k++) Hh[k] = Math.max(skinB[k], objD[k]);
     const Hs = Hh.slice();
-    for (let j = 1; j < nw - 1; j++) for (let i = 1; i < nu - 1; i++) { let s = 0; for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) s += Hh[(j + dj) * nu + i + di]; Hs[j * nu + i] = Math.max(base[j * nu + i], s / 9); }
+    for (let j = 1; j < nw - 1; j++) for (let i = 1; i < nu - 1; i++) {
+      let s = 0; for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) s += Hh[(j + dj) * nu + i + di];
+      const k = j * nu + i; let h = Math.max(skinB[k], s / 9);
+      if (objD[k] < skinB[k] + 0.01) h = Math.min(h, skinB[k] + 0.05);
+      Hs[k] = h;
+    }
+    const hAt = (u, w) => Hs[clamp(Math.round((w - W0) / HS), 0, nw - 1) * nu + clamp(Math.round((u - U0) / HS), 0, nu - 1)];
     // malha do filme
     const mk = (u0, u1, w0, w1, dz, flipU) => {
       const pos = [], uv = [], ix = []; const iu0 = Math.round((u0 - U0) / HS), iu1 = Math.round((u1 - U0) / HS), iw0 = Math.round((w0 - W0) / HS), iw1 = Math.round((w1 - W0) / HS);
@@ -1672,37 +1836,45 @@ ATLAS.define('fixation', async function (ctx) {
       const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); geo.setIndex(ix); geo.computeVertexNormals();
       return geo;
     };
-    // textura alfa: retângulo arredondado, borda reforçada mais opaca, centro quase transparente
-    const alphaFilm = (() => { const cv = canvas(512, 448), c2 = cv.getContext('2d'); c2.fillStyle = '#000'; c2.fillRect(0, 0, 512, 448);
+    // textura alfa (proporção do filme): retângulo arredondado, borda reforçada mais opaca, centro quase transparente
+    const fu = U1 - U0 - 0.1, fw = W1 - W0 - 0.1, PXC = 72; // px por cm
+    const alphaFilm = (() => { const cw = Math.round(fu * PXC), chh = Math.round(fw * PXC), cv = canvas(cw, chh), c2 = cv.getContext('2d'); c2.fillStyle = '#000'; c2.fillRect(0, 0, cw, chh);
       const rr = (x, y, w, h, r) => { c2.beginPath(); c2.moveTo(x + r, y); c2.lineTo(x + w - r, y); c2.quadraticCurveTo(x + w, y, x + w, y + r); c2.lineTo(x + w, y + h - r); c2.quadraticCurveTo(x + w, y + h, x + w - r, y + h); c2.lineTo(x + r, y + h); c2.quadraticCurveTo(x, y + h, x, y + h - r); c2.lineTo(x, y + r); c2.quadraticCurveTo(x, y, x + r, y); c2.closePath(); };
-      c2.fillStyle = 'rgb(125,125,125)'; rr(6, 6, 500, 436, 60); c2.fill(); c2.fillStyle = 'rgb(20,20,20)'; rr(34, 34, 444, 380, 40); c2.fill();
-      c2.strokeStyle = 'rgb(205,205,205)'; c2.lineWidth = 3; rr(6, 6, 500, 436, 60); c2.stroke();
-      const t2 = new THREE.CanvasTexture(cv); return t2; })();
+      const e = 0.06 * PXC, b = 0.42 * PXC; // margem e largura da borda reforçada (cm → px)
+      c2.fillStyle = 'rgb(125,125,125)'; rr(e, e, cw - 2 * e, chh - 2 * e, 0.8 * PXC); c2.fill(); c2.fillStyle = 'rgb(20,20,20)'; rr(b, b, cw - 2 * b, chh - 2 * b, 0.55 * PXC); c2.fill();
+      c2.strokeStyle = 'rgb(205,205,205)'; c2.lineWidth = 3; rr(e, e, cw - 2 * e, chh - 2 * e, 0.8 * PXC); c2.stroke();
+      return new THREE.CanvasTexture(cv); })();
     const filmMat = PM({ color: '#f2f7f9', roughness: 0.12, clearcoat: 1, clearcoatRoughness: 0.08, alphaMap: alphaFilm, opacity: 1, depthWrite: false, side: THREE.DoubleSide });
+    // v (j) cresce com w; a textura do canvas cresce para baixo (flipY): o mapeamento é simétrico, sem consequência
     const film = new THREE.Mesh(mk(U0 + 0.05, U1 - 0.05, W0 + 0.05, W1 - 0.05, 0.004), filmMat); film.userData.mat = filmMat;
     film.renderOrder = 12; film.castShadow = false; film.receiveShadow = false;
     C.reg(film, GI({ id: 'dressing-transparent', name: 'Curativo transparente semipermeável (poliuretano)', desc: 'Cobre a saída, a bailarina e as asas, aplicado sem tensão sobre pele limpa e seca; borda reforçada e etiqueta com data e hora da troca.', pickTransparent: true }));
     dressGrp.add(film);
     // gel de clorexidina: almofada oval translúcida sob o filme, centrada na saída
     const alphaGel = (() => { const cv = canvas(128, 128), c2 = cv.getContext('2d'); c2.fillStyle = '#000'; c2.fillRect(0, 0, 128, 128); c2.fillStyle = 'rgb(170,170,170)'; c2.beginPath(); c2.ellipse(64, 64, 60, 60, 0, 0, TWO_PI); c2.fill(); c2.fillStyle = 'rgb(120,120,120)'; c2.beginPath(); c2.ellipse(64, 64, 52, 52, 0, 0, TWO_PI); c2.fill(); return new THREE.CanvasTexture(cv); })();
-    const eu = (exit.x - ctr.x) * ax.x + (exit.y - ctr.y) * ax.y, ew = (exit.x - ctr.x) * bx.x + (exit.y - ctr.y) * bx.y;
+    const [eu, ew] = F.uw(exit);
     const gelMat = PM({ color: '#9fd0e6', roughness: 0.2, clearcoat: 0.8, alphaMap: alphaGel, opacity: 0.5, depthWrite: false, side: THREE.DoubleSide });
     const gel = new THREE.Mesh(mk(clamp(eu - 1.3, U0, U1), clamp(eu + 1.3, U0, U1), clamp(ew - 1.0, W0, W1), clamp(ew + 1.0, W0, W1), -0.002), gelMat); gel.userData.mat = gelMat;
     gel.renderOrder = 11; gel.castShadow = false;
     C.reg(gel, GI({ id: 'chg-pad', name: 'Almofada de gel com clorexidina (integrada ao curativo)', desc: 'Gel com gliconato de clorexidina em contato com o sítio de saída, sob o filme transparente; uso conforme o protocolo do serviço.', pickTransparent: true }));
     dressGrp.add(gel);
-    // etiqueta de data (papel) sobre o filme, no canto próximo à traseira do canhão
+    // etiqueta de data (papel) sobre o filme, na borda caudal-medial; a marca em cm vem do modelo do cateter
+    // (instruments: comprimento introduzido, lido rente à pele)
+    let cmMark = 16;
+    try { const d = iapi.debug && iapi.debug(), ic = d && d.catheter && d.catheter.insertedCm; if (ic > 0) cmMark = Math.round(ic); } catch (_) { /* mantém 16 */ }
     const lab = (() => { const cv = canvas(256, 112), c2 = cv.getContext('2d'); c2.fillStyle = '#fbfaf3'; c2.fillRect(0, 0, 256, 112); c2.strokeStyle = '#9aa7ad'; c2.lineWidth = 3; c2.strokeRect(2, 2, 252, 108);
       c2.fillStyle = '#4a5560'; c2.font = 'bold 20px sans-serif'; c2.fillText('DATA', 12, 32); c2.fillText('HORA', 12, 66); c2.fillText('CVC SCV D', 12, 100);
-      c2.fillStyle = '#1d3f8f'; c2.font = 'italic 26px serif'; c2.fillText('20/11', 92, 34); c2.fillText('14:30', 92, 68); c2.fillStyle = '#4a5560'; c2.font = '18px sans-serif'; c2.fillText('· 15 cm', 140, 100);
+      c2.fillStyle = '#1d3f8f'; c2.font = 'italic 26px serif'; c2.fillText('20/11', 92, 34); c2.fillText('14:30', 92, 68); c2.fillStyle = '#4a5560'; c2.font = '18px sans-serif'; c2.fillText('· ' + cmMark + ' cm', 140, 100);
       const t2 = new THREE.CanvasTexture(cv); t2.colorSpace = THREE.SRGBColorSpace; return t2; })();
-    const lu0 = U1 - 2.55, lw0 = W0 + 0.35;
+    const L = F.lab;
     const labMat = new THREE.MeshStandardMaterial({ map: lab, roughness: 0.85, transparent: true, opacity: 1, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2 }); labMat.clippingPlanes = C.clipPlanes;
-    const label = new THREE.Mesh(mk(lu0, lu0 + 2.0, lw0, lw0 + 0.9, 0.012, true), labMat); label.userData.mat = labMat;
+    const label = new THREE.Mesh(mk(L.u0, L.u0 + L.du, L.w0, L.w0 + L.dw, 0.012, true), labMat); label.userData.mat = labMat;
     label.renderOrder = 13; C.reg(label, GI({ id: 'dressing-transparent', name: 'Etiqueta do curativo (data, hora, marca do cateter)' }));
     dressGrp.add(label);
-    dmk('meshes'); g.dressing = { film, gel, label, prof: dp };
-    setA('fixDressing', V3(...toXY(lu0 + 1.0, lw0 + 0.45), 0).setZ(Hs[Math.round((lw0 + 0.45 - W0) / HS) * nu + Math.round((lu0 + 1.0 - U0) / HS)] + 0.02));
+    // criadas ocultas: a visibilidade vem de syncDressing (etapa 9) — o pré-cálculo em quadro parado não as mostra
+    film.visible = gel.visible = label.visible = false;
+    dmk('meshes'); g.dressing = { film, gel, label, prof: dp, frame: { U: [U0, U1], W: [W0, W1] }, cm: cmMark };
+    { const [x, y] = toXY(F.anchorUW[0], F.anchorUW[1]); setA('fixDressing', V3(x, y, hAt(F.anchorUW[0], F.anchorUW[1]) + 0.02)); }
   }
 
   /* ======================================================================
@@ -1721,8 +1893,8 @@ ATLAS.define('fixation', async function (ctx) {
   function fullLayout() { layout(); planSnip(); computeReleaseSnaps(); }
   fullLayout();
   iapi.onExternal(() => { if (G && G.dressing) clearGroup(dressGrp); fullLayout(); lastKey = ''; });
-  // âncora do curativo antes da 1ª construção: centro entre a saída e o canhão
-  setA('fixDressing', G.exit.clone().lerp(G.hubC, 0.5).add(V3(0, 0, 0.2)));
+  // âncora do curativo antes da 1ª construção: mesmo ponto da borda reforçada (altura aproximada pela superfície)
+  { const DF = dressFrame(G), [x, y] = DF.toXY(DF.anchorUW[0], DF.anchorUW[1]); setA('fixDressing', V3(x, y, sZ(x, y) + 0.04)); }
   setA('fixTails', G.exit.clone().add(V3(-0.6, 1.2, 0.1)));
   setA('needleHolder', G.anc.P1); setA('sutureNeedle', G.anc.P1); setA('tissueForceps', G.anc.P1);
 
@@ -1737,7 +1909,8 @@ ATLAS.define('fixation', async function (ctx) {
     if (!vis) return;
     const f = clamp(+state.fixStep || 0, 0, 9);
     const key = f.toFixed(4) + '|' + layoutVer;
-    if (key === lastKey) { if (!G.dressing && ++idleFrames > 3 && f >= 2) ensureDressing(); return; } // quadros parados: pré-calcula o curativo (fio final)
+    // quadros parados: pré-calcula o curativo (fio final) e reaplica a visibilidade da etapa atual (oculto antes da etapa 9)
+    if (key === lastKey) { if (!G.dressing && ++idleFrames > 3 && f >= 2) { ensureDressing(); syncDressing(lastScene); } return; }
     idleFrames = 0;
     lastKey = key;
     applyF(f);
@@ -1745,16 +1918,18 @@ ATLAS.define('fixation', async function (ctx) {
     const Sx = A2, i = Math.min(Sx.N - 1, Math.round(Sx.N * (f >= 6.47 ? 0.97 : 0.6)));
     if (Sx.mesh.visible) setA('fixTails', V3(Sx.P[i * 3], Sx.P[i * 3 + 1], Sx.P[i * 3 + 2]));
   }
-  // vista recomendada: close-up oblíquo de cima (anterior), um pouco a partir da cabeça e da linha média
-  const fv = G.exit.clone().lerp(G.hubC, 0.42);
+  // vista final (etapa 9): oblíqua de cima (anterior), um pouco a partir da cabeça e da linha média, centrada no filme e
+  // com o curativo inteiro (borda, etiqueta) no quadro. É também a vista do capítulo, do modo reduzido e da impressão
+  // (api.focusView === api.finalView)
   const r2 = (v) => [+v.x.toFixed(2), +v.y.toFixed(2), +v.z.toFixed(2)];
-  const focusView = { target: [+fv.x.toFixed(2), +fv.y.toFixed(2), +(fv.z + 0.2).toFixed(2)], radius: 8.5, az: 0.3, el: 0.5 };
+  const finalView = { target: r2(dressFrame(G).center), radius: 13, az: 0.3, el: 0.55 };
+  const focusView = finalView;
   // vistas sugeridas por etapa (k = 0..9)
   const vAnchor = G.anc.P1.clone().lerp(G.exit, 0.3).add(V3(0, 0, 0.5)), vCross = G.cx[2].K.clone().add(V3(0, 0, 0.6)), vHub = G.hubC.clone().lerp(G.cx[3].K, 0.3).add(V3(0, 0, 0.3));
   const stepViews = [focusView,
     { target: r2(vAnchor), radius: 9, az: 0.3, el: 0.55 }, { target: r2(vAnchor), radius: 7.5, az: 0.3, el: 0.55 }, { target: r2(vAnchor), radius: 9, az: 0.3, el: 0.6 },
     { target: r2(vCross), radius: 9.5, az: 0.3, el: 0.6 }, { target: r2(vCross), radius: 9.5, az: 0.3, el: 0.6 }, { target: r2(vCross), radius: 9.5, az: 0.3, el: 0.6 },
-    { target: r2(vCross), radius: 8, az: 0.3, el: 0.6 }, { target: r2(vHub), radius: 8.5, az: 0.3, el: 0.55 }, focusView];
+    { target: r2(vCross), radius: 8, az: 0.3, el: 0.6 }, { target: r2(vHub), radius: 8.5, az: 0.3, el: 0.55 }, finalView];
   // etapas em que cada âncora faz sentido como rótulo [primeira, última]
   const anchorSteps = { fixExit: [0, 9], fixAnchorStitch: [2, 9], fixAnchorKnot: [3, 9], fixTails: [3, 6], fixCross1: [4, 9], fixCross2: [5, 9], fixCross3: [6, 9], fixFinalKnot: [6, 9],
     fixWingStitchA: [8, 9], fixWingStitchB: [8, 9], fixDressing: [9, 9], needleHolder: [1, 8], sutureNeedle: [1, 2], tissueForceps: [2, 7] };
@@ -1772,6 +1947,8 @@ ATLAS.define('fixation', async function (ctx) {
       stepViews,
       anchorSteps,
       focusView,
+      /** Vista da etapa final (curativo inteiro); igual a focusView e a stepViews[9]. */
+      finalView,
       available: true,
       /** Diagnóstico numérico (dev): folgas e parâmetros do layout. */
       debug() {

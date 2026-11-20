@@ -2,16 +2,17 @@
 // uso: node tools/uishot.js [--dist] [--sample] [--only=desktop,chapters,card,dark,print,mobile,checks,widths,material,fit,fixation,needle,mobilechapters]
 //                           [--chapters=all|1,5,9] [--prefix=ui] [--pdf] [--fastprint] [--dsf=1]
 //   --fastprint folhas de impressão com ilustração neutra (testa só a diagramação)
-//   --dist     abre dist/atlas.html (gere antes com python3 tools/build.py)
+//   --dist     abre dist/atlas.html (gere antes com python3 tools/build.py); --dist=x.html abre dist/x.html
 //   --sample   injeta src/data.sample.js e ignora src/data.js (teste da UI sem o conteúdo final)
 //   --only     subconjunto de capturas (padrão: todas)
 //   --chapters capítulos (1-based) para capturas por cena (padrão: all)
-//   checks    (desktop) renderização sob demanda (renders com a cena parada), seleção através de camadas
+//   checks    (desktop) renderização sob demanda (renders com a cena parada; nunca 'offscreen' no topo da página), seleção através de camadas
 //             fantasma (cap. 02), foco do cartão aberto por teclado (glossário → cartão → Esc devolve o foco)
 //   widths    nota de orientação × barra de vistas e controles em 981/1024/1180/1280 px
 //   material  capturas de elemento: prancha, planos, tecidos+ultrassom, fixação (desktop e celular)
 //   fit       visor + controles cabem abaixo da barra fixa (1440×900, 1366×768, 1280×720, 1920×1080, 1024×768,
-//             1100×700, 981×700 — meta: controles ≤ 240 px)
+//             1100×700, 981×700 — meta: controles ≤ 240 px); rótulos (laço real, após a pausa 'idle') sem cruzar os
+//             controles do visor (labels.uiHits)
 //   fixation  capítulo da fixação: visor nas etapas 0/4/9, inset do painel, stepper e folha A4 extra
 //   needle    capítulo do cateter: etapas 5 (fio), 6 (dilatador até a parede da veia) e 7 (cateter), com os controles
 //   mobilechapters  390×844: visor com rótulos numerados + lista #lblKey por capítulo (usa --chapters)
@@ -27,7 +28,7 @@ const prefix = args.prefix || 'ui';
 const only = args.only ? new Set(String(args.only).split(',')) : null;
 const want = (k) => !only || only.has(k);
 const out = (name) => path.join(root, 'shots', `${prefix}_${name}`);
-const url = 'file://' + path.join(root, args.dist ? 'dist/atlas.html' : 'index.html');
+const url = 'file://' + path.join(root, args.dist ? 'dist/' + (args.dist === true ? 'atlas.html' : args.dist) : 'index.html'); // --dist=x.html → dist/x.html
 const GL_ARGS = ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'];
 const report = { url, shots: [], console: [], missing: [], checks: {} };
 
@@ -172,6 +173,10 @@ async function labelChecks(page) {
       await page.waitForTimeout(1200);
       const after = await page.evaluate((n) => ({ rendersAfterClick: APP.E.renderer.__n - n }), n0 + idle.rendersIn3s);
       report.checks.idle = Object.assign(idle, after);
+      // com a página no topo o visor está à vista: o laço nunca pode ficar pausado como 'offscreen' (lote atrasado do
+      // IntersectionObserver congelava o visor) e o clique numa vista tem de redesenhar
+      report.checks.idle.ok = !idle.loop.pauses.includes('offscreen') && after.rendersAfterClick > 0;
+      if (!report.checks.idle.ok) report.console.push('[checks] laço: visor congelado (' + JSON.stringify(idle.loop) + ', renders após clique ' + after.rendersAfterClick + ')');
       // seleção através de fantasmas (cap. 02: músculos a 0,35; destaque no escaleno anterior)
       report.checks.ghostPick = await page.evaluate(() => {
         APP.go(1, { animate: false }); APP.still();
@@ -223,6 +228,10 @@ async function labelChecks(page) {
         await page.evaluate(() => { APP.resume(); APP.go(1, { animate: false }); window.scrollTo(0, document.querySelector('.masthead').offsetHeight); });
         await page.waitForTimeout(700);
         report.checks.fit[w + 'x' + h] = await page.evaluate(() => { const v = document.getElementById('viewer').getBoundingClientRect(), c = document.getElementById('controls').getBoundingClientRect(), n = document.querySelector('.chapnav').getBoundingClientRect(); return { viewerTop: Math.round(v.top), navBottom: Math.round(n.bottom), viewerH: Math.round(v.height), controlsH: Math.round(c.height), controlsBottom: Math.round(c.bottom), fits: c.bottom <= innerHeight + 0.5 }; });
+        // rótulos × controles sobrepostos com o laço real (sem APP.still): espera a pausa por ociosidade e mede
+        await page.waitForFunction(() => APP.loop().pauses.includes('idle'), null, { timeout: 30000 }).catch(() => {});
+        report.checks.fit[w + 'x' + h].labels = await labelChecks(page);
+        if (report.checks.fit[w + 'x' + h].labels.uiHits.length) report.console.push(`[fit ${w}x${h}] rótulo sob controle do visor: ` + report.checks.fit[w + 'x' + h].labels.uiHits.join(' | '));
         if (w === 1280 || w === 981) { await still(page); await shot(page, `fit_${w}x${h}.png`, { clip: { x: 0, y: 0, width: w, height: h } }); }
       }
       await page.setViewportSize({ width: 1440, height: 900 });

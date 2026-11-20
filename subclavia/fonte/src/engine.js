@@ -452,7 +452,23 @@
       const t0 = performance.now();
       try { applyCam(); await renderer.compileAsync(scene, camera); } catch (e) { E.errors.push('compile: ' + (e && e.message)); }
       E.compileMs = Math.round(performance.now() - t0);
-      // (as variantes com plano de corte são compiladas no 1º uso: o compile() do r160 não aplica o estado de corte por material)
+      /* Variantes com plano de corte: o compile() do r160 não aplica o estado de corte por material, então elas seriam
+         compiladas de uma vez no 1º uso (entrada no cap. 08 ou botão Corte — travada perceptível). Aquecimento: 1 quadro
+         num alvo 1×1 com todas as camadas visíveis e um plano distante que mantém tudo (o app usa 1 plano). */
+      if (opts.warmClip !== false) {
+        const t1 = performance.now(), vis = ATLAS.LAYERS.map((n) => layers[n].visible), prevRT = renderer.getRenderTarget();
+        let rt = null;
+        try {
+          rt = new THREE.WebGLRenderTarget(1, 1);
+          ATLAS.LAYERS.forEach((n) => (layers[n].visible = true));
+          C.clipPlanes.push(new THREE.Plane(new THREE.Vector3(0, 0, -1), 1e5));
+          renderer.setRenderTarget(rt); renderer.render(scene, camera);
+        } catch (e) { E.errors.push('warmClip: ' + (e && e.message)); }
+        renderer.setRenderTarget(prevRT); C.clipPlanes.length = 0;
+        ATLAS.LAYERS.forEach((n, i) => (layers[n].visible = vis[i])); if (rt) rt.dispose();
+        shadowDirty = true;
+        E.warmClipMs = Math.round(performance.now() - t1);
+      }
     }
     return E;
   };

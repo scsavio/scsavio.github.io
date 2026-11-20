@@ -15,6 +15,7 @@ global.window = global.window || {};
 require(path.join(P, 'src/landmarks.js'));
 const LM = global.window.LM;
 require(path.join(P, 'src/data.js'));
+const GLOSS_DATA = new Set(Object.keys(global.window.ATLAS_DATA.glossary)); // ids do glossário definidos em data.js
 const FIX_FILE = path.join(P, 'src/data.fixacao.js');
 const hasFix = fs.existsSync(FIX_FILE);
 if (hasFix) require(FIX_FILE);          // insere o capítulo 'fixacao' após 'cateter' e renumera
@@ -163,6 +164,40 @@ D.chapters.forEach((c) => c.sources.forEach((n) => used.add(n)));
 [...D.measurements, ...D.complications].forEach((x) => (isArr(x.source) ? x.source : [x.source]).forEach((n) => used.add(n)));
 if (D.fixation && isArr(D.fixation.sources)) D.fixation.sources.forEach((n) => used.add(n));
 D.sources.forEach((s) => { if (!used.has(s.n)) warn.push('fonte ' + s.n + ' não citada em capítulos/tabelas'); });
+
+/* tom não prescritivo (onda 4): o texto descreve e atribui; imperativos clínicos dirigidos ao leitor, deônticos
+   ("deve ficar") e comandos no infinitivo no início de pontos-chave/medidas viram aviso. Instruções de uso da
+   interface ("Use o botão", "ative “Fio na VJI”", "Gire a vista") e as alternativas do quiz não entram.
+   Os textos da fixação vêm de src/data.fixacao.js (outro dono): o aviso diz a origem. */
+{
+  const IMP = /\b(confirme|reavalie|recue|interrompa|acione|aspire|mire|evite|mantenha|verifique|misture|siga|comece|divida|leia|confira)\b|\bpeça\s+(ao|à|que)\b/i;
+  // deôntico ("deve ficar", "não deve chegar"); frases atribuídas ("segundo X", "X et al. descrevem") não contam
+  const DEON = /\b(deve|devem|deveria|precisam?)\s+(ficar|ser|permanecer|passar|chegar|continuar|criar|entrar)\b|\bexigem?\s+(parar|interrup)/i;
+  const ATTR = /et al\.|[Ss]egundo |descrevem|recomendam|indicam/;
+  const INF0 = /^(Confirmar|Estabilizar|Evitar|Interromper|Mirar|Recuar|Acionar|Aspirar|Fixar|Reavaliar|Parar|Não\s+(retirar|remover|dirigir|aprofundar|introduzir|levantar|perder|misturar))\b/;
+  const UI = /bot[aã]o|controle|Ver no 3D|Etapas da agulha|ative “|Gire a vista|escolha “|Compare com a cena/;
+  const plain = (s) => String(s || '').replace(/<[^>]+>/g, '');
+  const tone = (where, s, startCmd) => {
+    const t = plain(s);
+    t.split(/(?<=[.;!?])\s+/).forEach((frag) => {
+      if (UI.test(frag) || ATTR.test(frag)) return;
+      if (IMP.test(frag) || DEON.test(frag) || (startCmd && INF0.test(frag.trim()))) warn.push('tom prescritivo em ' + where + ': “' + frag.trim().slice(0, 90) + '”');
+    });
+  };
+  D.chapters.forEach((c) => {
+    const w = 'cap ' + c.id + (c.id === 'fixacao' ? ' (data.fixacao.js)' : '');
+    ['title', 'focus', 'detail'].forEach((k) => tone(w + '.' + k, c[k]));
+    (c.body || []).forEach((p, i) => tone(w + '.body[' + i + ']', p));
+    (c.keyPoints || []).forEach((p, i) => tone(w + '.keyPoints[' + i + ']', p, true));
+    if (c.quiz) tone(w + '.quiz.explain', c.quiz.explain);
+  });
+  Object.entries(gl).forEach(([id, e]) => { const w = 'glossário ' + id + (GLOSS_DATA.has(id) ? '' : ' (data.fixacao.js)'); tone(w, e.desc); tone(w, e.relevance); });
+  D.complications.forEach((c, i) => ['mechanism', 'recognition', 'prevention', 'incidence'].forEach((k) => tone('complications[' + i + '].' + k, c[k], k === 'prevention')));
+  D.measurements.forEach((m, i) => tone('measurements[' + i + ']', m.note));
+  D.layersTable.forEach((l, i) => { tone('layersTable[' + i + ']', l.tissue); tone('layersTable[' + i + ']', l.note); });
+  if (D.usg) { tone('usg.caption', D.usg.caption); (D.usg.labels || []).forEach((l, i) => tone('usg.labels[' + i + ']', l.text)); }
+  if (D.prancha) (D.prancha.notes || []).forEach((n, i) => tone('prancha.notes[' + i + ']', n));
+}
 
 /* texto: HTML simples apenas */
 const tags = (txt.match(/<\/?([a-z]+)/g) || []).map((t) => t.replace(/[<\/]/g, ''));

@@ -9,6 +9,11 @@
 // destaque entre capítulos, contorno do destaque, sombras sob demanda — de tools/w2fix_nucleo_uicheck.js), controles
 // que ligam a camada de que dependem, glossário (estruturas-chave primeiro), visor focável pelo teclado, oclusão de
 // rótulos (sem auto-oclusão; vaso fino não torna "profundo"; mão → "sob a mão").
+// Onda 4: esquema da fixação do mesmo lado do 3D (âncora lateral-cranial, acima do cateter; ponto das asas à frente
+// da asa; marca "16"), captura PNG/impressão com os filtros de rótulo do visor (fixação etapa 4, cap. 10 etapa 7),
+// lote [fora, dentro] do IntersectionObserver e salvaguarda do 'offscreen', curativo só na etapa 9 e campo estéril
+// religado ao voltar, teclado/vista/zoom soltam a câmera da animação, stepper = api.steps, cartão "na fixação",
+// inset do cap. 11 sem repetir a introdução, insets Medidas/Assimetria com as linhas do capítulo.
 // Saída: JSON com {ok, falhas[], detalhes} e capturas shots/ui_inset_*.png.
 const { chromium } = require('playwright');
 const path = require('path');
@@ -24,6 +29,13 @@ const GL_ARGS = ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-s
   const check = (cond, msg) => { if (!cond) fails.push(msg); };
   const browser = await chromium.launch({ args: GL_ARGS });
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  // guarda os callbacks de IntersectionObserver (teste do lote [fora, dentro] do visor, mais abaixo)
+  await ctx.addInitScript(() => {
+    const IO = window.IntersectionObserver; if (!IO) return;
+    window.__io = [];
+    const W = function (cb, o) { const io = new IO(cb, o), ob = io.observe.bind(io); io.observe = (el) => { window.__io.push({ cb, el }); return ob(el); }; return io; };
+    W.prototype = IO.prototype; window.IntersectionObserver = W;
+  });
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errs.push('PAGEERROR ' + e.message));
   page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errs.push(m.text()); });
@@ -331,7 +343,7 @@ const GL_ARGS = ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-s
     check(g.shadow.idle === 0 && g.shadow.stateChange === 1 && g.shadow.cameraOnly === 0 && g.shadow.ghost === 1, 'motor: sombras sob demanda incorretas');
   }
 
-  // fixação: esquema SVG das 10 etapas sem texto fora do quadro nem sobreposto (marca "15" e orifício inclusos)
+  // fixação: esquema SVG das 10 etapas sem texto fora do quadro nem sobreposto (marca "16" e orifício inclusos)
   info.fixSvg = await page.evaluate(() => {
     const host = document.createElement('div'); host.style.cssText = 'position:fixed;left:-2000px;top:0;width:360px';
     document.body.appendChild(host);
@@ -353,6 +365,151 @@ const GL_ARGS = ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-s
     return bad;
   });
   check(!info.fixSvg.length, 'fixação: texto cortado/sobreposto no esquema: ' + info.fixSvg.slice(0, 4).join(' | '));
+
+  // (1) esquema × 3D: ponto/nó de ancoragem do MESMO lado do cateter (no esquema, acima da linha y=112 = lado
+  // lateral-cranial na vista anterior), saída do ponto das asas à frente da asa (rumo ao nariz) e marca "16"
+  info.fixSide = await page.evaluate(() => {
+    const r = {}, host = document.createElement('div'); host.style.cssText = 'position:fixed;left:-2000px;top:0;width:360px'; document.body.appendChild(host);
+    host.innerHTML = APP.fixSVG(3);
+    const dots = [...host.querySelectorAll('circle[r="1.8"]')].map((c) => [+c.getAttribute('cx'), +c.getAttribute('cy')]);
+    const knots = [...host.querySelectorAll('ellipse')].map((e) => [+e.getAttribute('cx'), +e.getAttribute('cy')]);
+    r.svgBiteUp = dots.length >= 2 && dots.every(([, y]) => y < 112);
+    r.svgKnotUp = knots.length > 0 && knots.every(([, y]) => y < 112);
+    r.cm = [...host.querySelectorAll('text.fx-cm')].map((t) => t.textContent).join();
+    host.innerHTML = APP.fixSVG(8);
+    const holes = [...host.querySelectorAll('circle[r="4.3"]')].map((c) => +c.getAttribute('cx')), skin = [...host.querySelectorAll('circle[r="1.8"]')].map((c) => [+c.getAttribute('cx'), +c.getAttribute('cy')]).filter(([x]) => x < 140);
+    r.svgWingFront = holes.length === 2 && skin.length === 2 && skin.every(([x]) => x > Math.max(...holes)); // nariz do canhão à direita (rumo à saída)
+    host.remove();
+    const E = APP.E, fx = E && E.results.fixation, ins = E && E.results.instruments;
+    if (fx && fx.api && fx.api.available !== false && ins && ins.api && ins.api.external) {
+      const A = E.anchors, ext = ins.api.external(), ex = A.fixExit, hub = ext.hub, kn = A.fixAnchorKnot;
+      const u = [hub[0] - ex[0], hub[1] - ex[1]], L = Math.hypot(u[0], u[1]); u[0] /= L; u[1] /= L;
+      // lado +perp (−u_y, u_x) = para cima no referencial do esquema (a vista anterior espelha x; ver tools/w2fix_ui_fx3d.js)
+      r.side3D = +((kn[0] - ex[0]) * -u[1] + (kn[1] - ex[1]) * u[0]).toFixed(2);
+      r.sideAgree = (r.side3D > 0) === r.svgKnotUp;
+      const d = fx.api.debug && fx.api.debug();
+      // cada saída do ponto da asa (Pf) fica à frente do furo mais próximo, no sentido canhão → saída do cateter
+      if (d && d.wings && ext.wingHoles) r.wing3DFront = d.wings.every((w) => { const h = ext.wingHoles.slice().sort((a, b) => Math.hypot(a[0] - w.Pf[0], a[1] - w.Pf[1]) - Math.hypot(b[0] - w.Pf[0], b[1] - w.Pf[1]))[0]; return (w.Pf[0] - h[0]) * (ex[0] - hub[0]) + (w.Pf[1] - h[1]) * (ex[1] - hub[1]) > 0; });
+    }
+    return r;
+  });
+  check(info.fixSide.svgBiteUp && info.fixSide.svgKnotUp, 'fixação: ponto/nó de ancoragem do esquema fora do lado de cima (lateral-cranial)');
+  check(info.fixSide.sideAgree !== false, 'fixação: esquema e 3D com a âncora em lados opostos do cateter');
+  check(info.fixSide.svgWingFront && info.fixSide.wing3DFront !== false, 'fixação: ponto das asas não sai à frente da asa (rumo ao nariz) no esquema/3D');
+  check(info.fixSide.cm === '16', 'fixação: marca em cm do esquema ≠ 16');
+
+  // (2) captura PNG/impressão com os mesmos filtros de rótulo do visor: fixação etapa 4 (sem 3º cruzamento, nó final,
+  // asas nem curativo) e cap. 10 etapa 7 "Cateter" (sem os rótulos do dilatador, que saiu de cena)
+  info.snapLabels = await page.evaluate(async () => {
+    const E = APP.E, D = APP.data, r = {};
+    const STAGE = ['indexTip', 'thumbTip', 'palm', 'thumbVector', 'needleTip', 'needleHub', 'wireTip', 'wireIJV', 'dilatorTip', 'dilatorLimit', 'catheterTip', 'catheterHub', 'catheterSkinMark'];
+    const fa = (E.results.fixation && E.results.fixation.api && E.results.fixation.api.anchorSteps) || {};
+    const filtered = (k) => STAGE.includes(k) || !!fa[k] || /^fix/.test(k);
+    // captura com o aspecto do visor (o enquadramento horizontal é o mesmo); "à vista" = L.vis (com ou sem espaço livre)
+    const cv = E.renderer.domElement, SW = 1000, SH = Math.round(1000 * cv.clientHeight / Math.max(1, cv.clientWidth));
+    const onScreen = () => APP.state.labels.filter((L) => L.vis).map((L) => L.key);
+    const fi = D.chapters.findIndex((c) => c.id === 'fixacao');
+    if (fi >= 0) {
+      APP.go(fi, { animate: false }); APP.stopFix();
+      document.querySelector('#fixStepper [data-fix="4"]').click(); APP.still();
+      const vis = onScreen(); await APP.composeSnapshot(SW, SH, { labels: true, fmt: 'image/png' }); const snap = APP.snapLabels();
+      r.fix4 = { vis, snap, extra: snap.filter((k) => filtered(k) && !vis.includes(k)) };
+      r.fix4ok = !snap.some((k) => ['fixCross3', 'fixFinalKnot', 'fixWingStitchA', 'fixWingStitchB', 'fixDressing'].includes(k)) && !r.fix4.extra.length;
+    }
+    const ci = D.chapters.findIndex((c) => (c.scene.labels || []).some((l) => (Array.isArray(l) ? l[0] : l.key) === 'dilatorTip'));
+    if (ci >= 0) {
+      APP.go(ci, { animate: false });
+      document.querySelector('[data-step="7"]').click(); APP.still();
+      const vis = onScreen(); await APP.composeSnapshot(SW, SH, { labels: true, fmt: 'image/png' }); const snap = APP.snapLabels();
+      r.cath7 = { vis, snap, extra: snap.filter((k) => filtered(k) && !vis.includes(k)) };
+      r.cath7ok = !snap.some((k) => /^dilator/.test(k)) && !r.cath7.extra.length;
+      // impressão: a mesma cena em modo 'print' (cena do capítulo, dilatador em cena) tem os rótulos do dilatador
+      APP.applyScene(D.chapters[ci].scene, 'print'); APP.still(); await APP.composeSnapshot(SW, SH, { labels: true }); r.cathPrint = APP.snapLabels();
+    }
+    APP.resume(); APP.go(0, { animate: false });
+    return r;
+  });
+  check(info.snapLabels.fix4ok !== false, 'captura: rótulos da fixação fora de etapa na etapa 4: ' + JSON.stringify(info.snapLabels.fix4 && info.snapLabels.fix4.extra));
+  check(info.snapLabels.cath7ok !== false, 'captura: rótulos do dilatador no cap. 10 etapa 7: ' + JSON.stringify(info.snapLabels.cath7 && info.snapLabels.cath7.snap));
+
+  // (3) laço sob demanda: lote [fora, dentro] do IntersectionObserver vale a ÚLTIMA entrada; 'offscreen' com o visor
+  // à vista é desfeito pela próxima atividade (clique)
+  info.io = await page.evaluate(async () => {
+    window.scrollTo(0, 0); await new Promise((res) => setTimeout(res, 200));
+    const v = document.getElementById('viewer'), it = (window.__io || []).find((o) => o.el === v), r = { observer: !!it };
+    if (!it) return r;
+    it.cb([{ isIntersecting: false, target: v }, { isIntersecting: true, target: v }]);
+    r.batchOk = !APP.loop().pauses.includes('offscreen');
+    it.cb([{ isIntersecting: true, target: v }, { isIntersecting: false, target: v }]);
+    r.pausedByBatch = APP.loop().pauses.includes('offscreen');
+    document.body.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    r.safeguard = !APP.loop().pauses.includes('offscreen');
+    return r;
+  });
+  check(info.io.observer && info.io.batchOk && info.io.safeguard, 'laço: visor congelado como "offscreen" com o visor à vista: ' + JSON.stringify(info.io));
+
+  // curativo só na etapa 9 (antes dela não há filme nem esponja visíveis) e campo estéril religado ao voltar
+  info.dress = await page.evaluate(() => {
+    const E = APP.E, D = APP.data, r = { steps: {} }, fi = D.chapters.findIndex((c) => c.id === 'fixacao');
+    if (fi < 0 || !E.results.fixation) return r;
+    const shown = (o) => { for (let p = o; p; p = p.parent) if (!p.visible) return false; const m = o.material; return !(m && m.transparent && m.opacity < 0.05); };
+    const vis = (id) => { const g = window.ATLAS.registry.get(id); return !!g && g.objects.some((o) => { let any = false; o.traverse((q) => { if (q.isMesh && shown(q)) any = true; }); return any; }); };
+    APP.go(fi, { animate: false }); APP.stopFix();
+    for (const k of [2, 5, 8, 9]) { document.querySelector(`#fixStepper [data-fix="${k}"]`).click(); APP.still(); r.steps[k] = { film: vis('dressing-transparent'), chg: vis('chg-pad') }; }
+    r.beforeOk = [2, 5, 8].every((k) => !r.steps[k].film && !r.steps[k].chg);
+    r.at9 = r.steps[9].film;
+    // campo estéril: ligado pelo leitor, retirado no curativo e religado ao voltar à etapa 5
+    if (E.layers.drape) {
+      document.querySelector('#fixStepper [data-fix="3"]').click(); APP.tickAnims(0);
+      if (!E.layers.drape.visible) { document.querySelector('[data-layer="drape"]').click(); APP.tickAnims(0); }
+      document.querySelector('#fixStepper [data-fix="9"]').click(); APP.tickAnims(0); r.drapeOffAt9 = !E.layers.drape.visible;
+      document.querySelector('#fixStepper [data-fix="5"]').click(); APP.tickAnims(0); r.drapeBack = E.layers.drape.visible;
+    }
+    APP.resume(); APP.go(0, { animate: false });
+    return r;
+  });
+  check(info.dress.beforeOk !== false, 'fixação: curativo visível antes da etapa 9 (módulo fixation): ' + JSON.stringify(info.dress.steps));
+  check(info.dress.at9 !== false, 'fixação: curativo ausente na etapa 9');
+  check(info.dress.drapeOffAt9 !== false && info.dress.drapeBack !== false, 'fixação: campo estéril não retirado no curativo ou não religado ao voltar');
+
+  // teclado e botões de vista/zoom soltam a câmera da animação da fixação; textos da fixação (stepper = api.steps,
+  // cartão "na fixação", inset sem repetir a introdução) e insets com as linhas do capítulo
+  {
+    const fi = await page.evaluate(() => APP.data.chapters.findIndex((c) => c.id === 'fixacao'));
+    if (fi >= 0) {
+      await page.evaluate((fi) => { APP.go(fi, { animate: false }); APP.resume(); if (!APP.anims.fix) document.getElementById('fixPlay').click(); APP.E.renderer.domElement.focus(); }, fi);
+      await page.keyboard.press('ArrowLeft');
+      const kbd = await page.evaluate(() => !!(APP.anims.fix && APP.anims.fix.free));
+      await page.evaluate(() => { APP.stopFix(); document.getElementById('fixPlay').click(); document.querySelector('#viewBar [data-view="oblique"]').click(); });
+      const view = await page.evaluate(() => !!(APP.anims.fix && APP.anims.fix.free));
+      await page.evaluate(() => { APP.stopFix(); document.getElementById('fixPlay').click(); document.getElementById('zoomIn').click(); });
+      const zoom = await page.evaluate(() => !!(APP.anims.fix && APP.anims.fix.free));
+      const reduced = await page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches);
+      info.fixFree = { kbd, view, zoom };
+      check(reduced || (kbd && view && zoom), 'fixação: teclado/vista/zoom não soltaram a câmera da animação: ' + JSON.stringify(info.fixFree));
+    }
+    info.texts = await page.evaluate((fi) => {
+      const r = {}, api = APP.E.results.fixation && APP.E.results.fixation.api;
+      APP.stopFix();
+      const t = (k) => (document.querySelector(`#fixStepper [data-fix="${k}"]`) || {}).title || '';
+      const lbl = (k) => (api && api.steps && api.steps[k] && api.steps[k].short) || '';
+      r.stepper = [t(2), t(6)];
+      r.stepperOk = !api || (t(2).indexOf(lbl(2)) >= 0 && t(6).indexOf(lbl(6)) >= 0 && document.querySelector('#fixStepper [data-fix="6"]').getAttribute('aria-label').indexOf(lbl(6)) >= 0);
+      APP.openCard('suture-anchor'); r.cardFix = document.getElementById('cardRelH').textContent;
+      APP.openCard('scv-R'); r.cardPunc = document.getElementById('cardRelH').textContent; APP.closeCard();
+      if (fi >= 0) { APP.go(fi, { animate: false }); APP.stopFix(); const p = document.querySelector('#painel .fx-intro'); r.introRepeat = !!p && /é o nome usado no ensino/.test(p.textContent); }
+      const ix = (id) => APP.data.chapters.findIndex((c) => c.id === id), txt = (id) => { const i = ix(id); if (i < 0) return null; APP.go(i, { animate: false }); const el = document.querySelector('#painel .inset'); return el ? el.textContent : ''; };
+      const dist = txt('distancias'), asym = txt('vasos');
+      r.distOk = dist == null || (/clavícula–veia/.test(dist) && !/Expiração completa|escaleno/.test(dist));
+      r.asymOk = asym == null || (/Artéria subclávia/.test(asym) && /Linfáticos/.test(asym));
+      APP.go(0, { animate: false });
+      return r;
+    }, fi);
+    check(info.texts.stepperOk, 'fixação: rótulos do stepper ≠ api.steps: ' + info.texts.stepper.join(' | '));
+    check(info.texts.cardFix === 'Relevância na fixação' && info.texts.cardPunc === 'Relevância para a punção', 'cartão: título da relevância não distingue fixação × punção');
+    check(!info.texts.introRepeat, 'fixação: inset repete a introdução do capítulo');
+    check(info.texts.distOk && info.texts.asymOk, 'insets: linhas fora do capítulo (Medidas/Assimetria)');
+  }
 
   // custo da seleção (informativo): média de APP.pick numa grade 5×4 do visor, cap. 02 e cap. 08
   info.pickMs = await page.evaluate(() => {

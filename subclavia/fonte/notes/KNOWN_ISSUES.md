@@ -30,3 +30,9 @@
   atrás e à E do esôfago.
 - `lungBaseR` estática (não acompanha a inspiração; o texto descreve o movimento).
 - Fontes 3, 4 (MSD) e 25 (ASA 2020) mantidas como leitura complementar, sem citação em capítulo.
+- Óstio VCS → AD: nos cortes coronal/sagital que passam exatamente pela junção resta um septo fino com cintilação no
+  plano da tampa plana da VCS (luz contínua; nenhum capítulo usa esse corte).
+
+## Pendência editorial (para o autor)
+- Cap. 13: o documento-base usa o termo “tarô”; o texto o interpreta como coxim/rolo de apoio sob o dorso. Confirmar o
+  significado pretendido pelo autor.

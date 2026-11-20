@@ -27,6 +27,12 @@
 (function () {
   'use strict';
   const D = window.ATLAS_DATA;
+  // metadados: o atlas passa a cobrir a fixação (capítulo 11; fontes verificadas no PubMed em 20/11/2026)
+  if (D && D.meta && !D.meta.fixacaoMeta) {
+    D.meta.fixacaoMeta = true;
+    if (D.meta.subtitle && D.meta.subtitle.indexOf('fixação') < 0) D.meta.subtitle = D.meta.subtitle.replace(/ e ultrassom$/, ', ultrassom e fixação do cateter (bailarina)');
+    if (D.meta.basedOn && D.meta.basedOn.indexOf('fixação') < 0) D.meta.basedOn = D.meta.basedOn.replace(/\.$/, '; a fixação do cateter, em 20/11/2026.');
+  }
   if (!D || !Array.isArray(D.chapters)) return;                 // data.js ausente: nada a acrescentar
   if (D.chapters.some((c) => c && c.id === 'fixacao')) return;  // carga repetida: idempotente
 
@@ -105,11 +111,16 @@
     'Disco de espuma ou almofada de gel impregnados com gliconato de clorexidina, posicionados no sítio de saída, sob o curativo.',
     'Curativos com clorexidina reduziram a infecção de corrente sanguínea relacionada ao cateter por 1.000 pacientes-dia em relação ao poliuretano padrão (Ullman et al.). Uso conforme o protocolo do serviço.');
 
+  /* Evidência da própria bailarina (drenos, laboratório): último item de 'alternatives' e também 'fixation.evidence',
+     para a interface poder imprimi-la na folha extra (que tem espaço livre) sem procurar o item pelo texto. */
+  const EVIDENCE = '<strong>Sobre a evidência da própria bailarina</strong>: vem de drenos e de testes de laboratório. Num manequim com dreno de tórax, 5 das 15 sandálias romanas feitas por médicos ficaram inseguras (Howes et al.); em parede torácica suína, a sandália romana foi mais resistente que a sutura em bolsa e menos que a técnica de Johannesburg modificada (Fricke et al.); uma revisão de escopo não identificou padrão-ouro para drenos de tórax (Wong et al.); em derivação ventricular externa, Whitney & Selden dão vários nós após cada volta (série de um cirurgião, sem grupo controle). Em laboratório veterinário, com fios, calibres e materiais diferentes dos de um cateter venoso central de adulto, padrões de <em>finger trap</em> com menos nós seguraram cateteres 5F de modo semelhante aos tradicionais (Ricker et al.), e o número de repetições não alterou o desempenho em tubo de poliuretano 18F, embora os autores recomendem ao menos 4 depois de falhas catastróficas com 2 (Earley et al.). Não localizamos, no PubMed, ensaio clínico da bailarina em cateter venoso central.';
+
   /* ---------------- Passo a passo (inset 'fixation'; k = E.state.fixStep) ---------------- */
   D.fixation = {
     title: 'Fixação em “bailarina” — passo a passo',
     intro: '“Bailarina” é o nome usado no ensino brasileiro para o entrelaçamento conhecido em inglês como <em>Roman sandal</em> (sandália romana) ou <em>Chinese finger trap</em>: um ponto de ancoragem na pele junto à saída e as duas pontas longas do mesmo fio cruzando alternadamente por baixo e por cima do cateter, com um nó a cada cruzamento — como as fitas da sapatilha amarradas no tornozelo. As distâncias e o número de cruzamentos citados são valores nominais de ensino, não medidas validadas. É uma descrição de ensino, não uma prescrição: as instruções do fabricante do cateter e o protocolo do serviço prevalecem e podem preferir fixação sem sutura.',
     sources: ALL_REFS,
+    evidence: EVIDENCE,
     step0: {
       title: 'Sem fixação',
       text: 'Cateter posicionado, vias aspiradas, lavadas e fechadas, canhão apoiado e trecho externo livre, sem tensão nem dobra. Neste momento, qualquer tração no canhão se transmite direto à ponta.'
@@ -227,9 +238,12 @@
       },
       {
         k: 9, title: 'Curativo e registro',
-        text: 'Sangue e resíduos ao redor são limpos com clorexidina alcoólica, que seca antes do curativo. Se padronizado, a esponja ou o gel com clorexidina vai no sítio de saída. O curativo transparente semipermeável cobre saída, bailarina e asas, com a data identificada. O prontuário registra o tipo de cateter, o comprimento, a marca em cm na pele e o tipo de fixação.',
-        movement: 'O filme é aplicado sem ser esticado, do centro para as bordas, e moldado ao redor do cateter e do canhão; as extensões saem pela borda.',
+        // as duas primeiras frases cabem no resumo de ~280 caracteres da folha extra (retirada do campo, limpeza, filme)
+        text: 'O campo fenestrado é retirado com cuidado, segurando o canhão para não tracionar o cateter. Sangue e resíduos ao redor são limpos com clorexidina alcoólica, que seca antes do curativo transparente semipermeável; este cobre saída, bailarina e asas e recebe a data. Se padronizado, a esponja ou o gel com clorexidina vai no sítio de saída, sob o filme. O prontuário registra o tipo de cateter, o comprimento, a marca em cm na pele e o tipo de fixação.',
+        movement: 'Com uma das mãos estabilizando o canhão, a outra solta o campo fenestrado (e a borda adesiva da fenestra, se houver) e o afasta do sítio, sem arrastá-lo sobre o cateter, a bailarina e as extensões. Depois da limpeza, com a pele seca, o filme é aplicado sem ser esticado, do centro para as bordas, e moldado ao redor do cateter e do canhão; as extensões saem pela borda.',
         cautions: [
+          'Ao retirar o campo, nada pode puxar o cateter: as extensões e os clampes são soltos do campo antes, e a marca em cm é conferida depois.',
+          'Luvas trocadas se tiverem se contaminado na retirada do campo, antes de limpar o sítio e aplicar o curativo.',
           'Antisséptico seco antes do curativo: pele úmida prejudica a aderência.',
           'O curativo deixa o sítio visível e selado, sem dobras que formem canais.',
           'O cateter não é envolvido com fita adesiva; fita não estéril não substitui o curativo estéril sobre o sítio.'
@@ -263,7 +277,7 @@
       '<strong>Grampos de pele</strong>: num ECR com 20 pacientes, a fixação foi mais rápida, mas 3 de 10 cateteres grampeados saíram acidentalmente nos três primeiros dias; os autores não os recomendaram no lugar da sutura (Vinjirayer et al.).',
       '<strong>Só asas e fixador do kit</strong>: prática comum; não localizamos estudo que a compare diretamente com a bailarina em cateter venoso central. A instrução do fabricante e o protocolo local orientam a escolha.',
       '<strong>Diretrizes</strong>: a diretriz CDC/HICPAC de 2011 (O’Grady et al.) trata de curativos e fixação de cateteres intravasculares; seu texto integral não pôde ser reacessado nesta revisão, por isso suas recomendações não são reproduzidas aqui — consulte a versão vigente.',
-      '<strong>Sobre a evidência da própria bailarina</strong>: vem de drenos e de testes de laboratório. Em parede torácica suína, a sandália romana foi mais resistente que a sutura em bolsa e menos que a técnica de Johannesburg modificada (Fricke et al.); uma revisão de escopo não identificou padrão-ouro para drenos de tórax (Wong et al.). Em laboratório veterinário, testaram-se padrões de <em>finger trap</em> em tubo de poliuretano 18F (Earley et al.) e em cateteres 5F (Ricker et al.), com fios, calibres e materiais diferentes dos de um cateter venoso central de adulto. Não localizamos, no PubMed, ensaio clínico da bailarina em cateter venoso central.'
+      EVIDENCE // evidência consolidada (antes no corpo do capítulo; retirada de lá para a folha A4 do capítulo caber)
     ],
     afterCare: [
       'Inspeção diária, através do curativo transparente: sinais flogísticos, secreção, fio frouxo ou cortando a pele, dobra, marca em cm.',
@@ -281,24 +295,26 @@
     title: 'Fixação em bailarina: ancorar sem estrangular',
     focus: 'Um ponto de ancoragem no meio do fio e duas pontas longas que trocam de lado por baixo do cateter e se cruzam por cima, com um nó a cada cruzamento: firme para não deslizar, sem deformar o cateter.',
     body: [
-      '“Bailarina” é a denominação usada no ensino brasileiro para o entrelaçamento conhecido em inglês como <em>Roman sandal</em> (sandália romana) ou <em>Chinese finger trap</em>: um ponto de ancoragem na pele, junto à saída, e as duas pontas do mesmo fio cruzando alternadamente por baixo e por cima do cateter, com um nó a cada cruzamento — como as fitas da sapatilha amarradas no tornozelo. Presa à âncora, a malha se alonga e se estreita quando o cateter é puxado para fora, e o aperta; a revisão de escopo de Wong et al. classifica esse mecanismo como “efeito Poisson”. Pela mesma mecânica, a bailarina pouco resiste ao deslizamento para dentro — papel dos pontos nas asas e do curativo.',
-      'A qualidade depende de três coisas. <strong>Distribuição do fio</strong>: o ponto de ancoragem fica de um lado do cateter, no meio do fio; a agulha é separada logo depois dele e nada mais se corta até o fim; as pontas têm comprimento semelhante; no primeiro laço, só uma ponta passa por baixo para o outro lado, e daí em diante as duas trocam de lado por baixo e se cruzam por cima, em cruzamentos regulares e próximos da saída. <strong>Tensão</strong>: progressiva e uniforme — o laço não desliza quando empurrado, mas o cateter continua redondo, sem marca, achatamento ou dobra; o nó de ancoragem aproxima sem isquemiar a pele. <strong>Movimentos</strong>: agulha presa no terço posterior, entrada perpendicular e arco por pronossupinação; nó instrumental com dupla volta e seminós alternados, apertado em sentidos opostos e paralelo à pele, com o canhão estabilizado para que nada se transmita ao sítio; contagem completa de laçadas nos nós de ancoragem e final. A marca em centímetros na pele, anotada antes e conferida depois, mostra se a fixação deslocou o cateter.',
-      'Evidência: a sandália romana foi estudada sobretudo em drenos e em laboratório. Num manequim com dreno de tórax, 5 das 15 sandálias feitas por médicos ficaram inseguras, enquanto as outras técnicas não falharam (Howes et al.); em parede torácica suína, foi mais resistente que a sutura em bolsa e menos que a técnica de Johannesburg modificada (Fricke et al.); em derivação ventricular externa, Whitney & Selden dão vários nós após cada volta (série de um cirurgião, sem grupo controle). Em testes in vitro veterinários de <em>finger trap</em>, padrões com menos nós seguraram cateteres 5F de modo semelhante aos tradicionais (Ricker et al.), e o número de repetições não alterou o desempenho em tubo 18F, embora os autores recomendem ao menos 4 depois de falhas catastróficas com 2 (Earley et al.). Não localizamos ensaio clínico da bailarina em cateter venoso central. Em cateteres centrais, a revisão Cochrane de Ullman et al. (22 ECR) classificou os dispositivos sem sutura como provavelmente os mais eficazes contra infecção de corrente sanguínea — evidência de baixa qualidade, apoiada num único ECR dessa comparação; num ECR com PICC, houve 10 infecções de corrente sanguínea com sutura e 2 com dispositivo sem sutura (Yamamoto et al.).',
-      'O ponto é uma ferida e uma porta de entrada, e suturar expõe o operador a acidente perfurocortante — por isso a agulha sai de cena logo após a ancoragem. Há grupos que defendem evitar suturas e usar ancoragem subcutânea (Tomeo et al.), e as instruções do fabricante do cateter e o protocolo do serviço prevalecem sobre a técnica aqui descrita. Quando a bailarina é a opção, ela se faz com o mesmo rigor estéril da inserção e é conferida antes do uso: todas as vias aspiram e lavam, não há dobra e uma tração suave não desloca o cateter. Se a imagem de controle, feita depois, pedir recuo, a fixação é desfeita e refeita.'
+      '“Bailarina” é a denominação usada no ensino brasileiro para o entrelaçamento conhecido em inglês como <em>Roman sandal</em> (sandália romana) ou <em>Chinese finger trap</em>: as duas pontas do mesmo fio cruzam o cateter como as fitas da sapatilha amarradas no tornozelo. Presa à âncora junto à saída, a malha se alonga e se estreita quando o cateter é puxado para fora, e o aperta (“efeito Poisson”, na revisão de Wong et al.). Pela mesma mecânica, a bailarina pouco resiste ao deslizamento para dentro — papel dos pontos nas asas e do curativo.',
+      // a sequência dos laços e o nó instrumental estão nos pontos-chave (sem repetição na folha impressa)
+      'A qualidade depende de três coisas. <strong>Distribuição do fio</strong>: âncora no meio do fio, pontas de comprimento semelhante e nada cortado até o fim além da agulha; cruzamentos regulares e próximos da saída. <strong>Tensão</strong>: progressiva e uniforme — o laço não desliza quando empurrado, mas o cateter continua redondo, sem marca, achatamento ou dobra; o nó de ancoragem aproxima sem isquemiar a pele. <strong>Movimentos</strong>: agulha presa no terço posterior, entrada perpendicular e arco por pronossupinação; nós apertados em sentidos opostos, paralelos à pele, com o canhão estabilizado. A marca em centímetros na pele, anotada antes e conferida depois, mostra se a fixação deslocou o cateter.',
+      // folha A4 do capítulo: a evidência detalhada (drenos, laboratório, Cochrane) e os riscos da sutura ficam no
+      // passo a passo — 'alternatives' (item “Sobre a evidência…”) e 'complications' —, não repetidos aqui
+      'A bailarina se faz com o rigor estéril da inserção e é conferida antes do uso; se a imagem de controle, feita depois, pedir recuo, ela é desfeita e refeita. A evidência vem de drenos e de testes de laboratório — não localizamos ensaio clínico em cateter venoso central —, e as instruções do fabricante e o protocolo do serviço prevalecem sobre esta descrição, podendo preferir dispositivo adesivo sem sutura ou ancoragem subcutânea (estudos e números em “Alternativas à sutura”, no passo a passo).'
     ],
     keyPoints: [
-      'Ponto de ancoragem de um lado do cateter, no meio do fio: duas pontas longas e de comprimento semelhante; a agulha é descartada logo após o ponto, e nada mais se corta até o nó final.',
-      '1º laço: uma ponta passa por baixo para o outro lado e as duas se amarram por cima. Depois, a cada cruzamento, as duas trocam de lado por baixo, cruzam por cima e recebem nó — regular, próximo da saída, firme sem achatar.',
-      'Nó instrumental (dupla volta + seminós alternados), apertado em sentidos opostos e paralelo à pele, com o canhão estabilizado; contagem completa de laçadas nos nós de ancoragem e final.',
+      'Ancoragem de um lado do cateter, no meio do fio: duas pontas longas e de comprimento semelhante; agulha descartada logo após o ponto; nada mais se corta até o nó final.',
+      '1º laço: uma ponta passa por baixo para o outro lado e as duas se amarram por cima; depois, a cada cruzamento, as duas trocam de lado por baixo, cruzam por cima e recebem nó — firme, sem achatar.',
+      'Nó instrumental (dupla volta + seminós alternados), canhão estabilizado; laçadas completas nos nós de ancoragem e final.',
       'Conferir: marca em cm inalterada, todas as vias aspiram e lavam, sem dobra, tração suave não desloca; depois, pontos nas asas (segundo fio) e curativo transparente.',
-      'A bailarina foi concebida para segurar contra a tração para fora; a evidência vem de drenos e de testes in vitro, e dispositivos sem sutura e ancoragem subcutânea são alternativas estudadas.'
+      'A bailarina segura contra a tração para fora; a evidência vem de drenos e de testes in vitro; há alternativas sem sutura.'
     ],
     pitfalls: [
       'Cortar as pontas após a ancoragem ou deixá-las desiguais (falta fio para a malha); fazer os cruzamentos com a agulha ainda presa ao fio.',
       'Laço frouxo (desliza e o cateter migra) ou apertado demais (achata, oclui ou lesa o cateter).',
       'Nó que isquemia a pele, fio sobre o orifício de saída, ou pele, extensões e clampes laçados junto.'
     ],
-    detail: 'A sequência 3D é esquemática: o fio está engrossado para leitura, as laçadas de cada nó estão resumidas e não se simulam atrito, tensão nem deformação de pele e cateter; o espaçamento e o número de cruzamentos (três) são nominais. O trecho externo do cateter é curto, fica alguns milímetros acima da pele e a forma do canhão e das asas varia entre kits. Como a pele do modelo não se deforma, a agulha (1/2 círculo, cortante, ~2 cm) entra a ~55° — na prática, a contrapressão com a pinça everte a borda e a ponta entra perpendicular. A pinça de Adson e o dedo enluvado sobre o canhão são esquemáticos (mãos não modeladas). O campo estéril foi omitido para não encobrir as asas — na prática, a fixação é feita com o campo mantido e ele só é retirado para o curativo. A animação completa dura cerca de 1 min (cada etapa no ritmo do gesto); os botões numerados saltam direto para cada etapa.',
+    detail: 'A sequência 3D é esquemática: o fio está engrossado para leitura, as laçadas de cada nó estão resumidas e não se simulam atrito, tensão nem deformação de pele e cateter; o espaçamento e o número de cruzamentos (três) são nominais. O trecho externo do cateter é curto, fica alguns milímetros acima da pele e a forma do canhão e das asas varia entre kits. Como a pele do modelo não se deforma, a agulha (1/2 círculo, cortante, ~2 cm) entra a cerca de 60° com a pele — na prática, a contrapressão com a pinça everte a borda e a ponta entra perpendicular. A pinça de Adson e o dedo enluvado sobre o canhão são esquemáticos (mãos não modeladas). Na cena, o campo estéril fica desligado para não encobrir as asas (se for ligado, a interface o retira na etapa 9) — na prática, a fixação é feita com o campo mantido, com a fenestra expondo a saída e as asas, e ele só é retirado para o curativo. A animação completa dura cerca de 1 min (cada etapa no ritmo do gesto); os botões numerados saltam direto para cada etapa.',
     sources: ALL_REFS.slice(),
     quiz: {
       q: 'Ao conferir uma bailarina recém-feita, qual achado indica fio apertado demais e exige refazer o laço?',

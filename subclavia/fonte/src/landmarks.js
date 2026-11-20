@@ -247,8 +247,10 @@
   LM.vessels = {
     // Veia axilar → subclávia direita → ângulo venoso (atrás da articulação esternoclavicular)
     // (onda 3: trecho distal ~0,3–0,45 cm medial — veia MEDIAL/anterior à 3ª parte da artéria, com espaço para a raiz
-    //  medial do mediano cruzar a face anterior da artéria entre as duas)
-    axillaryV: { pts: [[14.35, -7.2, -2.65], [13.35, -4.4, -2.05], [12.4, -2.0, -1.45], [10.4, -0.8, -0.75], [8.2, -0.05, -0.55], [6.6, 0.32, -0.5]], r: [0.55, 0.6, 0.62, 0.64, 0.65, 0.66] },
+    //  medial do mediano cruzar a face anterior da artéria entre as duas; onda 4: na janela infraclavicular x 9,5–13 a veia
+    //  fica caudal à artéria — artéria ~0,45 cm cranial perto do meio da clavícula e >1 cm em x≈13: a sobreposição na
+    //  projeção anterior diminui lateralmente, como no ultrassom (Galloway & Bodenham))
+    axillaryV: { pts: [[14.2, -7.3, -2.6], [13.0, -4.65, -2.0], [11.8, -2.95, -1.3], [10.2, -1.32, -0.68], [8.2, -0.05, -0.55], [6.6, 0.32, -0.5]], r: [0.55, 0.6, 0.62, 0.64, 0.65, 0.66] },
     scv: { pts: [[6.6, 0.32, -0.5], [5.6, 0.45, -0.62], [4.6, 0.45, -0.95], [3.65, 0.38, -1.55], [2.95, 0.3, -2.15]], r: [0.66, 0.67, 0.68, 0.7, 0.72],
       note: 'Começa na borda lateral da 1ª costela (x≈6.6); termina atrás da articulação esternoclavicular unindo-se à VJI.' },
     venousAngleR: [2.95, 0.3, -2.15],
@@ -273,7 +275,7 @@
     // Jugular externa direita: superficial ao ECM, cruza-o obliquamente; drena na veia subclávia lateral ao escaleno anterior.
     ejvR: { pts: [[5.0, 11.0, -0.45], [5.35, 7.5, -0.7], [5.95, 4.5, -0.6], [6.35, 2.6, -0.65], [6.25, 1.3, -0.62], [6.0, 0.75, -0.55]], r: [0.22, 0.24, 0.26, 0.27, 0.28, 0.28] },
     // Cefálica direita: sulco deltopeitoral → perfura a fáscia clavipeitoral → veia axilar logo abaixo da clavícula.
-    cephalicR: { pts: [[16.6, -9.0, 0.55], [15.3, -5.0, 0.85], [14.3, -2.2, 0.7], [13.4, -0.85, 0.55], [12.4, -0.2, 0.35], [11.9, -0.55, -0.25], [11.4, -0.85, -0.7]], r: [0.25, 0.27, 0.28, 0.28, 0.29, 0.3, 0.32] },
+    cephalicR: { pts: [[16.6, -9.0, 0.55], [15.3, -5.0, 0.85], [14.3, -2.2, 0.7], [13.4, -0.85, 0.55], [12.4, -0.2, 0.35], [11.8, -1.15, -0.32], [11.25, -1.85, -0.78]], r: [0.25, 0.27, 0.28, 0.28, 0.29, 0.3, 0.32] }, // (onda 4: termina na veia axilar rebaixada)
     // Vertebral direita: da face superior da 1ª parte da subclávia ao forame transverso de C6
     vertebralAR: { pts: [[3.2, 1.75, -3.5], [3.0, 2.9, -4.3], [2.35, 4.5, -5.35], [1.7, 6.0, -6.15], [1.32, 6.8, -6.46], [1.36, 9.6, -5.8], [1.34, 11.0, -5.5]], r: 0.2 },
     // Torácica interna direita: da face inferior da 1ª parte, desce atrás das cartilagens, ~1–1,5 cm da borda esternal

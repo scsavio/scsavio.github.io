@@ -132,8 +132,9 @@ ATLAS.define('muscles', function (ctx) {
     const qx = (p.x - c[0]) / ax, qy = (p.y - c[1]) / ay, qz = (p.z - c[2]) / az, L = Math.hypot(qx, qy, qz);
     if (L < 1 && L > 1e-6) p.set(c[0] + qx / L * ax, c[1] + qy / L * ay, c[2] + qz / L * az);
   };
-  /** tubo de secção elíptica (quadros F); extra = folga adicional fixa */
-  function obTube(F, extra = 0) {
+  /** tubo de secção elíptica (quadros F); extra = folga adicional fixa; exact = raio da SUPERELIPSE exato na direção
+   *  (sem a margem ×1,05 que cobre a secção superelíptica em todas as direções) — para contatos justos de inserção */
+  function obTube(F, extra = 0, exact = false) {
     const S = F.S, lo = new Vec(1e9, 1e9, 1e9), hi = new Vec(-1e9, -1e9, -1e9);
     let rmax = 0;
     for (const s of S) { lo.min(s.c); hi.max(s.c); rmax = Math.max(rmax, s.rx, s.ry); }
@@ -154,7 +155,8 @@ ATLAS.define('muscles', function (ctx) {
       const a = dx * s.N.x + dy * s.N.y + dz * s.N.z, b = dx * s.B.x + dy * s.B.y + dz * s.B.z, L = Math.hypot(a, b);
       if (L < 1e-6) return;
       const ca = a / L, sb = b / L, m = F.rfn ? F.rfn(s.t, Math.atan2(sb, ca)) : 1;
-      const rdir = m * boost / Math.sqrt((ca / s.rx) ** 2 + (sb / s.ry) ** 2), need = rdir + d + extra;
+      const e = F.exp, rdir = exact && e > 2.05 ? m * Math.pow(Math.abs(ca / s.rx) ** e + Math.abs(sb / s.ry) ** e, -1 / e)
+        : m * boost / Math.sqrt((ca / s.rx) ** 2 + (sb / s.ry) ** 2), need = rdir + d + extra;
       if (L >= need) return;
       const k = need / L;
       p.set(s.c.x + s.T.x * along + (s.N.x * a + s.B.x * b) * k, s.c.y + s.T.y * along + (s.N.y * a + s.B.y * b) * k, s.c.z + s.T.z * along + (s.N.z * a + s.B.z * b) * k);
@@ -228,6 +230,7 @@ ATLAS.define('muscles', function (ctx) {
   const spineF = frames(LM.scapulaGeom().spinePts, { up: [0, 0.6, -0.8], rx: [0.42, 0.75, 0.85, 0.7, 0.55], ry: [0.25, 0.32, 0.36, 0.4, 0.45], step: 0.15 });
   const humF = frames([[17.0, -2.6, -3.7], Hm.surgicalNeck, [17.6, -9.0, -3.7], Hm.shaftEnd], { rx: [1.75, 1.3, 1.12, 1.05], ry: [1.75, 1.3, 1.12, 1.05], step: 0.2 });
   const obClav = obTube(clavF), obAcrom = obTube(acromF), obCorac = obTube(coracF), obSpine = obTube(spineF), obHum = obTube(humF);
+  const obClavX = obTube(clavF, 0, true); // secção superelíptica exata (contatos justos de inserção)
   const obClavEnd = obEllipsoid([2.75, 0.62, -0.4], [0.62, 1.0, 0.92]);
   const obConoid = obEllipsoid(K.conoidTubercle, [0.45, 0.3, 0.4]);
   const obHead = obSphere(Hm.headCenter, Hm.headR * 1.02);
@@ -695,6 +698,47 @@ ATLAS.define('muscles', function (ctx) {
     if (s) return obTube(frames(/-L$/.test(id) ? s.pts.map((q) => [-q[0], q[1], q[2]]) : s.pts, { rx: s.r, ry: s.r, step: 0.2 }), extra);
     return pts ? obTube(frames(pts, { rx: r, ry: r, step: 0.2 }), extra) : () => {};
   }
+  /**
+   * Obstáculo a partir da MALHA REAL de ossos já construídos pelo esqueleto (ids, lado direito): projeta p para fora,
+   * até d cm da superfície, pelo ponto mais próximo (grade de triângulos); dentro/fora pelo sinal da normal da face
+   * mais próxima (malhas fechadas, faces para fora). Usado para assentar as extremidades de inserção (tendões,
+   * ligamento) SOBRE o osso: as réplicas analíticas da 1ª costela/cartilagem não têm os sulcos, a crista do tubérculo
+   * do escaleno nem a secção atual da 1ª cartilagem. Uma grade POR MALHA (costela e cartilagem se sobrepõem na
+   * junção costocondral: com uma grade única a face mais próxima podia ser a tampa da outra malha, dentro do osso),
+   * aplicadas em sequência (2 voltas). Sem as malhas (módulo isolado): obstáculo nulo.
+   */
+  function boneMeshOb(ids) {
+    const bones = layers.bones; if (!bones) return () => {};
+    bones.updateWorldMatrix(true, true);
+    const inv = new THREE.Matrix4().copy(bones.matrixWorld).invert(), M = new THREE.Matrix4();
+    const a = new Vec(), b = new Vec(), c = new Vec(), cp = new Vec(), best = new Vec();
+    const cell = 0.35, R = 0.6, key = (i, j, k) => ((i + 400) * 800 + (j + 400)) * 800 + (k + 400);
+    const obs = [];
+    bones.traverse((o) => {
+      if (!o.isMesh || !o.userData.info || !ids.includes(o.userData.info.id)) return;
+      M.multiplyMatrices(inv, o.matrixWorld);
+      const p = o.geometry.attributes.position, ix = o.geometry.index, n = ix ? ix.count : p.count, grid = new Map();
+      for (let k = 0; k < n; k += 3) {
+        a.fromBufferAttribute(p, ix ? ix.getX(k) : k).applyMatrix4(M); b.fromBufferAttribute(p, ix ? ix.getX(k + 1) : k + 1).applyMatrix4(M); c.fromBufferAttribute(p, ix ? ix.getX(k + 2) : k + 2).applyMatrix4(M);
+        const nn = new Vec().subVectors(b, a).cross(new Vec().subVectors(c, a)); if (nn.lengthSq() < 1e-14) continue;
+        const q = { t: new THREE.Triangle(a.clone(), b.clone(), c.clone()), n: nn.normalize() };
+        const lo = new Vec().copy(a).min(b).min(c).subScalar(R), hi = new Vec().copy(a).max(b).max(c).addScalar(R);
+        for (let i = Math.floor(lo.x / cell); i <= Math.floor(hi.x / cell); i++) for (let j = Math.floor(lo.y / cell); j <= Math.floor(hi.y / cell); j++)
+          for (let kk = Math.floor(lo.z / cell); kk <= Math.floor(hi.z / cell); kk++) { const g = key(i, j, kk); let l = grid.get(g); if (!l) grid.set(g, (l = [])); l.push(q); }
+      }
+      obs.push((pt, d) => {
+        const l = grid.get(key(Math.floor(pt.x / cell), Math.floor(pt.y / cell), Math.floor(pt.z / cell))); if (!l) return;
+        let bd = Infinity, bq = null;
+        for (const q of l) { q.t.closestPointToPoint(pt, cp); const dd = cp.distanceToSquared(pt); if (dd < bd) { bd = dd; bq = q; best.copy(cp); } }
+        if (!bq) return;
+        const sd = (pt.x - best.x) * bq.n.x + (pt.y - best.y) * bq.n.y + (pt.z - best.z) * bq.n.z; // > 0: fora
+        if (sd < d) pt.copy(best).addScaledVector(bq.n, d); // dentro (ou mais perto que d): ponto mais próximo + d na normal
+      });
+    });
+    if (!obs.length) return () => {};
+    return (pt, d) => { for (let r = 0; r < 2; r++) for (const ob of obs) ob(pt, d); };
+  }
+  const obRib1M = boneMeshOb(['rib-1-R', 'costal-cartilage-1-R']), obManuM = boneMeshOb(['manubrium']);
   /** varredura (C.sweepGeometry) + cores por vértice; colFn(t, w, x,y,z) → {base, k, j?}; w = rampa de RW cm em t */
   function sweep(pts, o, colFn, seed = 0) {
     o = Object.assign({}, o, { vScale: o.vScale ? o.vScale * 2.6 : 10 });
@@ -733,6 +777,10 @@ ATLAS.define('muscles', function (ctx) {
   {
     const g = C.sweepGeometry([[3.22, -1.32, -0.42], [3.33, -0.75, -0.36], [3.47, -0.15, -0.3], [3.6, 0.32, -0.24]],
       { up: [0.15, 0, 1], rx: [[0, 0.52], [0.5, 0.44], [1, 0.5]], ry: [[0, 0.3], [0.5, 0.24], [1, 0.3]], radial: 18, segments: 10, caps: 'round', vScale: 1.5 });
+    // extremidades ASSENTADAS na impressão costoclavicular (face inferior da clavícula) e na junção 1ª costela/cartilagem:
+    // as tampas entravam até ~0,38 cm na clavícula e ~0,29 cm na cartilagem (nos cortes parassagitais x 3,2–3,9 a secção
+    // do ligamento aparecia como anel pálido com o osso visto "por dentro"). Folga 0,015 cm: contato visual mantido.
+    deformSoft(g, (p) => { obClavX(p, 0.015); obClavEnd(p, 0.015); obRib1M(p, 0.015); obManuM(p, 0.015); }, { passes: 1, smooth: 2, tol: 0.003 });
     addR(g, LIG, G({ id: 'costoclavicular-lig-R', name: 'Ligamento costoclavicular direito',
       desc: 'Une a 1ª costela/cartilagem à face inferior da extremidade esternal da clavícula; limita a elevação da clavícula. A veia subclávia passa imediatamente posterolateral a ele.' }));
     anchors.costoclavLigR = [3.42, -0.45, 0.12];
@@ -871,6 +919,14 @@ ATLAS.define('muscles', function (ctx) {
     const clT = C.profile([[0, 0.2], [0.15, 0.27], [0.45, 0.36], [1, 0.34]]);
     const g2 = sweep(clPts, { up: (t) => upFn(t * 0.5 + 0.05), rx: clW, ry: clT, radial: 26, density: 6, caps: 'round', vScale: 4 },
       (t, w) => ({ base: COL.mus, k: 0.35 * (1 - ramp(t, 0.03, w)) }), 43);
+    // origem assentada SOBRE a face superior da clavícula (antes: tampa da varredura enterrada até ~0,35 cm no osso,
+    // bolsão vermelho na secção da clavícula no corte parassagital do cap. 08, x 3,4–5,5). Deformação macia contra a
+    // clavícula (secção superelíptica EXATA do esqueleto, folga 0,015 cm) só na porção de origem: a tampa se achata
+    // sobre o osso e o contato visual da inserção é mantido (folga medida 0,012–0,025 cm em toda a largura, x 3,3–5,5;
+    // sem a fenda escura que a margem ×1,05 do obstáculo genérico deixava ver no corte ampliado). Uma única passada de
+    // espalhamento: com mais passadas a margem lateral da tampa subia junto e abria um vão de ~0,08 cm. O ventre acima
+    // de y ≈ 3,2 fica intacto.
+    deformSoft(g2, (p) => { obClavX(p, 0.015); obClavEnd(p, 0.015); }, { weight: (p) => 1 - sm(2.5, 3.2, p.y), passes: 1, smooth: 2, tol: 0.003 });
     addR(g2, MUS, Object.assign({}, info, { name: info.name + ' — cabeça clavicular' }));
     // ventre comum (envolve as extremidades superiores das duas cabeças); corte plano em y = 11
     const bPts = [[3.32, 4.1, -0.05], [3.6, 5.6, -0.34], [4.12, 7.7, -0.78], [4.62, 9.6, -1.18], [4.88, 10.45, -1.36], [4.9, 11.0, -1.38]];
